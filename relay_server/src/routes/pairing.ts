@@ -168,6 +168,12 @@ pairingRouter.get('/:pairingId', requirePairingMembership, (req, res) => {
     role: m.role,
     joinedAt: m.joined_at,
     keyFingerprint: deriveKeyFingerprint(m.public_key),
+    // Raw public key, needed by a sender to actually encrypt a config-push
+    // payload for this member (the fingerprint alone only lets a client
+    // verify a key it already has via TOFU, it can't derive the key from
+    // it). Public keys are not secret by definition - exposing them to
+    // fellow pairing members is safe.
+    publicKey: m.public_key,
   }));
 
   res.json({ pairing, members });
