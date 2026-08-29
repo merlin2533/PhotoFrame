@@ -81,6 +81,7 @@ class PairingMemberInfo {
     required this.role,
     required this.joinedAt,
     required this.keyFingerprint,
+    this.publicKey,
   });
 
   final String frameId;
@@ -93,6 +94,17 @@ class PairingMemberInfo {
   /// features/pairing/domain/key_fingerprint.dart). `null` if that frame
   /// has no public_key yet.
   final String? keyFingerprint;
+
+  /// The member frame's raw base64 public key, if the server response
+  /// includes one. NOTE: the current relay_server `GET /pairing/:id`
+  /// implementation only sends [keyFingerprint] (a one-way derivation),
+  /// not the raw key - see the doc comment on
+  /// `features/pairing/domain/pairing_models.dart`'s `PairingMember.publicKey`
+  /// for why that's a required server-side follow-up, not a bug here. This
+  /// field parses a `publicKey` property defensively so the client is
+  /// ready the moment the server adds it, without another client-side
+  /// change.
+  final String? publicKey;
 
   bool get isOwner => role == 'owner';
 }
@@ -408,6 +420,7 @@ class RelayApiClient {
                 role: m['role'] as String,
                 joinedAt: DateTime.parse(m['joinedAt'] as String),
                 keyFingerprint: m['keyFingerprint'] as String?,
+                publicKey: m['publicKey'] as String?,
               ))
           .toList();
       return PairingDetails(
