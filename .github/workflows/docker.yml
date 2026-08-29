@@ -1,0 +1,39 @@
+name: docker build probe
+
+# Multi-Arch-Build-Probe (amd64 + arm64) für relay_server/Dockerfile.
+# Zweck: sicherstellen, dass das Image auch für arm64 (z.B. Raspberry Pi/NAS,
+# siehe docs/PLAN.md "Docker-Packaging") baubar bleibt. Dies ist eine reine
+# Build-Probe (kein Push zu einer Registry) - `--push`/Registry-Login würden
+# erst mit einem Release-Prozess ergänzt.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "relay_server/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "relay_server/**"
+      - ".github/workflows/docker.yml"
+
+jobs:
+  build-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build multi-arch image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: relay_server
+          file: relay_server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: photoframe-relay:ci-probe

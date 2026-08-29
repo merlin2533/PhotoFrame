@@ -1,0 +1,51 @@
+name: mobile_app CI
+
+# Gerüst für die Flutter-App unter /mobile_app.
+#
+# HINWEIS (angelegt in einer Sandbox-Session ohne Flutter-SDK): Dieser Workflow
+# wurde in dieser Session NICHT real gegen einen Runner ausgeführt/verifiziert
+# (kein `flutter`-Binary in dieser Sandbox verfügbar, siehe docs/PLAN.md,
+# Abschnitt "Verifikation"). Die Schritte folgen dem Standard-Setup der
+# offiziellen `subosito/flutter-action` und sollten beim ersten echten CI-Lauf
+# auf GitHub Actions gegengeprüft werden (u.a. Flutter-Version, ggf. Caching).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile_app/**"
+      - ".github/workflows/mobile_app.yml"
+  pull_request:
+    paths:
+      - "mobile_app/**"
+      - ".github/workflows/mobile_app.yml"
+
+defaults:
+  run:
+    working-directory: mobile_app
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO: Flutter-Version an mobile_app/pubspec.yaml (environment.sdk) anpassen,
+      # sobald diese final feststeht.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
