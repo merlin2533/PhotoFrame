@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/result.dart';
 import '../../../services/relay/relay_api_client.dart';
 import '../../../services/relay/relay_token_storage.dart';
+import '../domain/frame_keypair.dart';
 
 /// First screen of the relay pairing flow: lets the user enter/confirm the
-/// relay server's URL and creates a user account/session on it.
+/// relay server's URL, creates a user account/session on it, and then
+/// registers this device as a `Frame` with a real end-to-end-encryption
+/// keypair (see [FrameKeypairStore]) so that "Frame-Fernkonfiguration"
+/// config-pushes can later be encrypted to it.
 ///
 /// Per the task brief this happens "auto on first start" where possible:
 /// if no account exists yet for this relay, [_submit] transparently falls
@@ -16,22 +20,29 @@ import '../../../services/relay/relay_token_storage.dart';
 /// multi-device case (the phone joining an account that already owns
 /// frames on the relay).
 class RelayServerSetupScreen extends StatefulWidget {
-  const RelayServerSetupScreen({
+  RelayServerSetupScreen({
     super.key,
     required this.tokenStorage,
     required this.onConnected,
     this.buildApiClient,
-  });
+    FrameKeypairStore? keypairStore,
+  }) : keypairStore = keypairStore ?? FrameKeypairStore();
 
   final RelayTokenStorage tokenStorage;
 
-  /// Called once a session has been established, with the ready-to-use
+  /// Called once a session has been established AND this device has been
+  /// registered as a frame with a real public key, with the ready-to-use
   /// client so the caller (typically a router redirect) can proceed to the
   /// pairing screen.
   final void Function(RelayApiClient client) onConnected;
 
   /// Overridable for tests; defaults to constructing a real [RelayApiClient].
   final RelayApiClient Function(String baseUrl, RelayTokenStorage storage)? buildApiClient;
+
+  /// Source of this device's E2E keypair for frame registration. Overridable
+  /// for tests; defaults to a real [FrameKeypairStore] backed by
+  /// `flutter_secure_storage`.
+  final FrameKeypairStore keypairStore;
 
   @override
   State<RelayServerSetupScreen> createState() => _RelayServerSetupScreenState();
@@ -86,10 +97,39 @@ class _RelayServerSetupScreenState extends State<RelayServerSetupScreen> {
 
     if (!mounted) return;
 
-    result.when(
-      onOk: (_) => widget.onConnected(client),
-      onErr: (failure) => setState(() => _error = failure.message),
-    );
+    if (result.isErr) {
+      setState(() {
+        _error = result.failureOrNull!.message;
+        _submitting = false;
+      });
+      return;
+    }
+
+    // Account/session established - now make sure this device has a real
+    // Frame identity with a genuine E2E keypair (see FrameKeypairStore doc
+    // comment) rather than sending no public key at all. Skipped if this
+    // device already registered a frame in a previous run (e.g. app
+    // restart re-entering this screen because the user session, but not
+    // the device session, needed refreshing).
+    if (!await widget.tokenStorage.hasDeviceSession) {
+      final publicKey = await widget.keypairStore.ensurePublicKeyBase64();
+      final frameResult = await client.registerFrame(
+        displayName: _usernameController.text.trim().isEmpty
+            ? 'PhotoFrame'
+            : _usernameController.text.trim(),
+        publicKey: publicKey,
+      );
+      if (!mounted) return;
+      if (frameResult.isErr) {
+        setState(() {
+          _error = frameResult.failureOrNull!.message;
+          _submitting = false;
+        });
+        return;
+      }
+    }
+
+    widget.onConnected(client);
     setState(() => _submitting = false);
   }
 

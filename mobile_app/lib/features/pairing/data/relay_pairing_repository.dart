@@ -1,20 +1,27 @@
+import '../../../core/errors/failure.dart';
 import '../../../core/utils/result.dart';
 import '../../../services/relay/relay_api_client.dart';
+import '../domain/config_push_crypto.dart';
+import '../domain/frame_keypair.dart';
 import '../domain/key_fingerprint.dart';
 import '../domain/pairing_models.dart';
 import '../domain/pairing_repository.dart';
 
-/// [PairingRepository] implementation backed by [RelayApiClient] (HTTP) and
-/// [KeyFingerprintStore] (local TOFU state).
+/// [PairingRepository] implementation backed by [RelayApiClient] (HTTP),
+/// [KeyFingerprintStore] (local TOFU state) and [ConfigPushCrypto]
+/// (end-to-end encryption for the config-push payload).
 class RelayPairingRepository implements PairingRepository {
   RelayPairingRepository({
     required RelayApiClient apiClient,
     required KeyFingerprintStore fingerprintStore,
+    ConfigPushCrypto? crypto,
   })  : _api = apiClient,
-        _fingerprints = fingerprintStore;
+        _fingerprints = fingerprintStore,
+        _crypto = crypto ?? ConfigPushCrypto(keypairStore: FrameKeypairStore());
 
   final RelayApiClient _api;
   final KeyFingerprintStore _fingerprints;
+  final ConfigPushCrypto _crypto;
 
   @override
   Future<Result<PairingInvite>> createInvite({String? pairingName, String? existingPairingId}) async {
@@ -110,6 +117,7 @@ class RelayPairingRepository implements PairingRepository {
                     role: pairingRoleFromWire(m.role),
                     joinedAt: m.joinedAt,
                     keyFingerprint: m.keyFingerprint,
+                    publicKey: m.publicKey,
                   ))
               .toList(),
         ));
@@ -130,6 +138,33 @@ class RelayPairingRepository implements PairingRepository {
   @override
   Future<Result<String>> sendConfigPush({required String targetFrameId, required String ciphertext}) =>
       _api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: ciphertext);
+
+  @override
+  Future<Result<String>> sendEncryptedConfigPush({
+    required String pairingId,
+    required String targetFrameId,
+    required String plaintextJson,
+  }) async {
+    final pairingResult = await getPairing(pairingId);
+    if (pairingResult.isErr) return Result.err(pairingResult.failureOrNull!);
+
+    final target = pairingResult.valueOrNull!.memberById(targetFrameId);
+    final publicKey = target?.publicKey;
+    if (publicKey == null) {
+      return Result.err(Unsupported(
+        'No public key on file for frame $targetFrameId - the relay server '
+        'must expose PairingMember.publicKey from GET /pairing/:id before a '
+        'config-push can be encrypted to it (see PairingMember.publicKey doc '
+        'comment).',
+      ));
+    }
+
+    final ciphertext = await _crypto.encryptForRecipient(
+      recipientPublicKeyBase64: publicKey,
+      plaintextJson: plaintextJson,
+    );
+    return sendConfigPush(targetFrameId: targetFrameId, ciphertext: ciphertext);
+  }
 
   @override
   Future<Result<List<PendingConfigPush>>> pendingConfigPushes({

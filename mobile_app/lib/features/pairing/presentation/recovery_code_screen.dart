@@ -1,26 +1,30 @@
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import '../../../services/relay/relay_api_client.dart';
+import '../domain/frame_keypair.dart';
 
 /// Lets the user recover a lost/reset frame device by rebinding its
 /// `frameId` to a freshly generated keypair on this device
 /// (`POST /frames/:frameId/recover`, see relay_server/src/auth/recovery.ts).
 ///
-/// Keypair generation itself is a placeholder here: a real implementation
-/// needs an actual asymmetric keypair (e.g. X25519 via `package:cryptography`,
-/// already a project dependency for exactly this purpose) with the private
-/// key persisted in `flutter_secure_storage` and never sent to the relay.
-/// That crypto wiring is intentionally out of scope for this pass - see
-/// [_generatePlaceholderPublicKey] - so this screen focuses on the
-/// recovery *flow* (calling the endpoint, handling `fp`, prompting the
-/// user to re-share their fingerprint) rather than the key material.
+/// Keypair generation goes through [FrameKeypairStore.rotateKeypair]: this
+/// device gets a brand-new X25519 keypair (private key persisted only in
+/// `flutter_secure_storage`, never sent to the relay), and only the public
+/// key is submitted with the recovery request. The old keypair (if any -
+/// e.g. this really is a reset device that lost its original private key)
+/// is unconditionally overwritten, matching the server's own behaviour of
+/// discarding any `config_pushes` that were encrypted for the previous
+/// key.
 class RecoveryCodeScreen extends StatefulWidget {
-  const RecoveryCodeScreen({super.key, required this.apiClient, required this.onRecovered});
+  RecoveryCodeScreen({
+    super.key,
+    required this.apiClient,
+    required this.onRecovered,
+    FrameKeypairStore? keypairStore,
+  }) : keypairStore = keypairStore ?? FrameKeypairStore();
 
   final RelayApiClient apiClient;
+  final FrameKeypairStore keypairStore;
 
   /// Called with the recovered frame's new `deviceToken` and (if
   /// available) its new fingerprint once recovery succeeds.
@@ -42,17 +46,6 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
     super.dispose();
   }
 
-  /// TODO(crypto): replace with a real keypair generated via
-  /// `package:cryptography` (e.g. `X25519()..newKeyPair()`), persisting the
-  /// private key in secure storage. This placeholder only produces
-  /// something long/unique enough to satisfy the server's `minLength: 16`
-  /// validation so the recovery *flow* can be exercised end-to-end.
-  String _generatePlaceholderPublicKey() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
-    return base64UrlEncode(bytes);
-  }
-
   Future<void> _recover() async {
     final frameId = _frameIdController.text.trim();
     if (frameId.isEmpty) {
@@ -65,7 +58,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
       _error = null;
     });
 
-    final newPublicKey = _generatePlaceholderPublicKey();
+    final newPublicKey = await widget.keypairStore.rotateKeypair();
     final result = await widget.apiClient.recoverFrame(frameId: frameId, newPublicKey: newPublicKey);
 
     if (!mounted) return;
