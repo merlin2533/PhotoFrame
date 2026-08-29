@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PhotoFrame Relay Admin</title>
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header>
+    <h1>PhotoFrame Relay Admin</h1>
+    <button id="logout">Log out</button>
+  </header>
+
+  <section>
+    <h2>Registration</h2>
+    <label><input type="checkbox" id="registration-toggle" /> Registration enabled</label>
+  </section>
+
+  <section>
+    <h2>Users</h2>
+    <table id="users-table"><thead><tr><th>ID</th><th>Username</th><th>Storage used</th><th>Created</th><th></th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>Frames</h2>
+    <table id="frames-table"><thead><tr><th>ID</th><th>User ID</th><th>Name</th><th>Last seen</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>Pairings</h2>
+    <table id="pairings-table"><thead><tr><th>ID</th><th>Name</th><th>Created</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section>
+    <h2>Reports</h2>
+    <table id="reports-table"><thead><tr><th>ID</th><th>Image ID</th><th>Reason</th><th>Created</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <script src="admin.js"></script>
+  <script>
+    (async function init() {
+      const token = localStorage.getItem('pf_admin_token');
+      if (!token) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      document.getElementById('logout').addEventListener('click', () => {
+        localStorage.removeItem('pf_admin_token');
+        window.location.href = 'login.html';
+      });
+
+      try {
+        const [users, frames, pairings, reports, registration] = await Promise.all([
+          AdminApi.get(token, '/users'),
+          AdminApi.get(token, '/frames'),
+          AdminApi.get(token, '/pairings'),
+          AdminApi.get(token, '/reports'),
+          AdminApi.get(token, '/registration'),
+        ]);
+
+        renderTable('users-table', users.users, (u) => [u.id, u.username, u.storage_used_bytes, u.created_at]);
+        renderTable('frames-table', frames.frames, (f) => [f.id, f.user_id, f.display_name, f.last_seen_at ?? '-']);
+        renderTable('pairings-table', pairings.pairings, (p) => [p.id, p.name, p.created_at]);
+        renderTable('reports-table', reports.reports, (r) => [r.id, r.image_id, r.reason, r.created_at]);
+
+        const toggle = document.getElementById('registration-toggle');
+        toggle.checked = !!(registration.registrationEnabled ?? true);
+        toggle.addEventListener('change', async () => {
+          await AdminApi.post(token, '/registration', { enabled: toggle.checked });
+        });
+      } catch (err) {
+        if (err.status === 401) {
+          localStorage.removeItem('pf_admin_token');
+          window.location.href = 'login.html';
+          return;
+        }
+        alert('Failed to load admin data: ' + err.message);
+      }
+    })();
+
+    function renderTable(tableId, rows, mapRow) {
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      tbody.innerHTML = '';
+      for (const row of rows) {
+        const tr = document.createElement('tr');
+        for (const cell of mapRow(row)) {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    }
+  </script>
+</body>
+</html>

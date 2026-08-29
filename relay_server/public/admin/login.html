@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PhotoFrame Relay Admin - Login</title>
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <div class="login-box">
+    <h1>PhotoFrame Relay Admin</h1>
+    <form id="login-form">
+      <label>Username <input type="text" id="username" autocomplete="username" required /></label>
+      <label>Password <input type="password" id="password" autocomplete="current-password" required /></label>
+      <button type="submit">Log in</button>
+      <p id="error" class="error"></p>
+    </form>
+  </div>
+  <script src="admin.js"></script>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = '';
+      try {
+        const token = await AdminApi.login(username, password);
+        localStorage.setItem('pf_admin_token', token);
+        window.location.href = 'index.html';
+      } catch (err) {
+        errorEl.textContent = err.message || 'Login failed';
+      }
+    });
+  </script>
+</body>
+</html>

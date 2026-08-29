@@ -1,0 +1,108 @@
+name: release
+
+# Platzhalter-Release-Workflow, ausgelöst durch Tags "v*" (z.B. v1.0.0).
+# Siehe docs/PLAN.md, Abschnitt "Deployment-Prozess (Fastlane)" und
+# docs/SECRETS.md für die referenzierten Secrets.
+#
+# HINWEIS: Dies ist ein Gerüst/Platzhalter. Die Fastlane-Lanes selbst
+# (android/fastlane/Fastfile, ios/fastlane/Fastfile) müssen im jeweiligen
+# App-Teilprojekt noch angelegt werden, bevor diese Jobs tatsächlich etwas
+# bauen. Kein Secret ist hier mit einem echten Wert hinterlegt - alle kommen
+# ausschließlich aus den GitHub Actions Repository Secrets.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  android-release:
+    name: Android (Fastlane)
+    runs-on: ubuntu-latest
+    # HINWEIS: In dieser Sandbox-Session nicht real ausgeführt (kein
+    # Android-SDK/Gradle/Fastlane-Setup verifiziert, siehe docs/PLAN.md).
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Ruby (Fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: mobile_app/android
+
+      - name: Decode Android keystore
+        working-directory: mobile_app/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore.jks
+
+      # Platzhalter: `bundle exec fastlane android release` ruft die Lane aus
+      # android/fastlane/Fastfile auf, sobald diese existiert.
+      - name: Run Fastlane android release lane (placeholder)
+        working-directory: mobile_app/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+        run: |
+          echo "TODO: bundle exec fastlane android release"
+          echo "Fastfile/Appfile für mobile_app/android existieren noch nicht - Platzhalter-Job."
+
+  ios-release:
+    name: iOS (Fastlane)
+    # macOS-Runner zwingend erforderlich (Xcode-Build/Codesigning).
+    # HINWEIS: Kann in dieser Sandbox mangels echtem Apple Developer Account,
+    # Zertifikaten/Provisioning-Profiles (match) und macOS/Xcode-Umgebung NICHT
+    # real getestet werden. Dieser Job ist ein reines Gerüst.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Ruby (Fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: mobile_app/ios
+
+      - name: Decode App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > AuthKey.p8
+
+      # Platzhalter: `bundle exec fastlane ios release` nutzt `match` gegen das
+      # private Zertifikats-Repo (MATCH_GIT_URL) und die App Store Connect API,
+      # sobald ios/fastlane/Fastfile existiert.
+      - name: Run Fastlane ios release lane (placeholder)
+        working-directory: mobile_app/ios
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          echo "TODO: bundle exec fastlane ios release"
+          echo "Fastfile/Appfile für mobile_app/ios existieren noch nicht - Platzhalter-Job."
+          echo "Kann ohne echten Apple Developer Account/Zertifikate hier nicht real laufen."
