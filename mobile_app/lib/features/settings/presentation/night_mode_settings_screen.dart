@@ -19,36 +19,29 @@ class NightModeSettingsScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Fehler: $e')),
         data: (settings) {
           final schedule = settings.nightSchedule;
-          return ListView(
+          return RadioGroup<NightScheduleMode>(
+            groupValue: schedule.mode,
+            onChanged: (v) => notifier.updateSettings(
+              (s) => s.copyWith(nightSchedule: schedule.copyWith(mode: v)),
+            ),
+            child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              RadioListTile<NightScheduleMode>(
-                title: const Text('Aus'),
+              const RadioListTile<NightScheduleMode>(
+                title: Text('Aus'),
                 value: NightScheduleMode.disabled,
-                groupValue: schedule.mode,
-                onChanged: (v) => notifier.updateSettings(
-                  (s) => s.copyWith(nightSchedule: schedule.copyWith(mode: v)),
-                ),
               ),
-              RadioListTile<NightScheduleMode>(
-                title: const Text('Feste Zeitspanne'),
+              const RadioListTile<NightScheduleMode>(
+                title: Text('Feste Zeitspanne'),
                 value: NightScheduleMode.fixedRange,
-                groupValue: schedule.mode,
-                onChanged: (v) => notifier.updateSettings(
-                  (s) => s.copyWith(nightSchedule: schedule.copyWith(mode: v)),
-                ),
               ),
-              RadioListTile<NightScheduleMode>(
-                title: const Text('Sonnenauf-/-untergang'),
-                subtitle: const Text(
+              const RadioListTile<NightScheduleMode>(
+                title: Text('Sonnenauf-/-untergang'),
+                subtitle: Text(
                   'Näherung ohne Standortdaten (20:00-07:00) - genaue '
                   'Berechnung folgt, sobald Standortfreigabe existiert',
                 ),
                 value: NightScheduleMode.sunsetSunrise,
-                groupValue: schedule.mode,
-                onChanged: (v) => notifier.updateSettings(
-                  (s) => s.copyWith(nightSchedule: schedule.copyWith(mode: v)),
-                ),
               ),
               if (schedule.mode == NightScheduleMode.fixedRange) ...[
                 const Divider(height: 32),
@@ -106,6 +99,7 @@ class NightModeSettingsScreen extends ConsumerWidget {
                         ),
               ),
             ],
+            ),
           );
         },
       ),

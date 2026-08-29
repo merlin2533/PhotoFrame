@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only requested if the user opts in to "aktuellen Standort verwenden" in
+         the weather settings screen; manual city entry (default) needs no
+         location permission at all. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="mobile_app"
         android:name="${applicationName}"

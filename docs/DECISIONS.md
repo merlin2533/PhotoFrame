@@ -113,3 +113,48 @@ Zusätzlich wurde die vorbestehende Inkonsistenz behoben, dass die Quota-Prüfun
 - `getIo()?.to(...)` ist überall `null`-sicher, wodurch Routen-Tests, die `createApp()` ohne laufenden Socket.IO-Server instanziieren (siehe `relay_server/test/http/*.test.ts`), nicht fehlschlagen.
 - Der Cascade-Delete-Pfad (`DELETE /pairings/:id`, Admin-Löschung) sendet aktuell **kein** `album:imageDeleted` pro betroffenem Bild – das wäre ein separates, potenziell großes Event-Fanout (ein komplettes Pairing kann hunderte Bilder enthalten) und ist bewusst nicht Teil dieser Runde; ein Client, der ein gelöschtes Pairing weiter anzeigt, bemerkt das spätestens beim nächsten `GET /pairing/:id/images`-Poll bzw. beim Room-Verlassen.
 - Die in `realtime/socket.ts` dokumentierte Grenze (Mitgliedschaft wird nur beim `join_pairing` geprüft, nicht bei jedem nachfolgenden Event) besteht unverändert fort – siehe Code-Kommentar dort; nicht in dieser Runde behoben, um nicht mit der parallel laufenden Member-Block-Implementierung zu kollidieren.
+
+---
+
+## ADR-009: i18n-Scaffold via ARB/`flutter gen-l10n`, nur ein Teil der Screens migriert
+
+**Kontext:** Die App enthält bislang ausschließlich hartkodierte deutsche UI-Strings direkt in den Widget-Bäumen (`lib/features/**/presentation/*.dart`). Damit die App künftig mehrsprachig werden kann (und damit deutsche Strings überhaupt an einer zentralen Stelle statt über Dutzende Dateien verstreut gepflegt werden), braucht es ein Lokalisierungs-Grundgerüst. Eine vollständige Migration aller Screens in einem Rutsch wäre riskant (großer Diff, hohe Kollisionswahrscheinlichkeit mit parallel laufenden Feature-Branches auf denselben Dateien) und war nicht Ziel dieser Runde.
+
+**Entscheidung:**
+- Flutters Standard-Ansatz wird verwendet: ARB-Dateien (`mobile_app/lib/l10n/app_de.arb` als Template/Default-Locale, `app_en.arb` als zweite Sprache) plus `flutter_localizations`/`intl` und codegenerierte `AppLocalizations` (`flutter gen-l10n`, gesteuert über `mobile_app/l10n.yaml`, `generate: true` in `pubspec.yaml`). Deutsch bleibt die Standard-/Primärsprache der App (`locale: const Locale('de')` in `app.dart`), Englisch ist als zweite ARB-Sprache angelegt, aber noch nicht über einen Sprachumschalter in den Einstellungen erreichbar (App-Locale ist aktuell hart auf `de` gesetzt, nicht an `Platform.localeName`/eine Nutzereinstellung gekoppelt – das ist ein bewusst ausgeklammerter Folgeschritt).
+- **Nur eine Handvoll zentraler Screens wurde als Beispiel/Muster vollständig migriert:** `settings_screen.dart`, `onboarding_screen.dart` (inkl. des neuen OEM-Autostart-Hinweisschritts, siehe unten) und `cache_settings_screen.dart`. `slideshow_settings_screen.dart` wurde bewusst NICHT migriert, obwohl ursprünglich als drittes Beispiel vorgesehen, weil zeitgleich ein anderer Agent an genau dieser Datei arbeitete (Kollisionsvermeidung in einem gemeinsamen, nicht Worktree-isolierten Arbeitsverzeichnis) – `cache_settings_screen.dart` wurde stattdessen als drittes Beispiel gewählt.
+- **Alle übrigen `lib/features/**/presentation/*.dart`-Screens enthalten weiterhin hartkodierte deutsche Strings und sind NICHT migriert.** Explizite Liste (Stand dieser Runde), damit das nicht als "erledigt" missverstanden wird:
+  - `lib/features/settings/presentation/always_on_settings_screen.dart`
+  - `lib/features/settings/presentation/night_mode_settings_screen.dart`
+  - `lib/features/settings/presentation/slideshow_settings_screen.dart`
+  - `lib/features/settings/presentation/accessibility_settings_screen.dart`
+  - `lib/features/settings/presentation/pool_settings_screen.dart`
+  - `lib/features/settings/presentation/sharing_settings_screen.dart`
+  - `lib/features/settings/presentation/weather_settings_screen.dart` (falls/sobald vorhanden)
+  - `lib/features/pairing/presentation/*.dart` (alle Screens: `pairing_screen.dart`, `pairing_qr_display_screen.dart`, `pairing_scan_screen.dart`, `config_push_confirmation_screen.dart`, `recovery_code_screen.dart`, `relay_server_setup_screen.dart`, `shared_album_view_screen.dart`, `upload_screen.dart`)
+  - `lib/features/sources/presentation/add_source_screen.dart`
+  - `lib/features/sources/presentation/source_list_screen.dart`
+  - `lib/features/slideshow/presentation/slideshow_screen.dart` und `lib/features/slideshow/presentation/widgets/*.dart` (Overlays, Touch-Controls)
+  - `lib/features/settings/presentation/autostart_help_screen.dart` — **Ausnahme:** dieser neue Screen (Task "OEM-Autostart-Hinweis") wurde direkt mit `AppLocalizations` statt mit hartkodierten Strings angelegt, ist also bereits migriert.
+
+**Konsequenzen:**
+- Neue zentrale Strings (Settings-Hub, Onboarding, Cache-Verwaltung, OEM-Autostart-Hinweis) sind jetzt in `app_de.arb`/`app_en.arb` gepflegt statt im Code verstreut; jede neue ARB-Message trägt eine `@key`-Beschreibung für Übersetzer.
+- Der Großteil der App bleibt bis auf Weiteres hartkodiert deutsch – funktional unverändert (keine Regressionen), aber die oben gelistete Restmenge muss in einer Folgerunde schrittweise nachgezogen werden, bevor die App wirklich mehrsprachig ist.
+- `flutter gen-l10n` erzeugt `lib/l10n/app_localizations*.dart` nicht-synthetisch (kein `flutter_gen`-Paket, kein `.dart_tool`-Pfad) – diese generierten Dateien liegen im normalen `lib/`-Baum und werden wie regulärer Code behandelt/committet, analog zu vielen aktuellen Flutter-Projekten, die `synthetic-package: true` (die alte Default-Vorgehensweise) bewusst nicht mehr nutzen.
+
+---
+
+## ADR-010: `getFreeDiskSpaceBytes` – MethodChannel + `StatFs` statt Drittanbieter-Paket
+
+**Kontext:** `ImageCacheManager` (`lib/services/cache/image_cache_manager.dart`) hatte bereits einen injizierbaren `Future<int> Function() getFreeDiskSpaceBytes`-Callback für Tests, aber keine echte Plattform-Implementierung als Default – der Cache wurde nie tatsächlich gegen den realen freien Gerätespeicher gedeckelt, nur gegen das konfigurierte Limit.
+
+**Entscheidung:** Statt eines Drittanbieter-Pakets (`disk_space_plus`, `system_info_plus` o. ä. – beide ungeprüft/nicht in dieser Umgebung gegen ein echtes Gerät verifizierbar, siehe bereits bestehendes Muster bei `smb_connect` in `pubspec.yaml`) wird ein schlanker, selbst kontrollierter MethodChannel `photoframe/diskspace` (Methode `getFreeBytes`, Argument `path`) verwendet:
+- Dart-Seite (`defaultGetFreeDiskSpaceBytes()` in `image_cache_manager.dart`): ermittelt das Cache-Verzeichnis über `path_provider`s `getTemporaryDirectory()` und ruft den Channel mit diesem Pfad auf.
+- Android-Seite (`MainActivity.kt`): registriert den Channel in `configureFlutterEngine` und beantwortet `getFreeBytes` mit `android.os.StatFs(path).availableBlocksLong * blockSizeLong`.
+- iOS/Desktop/Tests: kein passender Plattform-Handler registriert → `MissingPluginException` wird abgefangen; ebenso jede sonstige Exception (fehlgeschlagenes `StatFs`, `path_provider`-Fehler). In allen Fehlerfällen (und auf Nicht-Android-Plattformen) wird ein großzügiger Default von 10 GB (`kFallbackFreeDiskSpaceBytes`) zurückgegeben, damit eine fehlgeschlagene Speicherplatzabfrage den Cache nie künstlich aushungert.
+- Dieser echte Default wird als Standardwert des `getFreeDiskSpaceBytes`-Konstruktorparameters verdrahtet (`getFreeDiskSpaceBytes ?? defaultGetFreeDiskSpaceBytes`); Tests können weiterhin ihren eigenen Fake-Callback injizieren, wie bisher.
+
+**Konsequenzen:**
+- Keine zusätzliche, ungeprüfte Paketabhängigkeit für eine einzelne Zahl; `StatFs` ist Teil des Android-SDK, kein zusätzlicher Wartungsaufwand durch ein möglicherweise unmaintaintes drittes Paket.
+- iOS bekommt (noch) keine echte Speicherplatz-Deckelung – der Cache verlässt sich dort ausschließlich auf die konfigurierten Tier-Limits. Das ist ein bewusst akzeptierter Rest-Scope für diese Runde; eine iOS-Implementierung (z. B. via `NSFileManager`s `volumeAvailableCapacityForImportantUsageKey` über denselben Channel) ist ein sauberer Folgeschritt mit demselben Channel-Namen/derselben Methode, ohne Dart-seitige Änderungen.
+- Unit-Tests (`flutter test`, kein echter Android-Host) laufen ebenfalls über den Fallback-Pfad (`MissingPluginException`), was für die bestehenden Cache-Tests unschädlich ist, da 10 GB abzüglich der 1-GB-Reserve weit über allen in Tests konfigurierten Cache-Limits liegt – das Verhalten der bestehenden Tests ändert sich dadurch nicht.

@@ -49,53 +49,57 @@ class SlideshowSettingsScreen extends ConsumerWidget {
             ),
             const Divider(height: 32),
             Text('Anzeige-Modus', style: Theme.of(context).textTheme.titleMedium),
-            RadioListTile<DisplayMode>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Einpassen (contain)'),
-              value: DisplayMode.contain,
+            RadioGroup<DisplayMode>(
               groupValue: settings.displayMode,
               onChanged: (v) =>
                   notifier.updateSettings((s) => s.copyWith(displayMode: v)),
-            ),
-            RadioListTile<DisplayMode>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Ausfüllen (cover)'),
-              value: DisplayMode.cover,
-              groupValue: settings.displayMode,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(displayMode: v)),
-            ),
-            RadioListTile<DisplayMode>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Unscharfer Hintergrund'),
-              subtitle: const Text('Löst Hochkantbilder ohne schwarze Balken'),
-              value: DisplayMode.blurredBackdrop,
-              groupValue: settings.displayMode,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(displayMode: v)),
+              child: const Column(
+                children: [
+                  RadioListTile<DisplayMode>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Einpassen (contain)'),
+                    value: DisplayMode.contain,
+                  ),
+                  RadioListTile<DisplayMode>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Ausfüllen (cover)'),
+                    value: DisplayMode.cover,
+                  ),
+                  RadioListTile<DisplayMode>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Unscharfer Hintergrund'),
+                    subtitle:
+                        Text('Löst Hochkantbilder ohne schwarze Balken'),
+                    value: DisplayMode.blurredBackdrop,
+                  ),
+                ],
+              ),
             ),
             const Divider(height: 32),
             Text('Übergänge', style: Theme.of(context).textTheme.titleMedium),
-            RadioListTile<SlideshowTransition>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Überblenden (fade)'),
-              value: SlideshowTransition.fade,
+            RadioGroup<SlideshowTransition>(
               groupValue: settings.transition,
-              onChanged: (v) => notifier.updateSettings((s) => s.copyWith(transition: v)),
-            ),
-            RadioListTile<SlideshowTransition>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Schieben (slide)'),
-              value: SlideshowTransition.slide,
-              groupValue: settings.transition,
-              onChanged: (v) => notifier.updateSettings((s) => s.copyWith(transition: v)),
-            ),
-            RadioListTile<SlideshowTransition>(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Kein Übergang'),
-              value: SlideshowTransition.none,
-              groupValue: settings.transition,
-              onChanged: (v) => notifier.updateSettings((s) => s.copyWith(transition: v)),
+              onChanged: (v) =>
+                  notifier.updateSettings((s) => s.copyWith(transition: v)),
+              child: const Column(
+                children: [
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Überblenden (fade)'),
+                    value: SlideshowTransition.fade,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Schieben (slide)'),
+                    value: SlideshowTransition.slide,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Kein Übergang'),
+                    value: SlideshowTransition.none,
+                  ),
+                ],
+              ),
             ),
             const Divider(height: 32),
             SwitchListTile(
@@ -114,6 +118,26 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               value: settings.portraitPairLayoutEnabled,
               onChanged: (v) => notifier
                   .updateSettings((s) => s.copyWith(portraitPairLayoutEnabled: v)),
+            ),
+            const Divider(height: 32),
+            Text('Favoriten & Datum', style: Theme.of(context).textTheme.titleMedium),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Nur Favoriten zeigen'),
+              subtitle: const Text(
+                  'Diashow speist sich nur aus favorisierten Bildern'),
+              value: settings.favoritesOnlyMode,
+              onChanged: (v) =>
+                  notifier.updateSettings((s) => s.copyWith(favoritesOnlyMode: v)),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Heute vor N Jahren bevorzugen'),
+              subtitle: const Text(
+                  'Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen'),
+              value: settings.preferOnThisDayEnabled,
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(preferOnThisDayEnabled: v)),
             ),
           ],
         ),

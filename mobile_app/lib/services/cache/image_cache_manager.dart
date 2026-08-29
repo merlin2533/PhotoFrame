@@ -2,7 +2,45 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../../features/sources/domain/cache_lease.dart';
+
+/// Fallback free-space figure used when the real platform query fails or
+/// isn't available (non-Android platforms, plugin errors, missing cache
+/// directory, ...). Deliberately generous (10 GB) so a query failure never
+/// artificially starves the cache - see docs/DECISIONS.md, ADR
+/// "getFreeDiskSpaceBytes platform hookup".
+const int kFallbackFreeDiskSpaceBytes = 10 * 1024 * 1024 * 1024;
+
+const MethodChannel _diskSpaceChannel = MethodChannel('photoframe/diskspace');
+
+/// Default, real implementation of the `getFreeDiskSpaceBytes` callback:
+/// resolves the app's cache directory via `path_provider`, then asks the
+/// native side (Android `StatFs` on that path, see `MainActivity.kt`) how
+/// many bytes are free there. Falls back to
+/// [kFallbackFreeDiskSpaceBytes] on any platform/plugin error or on
+/// non-Android platforms (no MethodChannel handler registered there yet -
+/// iOS/desktop just don't get disk-space-aware cache capping and rely on
+/// the configured tier limits alone).
+Future<int> defaultGetFreeDiskSpaceBytes() async {
+  try {
+    final dir = await getTemporaryDirectory();
+    final result = await _diskSpaceChannel.invokeMethod<int>(
+      'getFreeBytes',
+      {'path': dir.path},
+    );
+    if (result == null) return kFallbackFreeDiskSpaceBytes;
+    return result;
+  } catch (_) {
+    // MissingPluginException (no Android host registered, e.g. iOS/desktop/
+    // tests), PlatformException (StatFs failed), or any path_provider
+    // failure - all treated the same: fall back rather than throw, since a
+    // free-space check must never crash the caching layer.
+    return kFallbackFreeDiskSpaceBytes;
+  }
+}
 
 /// Which cache tier an entry belongs to - see docs/PLAN.md "ImageCacheManager
 /// (zweistufig)": a small thumbnail cache for fast previews/overlays, and a
@@ -102,7 +140,7 @@ class ImageCacheManager {
           CacheTier.thumbnail: thumbnailLimitBytes,
           CacheTier.full: fullLimitBytes,
         },
-        _getFreeDiskSpaceBytes = getFreeDiskSpaceBytes,
+        _getFreeDiskSpaceBytes = getFreeDiskSpaceBytes ?? defaultGetFreeDiskSpaceBytes,
         _tiers = {
           CacheTier.thumbnail: _TierStore(thumbnailLimitBytes),
           CacheTier.full: _TierStore(fullLimitBytes),

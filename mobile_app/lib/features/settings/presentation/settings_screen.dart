@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 /// Top-level settings hub. Each row navigates to a focused sub-screen
 /// rather than cramming every setting into one long list (per the M6 task:
 /// "mehrere Unterseiten, nicht eine riesige Liste").
@@ -9,75 +11,90 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Einstellungen')),
+      appBar: AppBar(title: Text(l10n.settingsScreenTitle)),
       body: ListView(
         children: [
-          const _SettingsGroupHeader('Diashow'),
+          _SettingsGroupHeader(l10n.settingsGroupSlideshow),
           ListTile(
             leading: const Icon(Icons.slideshow_outlined),
-            title: const Text('Diashow'),
-            subtitle: const Text('Intervall, Overlays, Anzeige-Modus, Übergänge'),
+            title: Text(l10n.settingsSlideshowTitle),
+            subtitle: Text(l10n.settingsSlideshowSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/slideshow'),
           ),
           ListTile(
             leading: const Icon(Icons.brightness_high_outlined),
-            title: const Text('Dauer-Modus'),
-            subtitle: const Text('Bildschirm dauerhaft an lassen'),
+            title: Text(l10n.settingsAlwaysOnTitle),
+            subtitle: Text(l10n.settingsAlwaysOnSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/always-on'),
           ),
           ListTile(
             leading: const Icon(Icons.dark_mode_outlined),
-            title: const Text('Nachtmodus'),
-            subtitle: const Text('Zeitplan, Dimm-Stärke'),
+            title: Text(l10n.settingsNightModeTitle),
+            subtitle: Text(l10n.settingsNightModeSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/night-mode'),
           ),
+          ListTile(
+            leading: const Icon(Icons.wb_sunny_outlined),
+            title: Text(l10n.settingsWeatherTitle),
+            subtitle: Text(l10n.settingsWeatherSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/weather'),
+          ),
           const Divider(),
-          const _SettingsGroupHeader('Inhalte'),
+          _SettingsGroupHeader(l10n.settingsGroupContent),
           ListTile(
             leading: const Icon(Icons.folder_open_outlined),
-            title: const Text('Quellen'),
-            subtitle: const Text('Ordner, Freigaben, Nextcloud verwalten'),
+            title: Text(l10n.settingsSourcesTitle),
+            subtitle: Text(l10n.settingsSourcesSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/sources'),
           ),
           ListTile(
             leading: const Icon(Icons.storage_outlined),
-            title: const Text('Cache-Verwaltung'),
-            subtitle: const Text('Belegter Speicher, Limit, Cache leeren'),
+            title: Text(l10n.settingsCacheTitle),
+            subtitle: Text(l10n.settingsCacheSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/cache'),
           ),
           ListTile(
             leading: const Icon(Icons.dataset_outlined),
-            title: const Text('Pool/Index'),
-            subtitle: const Text('Arbeitsmenge, Auffüll-Intervall, neue Bilder'),
+            title: Text(l10n.settingsPoolTitle),
+            subtitle: Text(l10n.settingsPoolSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/pool'),
           ),
           const Divider(),
-          const _SettingsGroupHeader('Teilen'),
+          _SettingsGroupHeader(l10n.settingsGroupSharing),
           ListTile(
             leading: const Icon(Icons.share_outlined),
-            title: const Text('Sharing/Relay'),
-            subtitle: const Text('Relay-Server-URL, Pairing'),
+            title: Text(l10n.settingsSharingTitle),
+            subtitle: Text(l10n.settingsSharingSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/sharing'),
           ),
           const Divider(),
-          const _SettingsGroupHeader('Allgemein'),
+          _SettingsGroupHeader(l10n.settingsGroupGeneral),
           ListTile(
             leading: const Icon(Icons.accessibility_new_outlined),
-            title: const Text('Barrierefreiheit'),
+            title: Text(l10n.settingsAccessibilityTitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/accessibility'),
           ),
           ListTile(
+            leading: const Icon(Icons.phonelink_setup_outlined),
+            title: Text(l10n.settingsAutostartHelpTitle),
+            subtitle: Text(l10n.settingsAutostartHelpSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/autostart-help'),
+          ),
+          ListTile(
             leading: const Icon(Icons.help_outline),
-            title: const Text('Setup-Guide erneut anzeigen'),
+            title: Text(l10n.settingsReplayOnboardingTitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/onboarding'),
           ),

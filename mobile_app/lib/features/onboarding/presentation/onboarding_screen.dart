@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 
+import '../../../l10n/app_localizations.dart';
 import '../../settings/state/settings_providers.dart';
 
 /// First-run setup wizard.
@@ -37,7 +38,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _page = 0;
 
-  static const int _pageCount = 6;
+  static const int _pageCount = 7;
 
   @override
   void dispose() {
@@ -65,6 +66,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isLast = _page == _pageCount - 1;
     return Scaffold(
       body: SafeArea(
@@ -84,7 +86,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const SizedBox(width: 12),
                   TextButton(
                     onPressed: () => _finish(goToSources: false),
-                    child: const Text('Überspringen'),
+                    child: Text(l10n.onboardingSkip),
                   ),
                 ],
               ),
@@ -98,6 +100,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   _AlwaysOnExplainerStep(),
                   _AndroidHomeAppStep(),
                   _AndroidBatteryOptimizationStep(),
+                  _OemAutostartHintsStep(),
                   _IosGuidedAccessStep(),
                   _AddSourceStep(),
                 ],
@@ -110,7 +113,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   if (_page > 0)
                     OutlinedButton(
                       onPressed: () => _goToPage(_page - 1),
-                      child: const Text('Zurück'),
+                      child: Text(l10n.commonBack),
                     )
                   else
                     const SizedBox.shrink(),
@@ -119,7 +122,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     onPressed: isLast
                         ? () => _finish(goToSources: true)
                         : () => _goToPage(_page + 1),
-                    child: Text(isLast ? 'Quelle hinzufügen' : 'Weiter'),
+                    child: Text(isLast ? l10n.onboardingAddSourceCta : l10n.commonNext),
                   ),
                 ],
               ),
@@ -171,16 +174,11 @@ class _WelcomeStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _StepScaffold(
+    final l10n = AppLocalizations.of(context);
+    return _StepScaffold(
       icon: Icons.photo_library_outlined,
-      title: 'Willkommen bei PhotoFrame',
-      body: Text(
-        'PhotoFrame verwandelt dieses Gerät in einen digitalen Fotorahmen: '
-        'Es zeigt Bilder aus deinen Ordnern (z. B. Netzwerkfreigabe, '
-        'Nextcloud oder lokaler Speicher) als Endlos-Diashow und kann Fotos '
-        'mit anderen Frames teilen. Dieser kurze Guide richtet das Gerät in '
-        'wenigen Schritten dafür ein.',
-      ),
+      title: l10n.onboardingWelcomeTitle,
+      body: Text(l10n.onboardingWelcomeBody),
     );
   }
 }
@@ -190,14 +188,11 @@ class _AlwaysOnExplainerStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return _StepScaffold(
       icon: Icons.brightness_high_outlined,
-      title: 'Dauer-Modus: Bildschirm bleibt an',
-      body: const Text(
-        'Ein Fotorahmen soll dauerhaft leuchten - deshalb kann PhotoFrame '
-        'verhindern, dass der Bildschirm ausgeht oder das Gerät sich sperrt. '
-        'Das ist das Kernfeature dieser App, kostet aber spürbar Akku.',
-      ),
+      title: l10n.onboardingAlwaysOnTitle,
+      body: Text(l10n.onboardingAlwaysOnBody),
       extra: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -211,11 +206,7 @@ class _AlwaysOnExplainerStep extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Empfehlung: Dauer-Modus nur bei dauerhaft angeschlossenem '
-                'Ladekabel verwenden (z. B. wandmontiert). Du kannst später '
-                'in den Einstellungen zwischen "immer an", "nur während der '
-                'Diashow" und einem Zeitplan (kombiniert mit dem Nachtmodus) '
-                'wählen.',
+                l10n.onboardingAlwaysOnRecommendation,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onErrorContainer,
                 ),
@@ -233,29 +224,22 @@ class _AndroidHomeAppStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!_isAndroid) {
-      return const _StepScaffold(
+      return _StepScaffold(
         icon: Icons.android,
-        title: 'Als Startbildschirm einrichten (Android)',
-        body: Text(
-          'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem '
-          'Gerät übersprungen.',
-        ),
+        title: l10n.onboardingAndroidHomeAppTitle,
+        body: Text(l10n.onboardingAndroidOnlyStepBody),
       );
     }
     return _StepScaffold(
       icon: Icons.android,
-      title: 'Als Startbildschirm einrichten',
-      body: const Text(
-        'Damit PhotoFrame nach jedem Neustart automatisch erscheint, kannst '
-        'du die App als Standard-Startbildschirm (Home-App/Launcher) '
-        'festlegen: Android-Einstellungen -> Apps -> Standard-Apps -> '
-        'Startbildschirm-App -> PhotoFrame auswählen.',
-      ),
+      title: l10n.onboardingAndroidHomeAppTitle,
+      body: Text(l10n.onboardingAndroidHomeAppBody),
       extra: FilledButton.tonalIcon(
         onPressed: () => unawaited(ph.openAppSettings()),
         icon: const Icon(Icons.settings),
-        label: const Text('Android-Einstellungen öffnen'),
+        label: Text(l10n.onboardingOpenAndroidSettings),
       ),
     );
   }
@@ -266,30 +250,64 @@ class _AndroidBatteryOptimizationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!_isAndroid) {
-      return const _StepScaffold(
+      return _StepScaffold(
         icon: Icons.battery_charging_full_outlined,
-        title: 'Von Akku-Optimierung ausnehmen (Android)',
-        body: Text(
-          'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem '
-          'Gerät übersprungen.',
-        ),
+        title: l10n.onboardingBatteryOptTitle,
+        body: Text(l10n.onboardingAndroidOnlyStepBody),
       );
     }
     return _StepScaffold(
       icon: Icons.battery_charging_full_outlined,
-      title: 'Von Akku-Optimierung ausnehmen',
-      body: const Text(
-        'Android beendet App-Aktivität im Hintergrund gerne, um Akku zu '
-        'sparen - das kann die Diashow ausbremsen oder Bilder verzögert '
-        'aktualisieren. Nimm PhotoFrame in den Einstellungen unter '
-        '"Akku -> Nicht optimieren"/"Akkuoptimierung ignorieren" aus der '
-        'Optimierung aus, damit sie dauerhaft zuverlässig läuft.',
-      ),
+      title: l10n.onboardingBatteryOptTitle,
+      body: Text(l10n.onboardingBatteryOptBody),
       extra: FilledButton.tonalIcon(
         onPressed: () => unawaited(ph.openAppSettings()),
         icon: const Icon(Icons.settings),
-        label: const Text('App-Einstellungen öffnen'),
+        label: Text(l10n.onboardingOpenAppSettings),
+      ),
+    );
+  }
+}
+
+/// OEM-specific autostart/battery-whitelist hints (Task 5). Pure text, no
+/// vendor-specific settings deep links - see `autostart_help_screen.dart`
+/// doc comment for why. Skipped (shown as N/A) on non-Android platforms,
+/// same pattern as the other Android-only steps in this wizard.
+class _OemAutostartHintsStep extends StatelessWidget {
+  const _OemAutostartHintsStep();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (!_isAndroid) {
+      return _StepScaffold(
+        icon: Icons.phonelink_setup_outlined,
+        title: l10n.onboardingAutostartHintsTitle,
+        body: Text(l10n.onboardingAndroidOnlyStepBody),
+      );
+    }
+    return _StepScaffold(
+      icon: Icons.phonelink_setup_outlined,
+      title: l10n.onboardingAutostartHintsTitle,
+      body: Text(l10n.onboardingAutostartHintsIntro),
+      extra: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('•  ${l10n.onboardingAutostartXiaomi}'),
+          const SizedBox(height: 8),
+          Text('•  ${l10n.onboardingAutostartHuawei}'),
+          const SizedBox(height: 8),
+          Text('•  ${l10n.onboardingAutostartSamsung}'),
+          const SizedBox(height: 8),
+          Text('•  ${l10n.onboardingAutostartOnePlusOppoVivo}'),
+          const SizedBox(height: 12),
+          Text(
+            l10n.onboardingAutostartOutro,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
@@ -300,18 +318,11 @@ class _IosGuidedAccessStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _StepScaffold(
+    final l10n = AppLocalizations.of(context);
+    return _StepScaffold(
       icon: Icons.lock_clock_outlined,
-      title: 'iOS: Geführter Zugriff',
-      body: Text(
-        'iOS erlaubt Apps grundsätzlich keinen Autostart und keinen echten '
-        'Kiosk-Modus. Der ehrliche, zuverlässige Weg auf iPhone/iPad ist der '
-        'systemeigene "Geführte Zugriff" (Einstellungen -> Bedienungshilfen '
-        '-> Geführter Zugriff aktivieren, danach dreimal die Seitentaste '
-        'drücken, während PhotoFrame geöffnet ist). Das muss nach jedem '
-        'Neustart des Geräts manuell erneut gestartet werden - das ist eine '
-        'Plattformgrenze, keine Einschränkung dieser App.',
-      ),
+      title: l10n.onboardingIosGuidedAccessTitle,
+      body: Text(l10n.onboardingIosGuidedAccessBody),
     );
   }
 }
@@ -321,15 +332,11 @@ class _AddSourceStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _StepScaffold(
+    final l10n = AppLocalizations.of(context);
+    return _StepScaffold(
       icon: Icons.add_photo_alternate_outlined,
-      title: 'Quelle hinzufügen',
-      body: Text(
-        'Fast geschafft! Füge jetzt eine Bildquelle hinzu (z. B. einen '
-        'lokalen Ordner, eine Netzwerkfreigabe oder Nextcloud), damit die '
-        'Diashow starten kann. Du kannst das auch später jederzeit über '
-        'Einstellungen -> Quellen erledigen.',
-      ),
+      title: l10n.onboardingAddSourceTitle,
+      body: Text(l10n.onboardingAddSourceBody),
     );
   }
 }
