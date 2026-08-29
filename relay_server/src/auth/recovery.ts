@@ -1,5 +1,6 @@
 import { getDb, runInTransaction } from '../db';
 import { issueDeviceToken, revokeAllTokensForFrame, type IssuedDeviceToken } from './deviceTokens';
+import { deriveKeyFingerprint } from './keyFingerprint';
 
 export class RecoveryError extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -10,6 +11,12 @@ export class RecoveryError extends Error {
 export interface RecoveryResult {
   frameId: string;
   deviceToken: IssuedDeviceToken;
+  // New fingerprint for the rotated public key (see keyFingerprint.ts). The
+  // recovering client MUST re-display/re-share this out-of-band (e.g. a
+  // fresh QR code to existing pairing partners) - it intentionally differs
+  // from the pre-recovery fingerprint, which is the one legitimate case
+  // where a fingerprint change is expected rather than a red flag.
+  fp: string | null;
 }
 
 /**
@@ -65,5 +72,5 @@ export function recoverFrame(
 
   const deviceToken = issueDeviceToken(frameId);
 
-  return { frameId, deviceToken };
+  return { frameId, deviceToken, fp: deriveKeyFingerprint(newPublicKey) };
 }

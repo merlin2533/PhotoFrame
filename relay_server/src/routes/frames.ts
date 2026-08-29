@@ -67,6 +67,7 @@ framesRouter.post('/:frameId/recover', recoveryRateLimiter, (req, res) => {
     res.json({
       frameId: result.frameId,
       deviceToken: result.deviceToken.rawToken,
+      fp: result.fp,
     });
   } catch (err) {
     if (err instanceof RecoveryError) {

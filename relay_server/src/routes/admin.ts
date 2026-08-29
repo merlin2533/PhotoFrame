@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
-import { getDb } from '../db';
+import { getDb, runInTransaction } from '../db';
 import { requireAdminAuth } from '../middleware/adminGuard';
 import { signAdminToken, verifyAdminCredentials } from '../auth/adminAuth';
 import { authRateLimiter } from '../middleware/rateLimit';
 import { runGarbageCollection } from '../storage/contentAddressedStore';
+import { releaseImageAccounting } from '../storage/imageCleanup';
 
 export const adminRouter = Router();
 
@@ -75,21 +76,46 @@ adminRouter.get('/reports', (_req, res) => {
   res.json({ reports });
 });
 
+/**
+ * Deletes a user (and, via ON DELETE CASCADE, their frames/device tokens/
+ * pairing memberships/images). ON DELETE CASCADE knows nothing about
+ * blobs.refcount or other users' storage_used_bytes, so - like the pairing
+ * cascade-delete in routes/pairing.ts - we select every affected image's
+ * accounting BEFORE the cascade fires and release it in the same
+ * transaction as the DELETE (previously a leak, Code-Review-Backlog).
+ */
 adminRouter.delete('/users/:userId', (req, res) => {
   const db = getDb();
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
+  const frames = db.prepare('SELECT id FROM frames WHERE user_id = ?').all(req.params.userId) as {
+    id: string;
+  }[];
+
+  let images: { content_hash: string; uploaded_by_frame_id: string }[] = [];
+  if (frames.length > 0) {
+    const placeholders = frames.map(() => '?').join(',');
+    images = db
+      .prepare(`SELECT content_hash, uploaded_by_frame_id FROM images WHERE uploaded_by_frame_id IN (${placeholders})`)
+      .all(...frames.map((f) => f.id)) as { content_hash: string; uploaded_by_frame_id: string }[];
+  }
+
+  runInTransaction(db, () => {
+    releaseImageAccounting(images);
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
+  });
   audit('admin', 'delete_user', 'user', req.params.userId);
   res.json({ ok: true });
 });
 
 adminRouter.delete('/images/:imageId', (req, res) => {
   const db = getDb();
-  const image = db.prepare('SELECT content_hash FROM images WHERE id = ?').get(req.params.imageId) as
-    | { content_hash: string }
-    | undefined;
+  const image = db.prepare('SELECT content_hash, uploaded_by_frame_id FROM images WHERE id = ?').get(
+    req.params.imageId,
+  ) as { content_hash: string; uploaded_by_frame_id: string } | undefined;
   if (image) {
-    db.prepare('DELETE FROM images WHERE id = ?').run(req.params.imageId);
-    db.prepare('UPDATE blobs SET refcount = MAX(refcount - 1, 0) WHERE hash = ?').run(image.content_hash);
+    runInTransaction(db, () => {
+      db.prepare('DELETE FROM images WHERE id = ?').run(req.params.imageId);
+      releaseImageAccounting([image]);
+    });
     audit('admin', 'delete_image', 'image', req.params.imageId);
   }
   res.json({ ok: true });

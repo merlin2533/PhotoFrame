@@ -19,6 +19,22 @@ interface AuthedSocket extends Socket {
  * to join a pairing room, but only after we verify current membership -
  * this is re-checked at join time (not just at handshake) so a frame
  * removed from a pairing mid-connection cannot keep listening in that room.
+ *
+ * Known limitation (Code-Review-Backlog, intentionally left open in this
+ * round): membership is ONLY re-checked at `join_pairing` time, not on every
+ * subsequent event delivery. If a frame is later removed from a pairing
+ * (DELETE /pairing/:id/members/:frameId) or has its device token revoked
+ * while its socket is still connected and already sitting in that
+ * `pairing:<id>` room, it keeps receiving `album:updated`/`album:imageDeleted`
+ * broadcasts for that room until it disconnects/reconnects - there is no
+ * server-initiated recheck-and-evict loop. The clean fix is either (a) have
+ * the member-removal code path explicitly `socket.leave()` any of the
+ * removed frame's currently-connected sockets for that room (requires
+ * looking up sockets by frameId, e.g. via the `frame:<id>` room every socket
+ * already joins on connect - see routes/pairing.ts's member-removal route
+ * for where that would hook in), or (b) a periodic recheck sweep. Left as a
+ * documented gap rather than implemented here to avoid colliding with the
+ * parallel work on the member-block feature in routes/pairing.ts.
  */
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {

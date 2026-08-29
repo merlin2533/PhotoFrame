@@ -38,6 +38,17 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^5.1.1
 
+  # Local folder source (SAF/file picker on Android, folder picker on iOS)
+  file_picker: ^8.1.2
+  # SMB source. UNVERIFIED CHOICE (see smb_photo_source.dart doc comment):
+  # `smb_connect` is used over `samba_client` because it wraps the more
+  # actively-referenced jcifs-ng client and exposes a simpler high-level API
+  # in its published docs; neither package could be exercised against a real
+  # share in this environment (no device, no SMB spike hardware - see
+  # docs/PLAN.md M1). Treat this dependency as provisional pending the M1
+  # spike.
+  smb_connect: ^0.0.9
+
   # Device / platform
   wakelock_plus: ^1.2.5
   screen_brightness: ^1.0.1

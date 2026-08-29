@@ -1,3 +1,5 @@
+import 'media_index_entry.dart';
+
 /// Bookkeeping record for one item that has been admitted into the
 /// slideshow's "working set" - the bounded pool of items actually eligible
 /// to be shown, as opposed to the full (potentially huge) index of
@@ -94,6 +96,57 @@ abstract class WorkingSetPool {
 
   /// Whether the pool currently needs refilling (i.e. below [targetSize]).
   bool get needsRefill;
+
+  /// Fills the pool up towards [targetSize] from [candidates] (typically the
+  /// output of a media-index crawl), returning the number of entries
+  /// actually added.
+  ///
+  /// Admission policy (see docs/PLAN.md "Arbeitsmenge (Working-Set-Pool) &
+  /// Auffüll-Job"): at least [newImageQuota] of the *newly filled slots*
+  /// (not of the whole pool) are reserved for "new" candidates where
+  /// possible. A [MediaIndexEntry] doesn't carry its own
+  /// "discovered/added-to-index-at" timestamp (only [MediaIndexEntry.mtime]
+  /// and [MediaIndexEntry.lastSeenAt], the latter updated on every crawl) -
+  /// as a documented design decision, this implementation treats a
+  /// candidate as "new" for quota purposes when its [MediaIndexEntry.mtime]
+  /// is within [WorkingSetPool.newItemMaxAgeDays] days of now, i.e. a
+  /// recently taken/modified photo. This is a reasonable proxy for "recently
+  /// added to the source" without requiring a schema change to
+  /// [MediaIndexEntry].
+  ///
+  /// Candidates already present in the pool are skipped. If there aren't
+  /// enough candidates (of either kind) to reach [targetSize], the pool
+  /// simply ends up smaller than [targetSize] - per the plan, this is
+  /// **not** an error state.
+  int refill(List<MediaIndexEntry> candidates);
+
+  /// Removes every entry that has been shown at least once since it was
+  /// added (`shownCount >= 1`) and immediately attempts to backfill the
+  /// freed slots from [candidates], using the same admission policy as
+  /// [refill]. Returns the number of entries added back.
+  ///
+  /// Callers should pass candidates that exclude items they know were just
+  /// evicted here if they want genuinely fresh replacements rather than an
+  /// item cycling straight back in - this method itself doesn't try to
+  /// exclude "candidates that happen to match what was just removed", since
+  /// it has no opinion on where the candidate list came from.
+  ///
+  /// Per docs/PLAN.md this is not an error state when there aren't enough
+  /// fresh candidates: the pool is simply left smaller.
+  int replaceExhausted(List<MediaIndexEntry> candidates);
+
+  /// Signals that an immediate, out-of-schedule refill is warranted instead
+  /// of waiting for the next scheduled `pool_maintenance_job` run - the
+  /// explicit architecture-review finding captured in docs/PLAN.md: with a
+  /// short slideshow [currentInterval] and a pool that's almost entirely
+  /// been shown already (`shownCount >= 1` for at least [exhaustionThreshold]
+  /// of entries), waiting for an hourly/daily scheduled refill would mean
+  /// visibly-too-early repeats.
+  bool needsUrgentRefill({
+    required Duration currentInterval,
+    Duration shortIntervalThreshold = const Duration(seconds: 30),
+    double exhaustionThreshold = 0.9,
+  });
 }
 
 /// Simple in-memory [WorkingSetPool] implementation. Not persisted; a
@@ -152,4 +205,94 @@ class InMemoryWorkingSetPool implements WorkingSetPool {
 
   @override
   bool get needsRefill => _entriesByKey.length < _targetSize;
+
+  bool _isNewCandidate(MediaIndexEntry candidate, DateTime now) {
+    return now.difference(candidate.mtime).inDays <= WorkingSetPool.newItemMaxAgeDays;
+  }
+
+  String _candidateKey(MediaIndexEntry candidate) => '${candidate.sourceId}::${candidate.path}';
+
+  void _admit(MediaIndexEntry candidate, DateTime now) {
+    add(
+      PoolEntry(
+        sourceId: candidate.sourceId,
+        itemId: candidate.path,
+        addedToPoolAt: now,
+      ),
+    );
+  }
+
+  @override
+  int refill(List<MediaIndexEntry> candidates) {
+    final slotsToFill = _targetSize - _entriesByKey.length;
+    if (slotsToFill <= 0) return 0;
+
+    final now = DateTime.now();
+    final newCandidates = <MediaIndexEntry>[];
+    final oldCandidates = <MediaIndexEntry>[];
+    for (final candidate in candidates) {
+      if (_entriesByKey.containsKey(_candidateKey(candidate))) continue;
+      if (_isNewCandidate(candidate, now)) {
+        newCandidates.add(candidate);
+      } else {
+        oldCandidates.add(candidate);
+      }
+    }
+
+    // At least `newImageQuota` of the newly-filled slots are reserved for
+    // "new" candidates where available (ceil so a small non-zero quota on a
+    // small refill still reserves at least one slot rather than rounding
+    // down to zero).
+    final reservedNewSlots = (slotsToFill * _newImageQuota).ceil().clamp(0, slotsToFill);
+
+    var added = 0;
+    var newIndex = 0;
+    var oldIndex = 0;
+
+    while (added < reservedNewSlots && newIndex < newCandidates.length) {
+      _admit(newCandidates[newIndex], now);
+      newIndex++;
+      added++;
+    }
+
+    // Fill the rest of the available slots from whatever candidates remain,
+    // preferring "old" ones first so any leftover "new" candidates stay
+    // available for a future refill's quota rather than being consumed here
+    // as generic filler.
+    while (added < slotsToFill && oldIndex < oldCandidates.length) {
+      _admit(oldCandidates[oldIndex], now);
+      oldIndex++;
+      added++;
+    }
+    while (added < slotsToFill && newIndex < newCandidates.length) {
+      _admit(newCandidates[newIndex], now);
+      newIndex++;
+      added++;
+    }
+
+    return added;
+  }
+
+  @override
+  int replaceExhausted(List<MediaIndexEntry> candidates) {
+    final exhausted = _entriesByKey.values.where((e) => e.shownCount >= 1).toList(growable: false);
+    for (final entry in exhausted) {
+      remove(entry.sourceId, entry.itemId);
+    }
+    if (exhausted.isEmpty) return 0;
+    return refill(candidates);
+  }
+
+  @override
+  bool needsUrgentRefill({
+    required Duration currentInterval,
+    Duration shortIntervalThreshold = const Duration(seconds: 30),
+    double exhaustionThreshold = 0.9,
+  }) {
+    if (_entriesByKey.isEmpty) return false;
+    if (currentInterval > shortIntervalThreshold) return false;
+    final shownCount = _entriesByKey.values.where((e) => e.shownCount >= 1).length;
+    final shownFraction = shownCount / _entriesByKey.length;
+    return shownFraction >= exhaustionThreshold;
+  }
 }

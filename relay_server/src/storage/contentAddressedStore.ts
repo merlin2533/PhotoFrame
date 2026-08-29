@@ -30,7 +30,16 @@ export function thumbPath(hash: string): string {
  *
  * Returns the content hash. Caller is responsible for inserting the
  * corresponding `images` row in the SAME transaction that calls this, so a
- * crash between the two never leaves an orphaned refcount.
+ * crash between the two never leaves an orphaned refcount (see
+ * routes/images.ts, which calls this from inside runInTransaction together
+ * with the images INSERT). Note this only protects the `blobs` row/refcount
+ * (a ROLLBACK correctly undoes that): the physical rename onto disk that
+ * happens just above is NOT covered by the SQL transaction, so a crash
+ * between the rename and a rolled-back COMMIT can in the worst case leave an
+ * orphaned file on disk with no blobs row pointing at it. That is a rare,
+ * bounded (one stray file, not a counter that drifts forever) cost accepted
+ * in exchange for never leaving `blobs.refcount` out of sync with `images`,
+ * which was the actual leak this fixes - see docs/DECISIONS.md.
  */
 export function commitBlob(tmpFilePath: string, bytes: number): string {
   const hash = hashFile(tmpFilePath);

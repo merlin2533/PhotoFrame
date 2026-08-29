@@ -35,7 +35,16 @@ export function checkUploadQuota(pairingId: string, uploaderUserId: string, inco
   }
 }
 
-/** Express middleware guard: rejects requests declaring an oversized body up front. */
+/**
+ * Express middleware: rejects requests that DECLARE an oversized body via
+ * Content-Length, purely as an early-exit optimization (avoids letting
+ * multer buffer a huge file to disk just to reject it afterwards). This is
+ * NOT the reliable guard against oversized uploads - Content-Length is
+ * client-supplied and can be omitted/spoofed (e.g. chunked transfer-encoding
+ * has none at all). The actual, trustworthy limit is multer's
+ * `limits.fileSize` (see routes/images.ts), which is enforced by counting
+ * bytes as they are streamed in, regardless of what the client claims here.
+ */
 export function enforceMaxUploadSize(req: Request, res: Response, next: NextFunction): void {
   const contentLength = Number(req.headers['content-length'] ?? 0);
   if (contentLength > env.MAX_UPLOAD_BYTES) {

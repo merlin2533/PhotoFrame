@@ -10,15 +10,22 @@
 /// picture currently on screen (or pre-fetched and about to be shown) is
 /// never deleted out from under the UI.
 ///
-/// This class is a placeholder: it has no wiring to a real cache manager
-/// yet (that lives in a later milestone). It exists now so [PhotoSource]
-/// consumers and the slideshow engine can already be written against the
-/// concept and the shape of the API doesn't need to change later.
+/// `ImageCacheManager` (see `lib/services/cache/image_cache_manager.dart`)
+/// now implements this concept for real: `acquire(key)` increments a pin
+/// counter and hands back a [CacheLease] wired via [onRelease] to decrement
+/// it again. The optional-callback shape keeps this class free of any
+/// import/dependency on the cache manager itself (which lives in
+/// `services/`, a layer above `features/sources/domain/`), and keeps it
+/// usable standalone (e.g. in tests) with [onRelease] simply omitted.
 class CacheLease {
-  CacheLease(this.itemId) : _released = false;
+  CacheLease(this.itemId, {void Function()? onRelease})
+      : _onRelease = onRelease,
+        _released = false;
 
   /// Id of the [PhotoItem] (or its cache key) this lease pins.
   final String itemId;
+
+  final void Function()? _onRelease;
 
   bool _released;
 
@@ -30,7 +37,6 @@ class CacheLease {
   void release() {
     if (_released) return;
     _released = true;
-    // TODO(cache): forward to ImageCacheManager.decrementPin(itemId) once
-    // that component exists.
+    _onRelease?.call();
   }
 }

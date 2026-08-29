@@ -4,13 +4,16 @@ import { z } from 'zod';
 import { getDb, runInTransaction } from '../db';
 import { requireDeviceAuth, requirePairingMembership } from '../middleware/authGuard';
 import { generatePairingCode, hashPairingCode } from '../auth/pairingCode';
+import { deriveKeyFingerprint } from '../auth/keyFingerprint';
 import { pairingCreateRateLimiter, pairingRedeemRateLimiter } from '../middleware/rateLimit';
+import { releaseImageAccounting } from '../storage/imageCleanup';
 
 export const pairingRouter = Router();
 
 pairingRouter.use(requireDeviceAuth);
 
-const CODE_TTL_MS = 10 * 60 * 1000;
+// Per docs/PLAN.md ("Ablauf" step 2): 15 minutes, not 10 (Code-Review-Backlog).
+const CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_REDEEM_ATTEMPTS = 5;
 
 const createCodeSchema = z.object({
@@ -57,7 +60,25 @@ pairingRouter.post('/create-code', pairingCreateRateLimiter, (req, res) => {
     'INSERT INTO pairing_codes (code_hash, pairing_id, created_by_frame_id, expires_at) VALUES (?, ?, ?, ?)',
   ).run(codeHash, pairingId, req.frameId!, expiresAt);
 
-  res.status(201).json({ pairingId, code, expiresAt });
+  // TOFU fingerprint (PLAN.md "Key-Fingerprint-Verifikation"): derived from
+  // the CREATING frame's current public_key and meant to travel out-of-band
+  // (e.g. baked into the pairing QR/deep-link as &fp=<fingerprint>), so the
+  // joining client can later detect a server-side public_key substitution.
+  // A frame that has never completed its keypair setup has no public_key
+  // yet - that is a legitimate, expected state (not an error), so we return
+  // fp: null plus an explicit fpReason instead of silently omitting the field.
+  const creatingFrame = db
+    .prepare('SELECT public_key FROM frames WHERE id = ?')
+    .get(req.frameId!) as { public_key: string | null } | undefined;
+  const fp = deriveKeyFingerprint(creatingFrame?.public_key);
+
+  res.status(201).json({
+    pairingId,
+    code,
+    expiresAt,
+    fp,
+    ...(fp === null ? { fpReason: 'creating frame has no public_key yet' } : {}),
+  });
 });
 
 const redeemSchema = z.object({
@@ -121,9 +142,34 @@ pairingRouter.post('/redeem', pairingRedeemRateLimiter, (req, res) => {
 pairingRouter.get('/:pairingId', requirePairingMembership, (req, res) => {
   const db = getDb();
   const pairing = db.prepare('SELECT * FROM pairings WHERE id = ?').get(req.params.pairingId);
-  const members = db
-    .prepare('SELECT frame_id, role, joined_at FROM pairing_members WHERE pairing_id = ?')
-    .all(req.params.pairingId);
+
+  // Join frames to expose each member's CURRENT public_key fingerprint, so
+  // clients can run their own local TOFU comparison against the fingerprint
+  // they captured out-of-band at pairing time. The server does not judge
+  // whether a fingerprint changed unexpectedly - that decision (and the
+  // resulting warning) is entirely client-side, since only the client knows
+  // the fingerprint it originally trusted.
+  const memberRows = db
+    .prepare(
+      `SELECT pm.frame_id, pm.role, pm.joined_at, f.public_key
+       FROM pairing_members pm
+       JOIN frames f ON f.id = pm.frame_id
+       WHERE pm.pairing_id = ?`,
+    )
+    .all(req.params.pairingId) as {
+    frame_id: string;
+    role: string;
+    joined_at: string;
+    public_key: string | null;
+  }[];
+
+  const members = memberRows.map((m) => ({
+    frameId: m.frame_id,
+    role: m.role,
+    joinedAt: m.joined_at,
+    keyFingerprint: deriveKeyFingerprint(m.public_key),
+  }));
+
   res.json({ pairing, members });
 });
 
@@ -153,6 +199,49 @@ pairingRouter.post('/:pairingId/leave', requirePairingMembership, (req, res) => 
   res.json({ ok: true });
 });
 
+/**
+ * Owner-only removal of another member from the pairing (Code-Review-Backlog
+ * Blocker 2, UGC-moderation "block a member" requirement). Deliberately
+ * separate from POST /:pairingId/leave: self-removal always goes through
+ * /leave so a member never needs owner privileges to remove themselves, and
+ * an owner can never accidentally orphan the pairing by "removing" themself
+ * through this route instead of an explicit delete/leave/ownership-transfer
+ * decision.
+ */
+pairingRouter.delete('/:pairingId/members/:frameId', requirePairingMembership, (req, res) => {
+  const db = getDb();
+  const { pairingId, frameId: targetFrameId } = req.params;
+
+  const caller = db
+    .prepare('SELECT role FROM pairing_members WHERE pairing_id = ? AND frame_id = ?')
+    .get(pairingId, req.frameId!) as { role: string } | undefined;
+
+  if (caller?.role !== 'owner') {
+    res.status(403).json({ error: 'only the pairing owner can remove members' });
+    return;
+  }
+
+  if (targetFrameId === req.frameId) {
+    res.status(400).json({ error: 'use POST /:pairingId/leave to remove yourself' });
+    return;
+  }
+
+  const target = db
+    .prepare('SELECT role FROM pairing_members WHERE pairing_id = ? AND frame_id = ?')
+    .get(pairingId, targetFrameId);
+
+  if (!target) {
+    res.status(404).json({ error: 'that frame is not a member of this pairing' });
+    return;
+  }
+
+  db.prepare('DELETE FROM pairing_members WHERE pairing_id = ? AND frame_id = ?').run(
+    pairingId,
+    targetFrameId,
+  );
+  res.json({ ok: true });
+});
+
 /** Deletes the pairing entirely - only an owner may do this. */
 pairingRouter.delete('/:pairingId', requirePairingMembership, (req, res) => {
   const db = getDb();
@@ -165,6 +254,19 @@ pairingRouter.delete('/:pairingId', requirePairingMembership, (req, res) => {
     return;
   }
 
-  db.prepare('DELETE FROM pairings WHERE id = ?').run(req.params.pairingId);
+  // Release blob refcounts + storage_used_bytes for every image in this
+  // pairing BEFORE the cascade delete below removes the `images` rows -
+  // `ON DELETE CASCADE` alone deletes the rows but knows nothing about
+  // blobs.refcount/users.storage_used_bytes, which used to leak here
+  // (Code-Review-Backlog). Both run in one transaction so a crash between
+  // the two never leaves the counters out of sync with what was deleted.
+  const images = db
+    .prepare('SELECT content_hash, uploaded_by_frame_id FROM images WHERE pairing_id = ?')
+    .all(req.params.pairingId) as { content_hash: string; uploaded_by_frame_id: string }[];
+
+  runInTransaction(db, () => {
+    releaseImageAccounting(images);
+    db.prepare('DELETE FROM pairings WHERE id = ?').run(req.params.pairingId);
+  });
   res.json({ ok: true });
 });

@@ -8,7 +8,9 @@ import { env, UPLOAD_TMP_DIR } from '../config/env';
 import { getDb, runInTransaction } from '../db';
 import { requireDeviceAuth, requirePairingMembership } from '../middleware/authGuard';
 import { checkUploadQuota, QuotaError } from '../middleware/quota';
-import { commitBlob, originalPath, releaseBlobRef, thumbPath } from '../storage/contentAddressedStore';
+import { getIo } from '../realtime/socket';
+import { commitBlob, originalPath, thumbPath } from '../storage/contentAddressedStore';
+import { releaseImageAccounting } from '../storage/imageCleanup';
 import { processImage } from '../storage/thumbnails';
 
 export const imagesRouter = Router();
@@ -77,31 +79,46 @@ imagesRouter.post('/', upload.single('file'), async (req, res, next) => {
     .get(req.frameId!) as { user_id: string } | undefined;
 
   try {
-    if (frame) {
-      checkUploadQuota(pairingId, frame.user_id, req.file.size);
-    }
-
     const inputBuffer = fs.readFileSync(req.file.path);
     const processed = await processImage(inputBuffer);
+    // Quota is checked (and storage_used_bytes is later booked) against the
+    // re-encoded byte count, not req.file.size (the raw upload) - those two
+    // can differ noticeably (re-encode/strip can shrink or, for a very
+    // compressible source, grow the file), and using two different numbers
+    // for the accept-decision vs. the bookkeeping would let accounting drift
+    // out of sync with what is actually ever stored on disk.
+    if (frame) {
+      checkUploadQuota(pairingId, frame.user_id, processed.originalBuffer.length);
+    }
 
-    // Write the re-encoded original to a fresh temp file, then commit -
-    // commitBlob hashes and atomically renames it into the blob store.
+    // Write the re-encoded original to a fresh temp file - commitBlob (called
+    // below, inside the transaction) hashes it and atomically renames it
+    // into the blob store.
     const tmpOriginal = path.join(UPLOAD_TMP_DIR, `${uuidv4()}.orig.tmp`);
     fs.writeFileSync(tmpOriginal, processed.originalBuffer);
-    const hash = commitBlob(tmpOriginal, processed.originalBuffer.length);
-
-    // Thumbnail is derived and stored alongside; not part of the refcounted
-    // dedup key, but named after the same hash for co-location/cleanup.
-    fs.writeFileSync(thumbPath(hash), processed.thumbnailBuffer);
-
     fs.unlinkSync(req.file.path);
 
     const imageId = uuidv4();
-    runInTransaction(db, () => {
+    // commitBlob (blob dedup/refcount) and the images INSERT run in the same
+    // transaction as required by contentAddressedStore.ts's commitBlob doc
+    // comment: a crash/error between the two previously left an incremented
+    // refcount with no images row ever pointing at it (a permanent leak,
+    // since GC only reaps refcount<=0 blobs). Wrapping both in one
+    // transaction means a failed INSERT rolls the refcount back too.
+    const hash = runInTransaction(db, () => {
+      const committedHash = commitBlob(tmpOriginal, processed.originalBuffer.length);
+
+      // Thumbnail is derived and stored alongside; not part of the
+      // refcounted dedup key, but named after the same hash for
+      // co-location/cleanup. Writing it here (vs. before commitBlob) means a
+      // rolled-back transaction can leave an orphaned thumb file with no DB
+      // row - the same bounded, accepted cost documented on commitBlob.
+      fs.writeFileSync(thumbPath(committedHash), processed.thumbnailBuffer);
+
       db.prepare(
         `INSERT INTO images (id, pairing_id, uploaded_by_frame_id, content_hash, width, height, client_upload_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).run(imageId, pairingId, req.frameId!, hash, processed.width, processed.height, clientUploadId);
+      ).run(imageId, pairingId, req.frameId!, committedHash, processed.width, processed.height, clientUploadId);
 
       if (frame) {
         db.prepare('UPDATE users SET storage_used_bytes = storage_used_bytes + ? WHERE id = ?').run(
@@ -109,6 +126,16 @@ imagesRouter.post('/', upload.single('file'), async (req, res, next) => {
           frame.user_id,
         );
       }
+
+      return committedHash;
+    });
+
+    getIo()?.to(`pairing:${pairingId}`).except(`frame:${req.frameId!}`).emit('album:updated', {
+      imageId,
+      pairingId,
+      uploadedByFrameId: req.frameId,
+      width: processed.width,
+      height: processed.height,
     });
 
     res.status(201).json({ imageId, contentHash: hash, width: processed.width, height: processed.height });
@@ -209,8 +236,15 @@ imagesRouter.delete('/:imageId', (req, res) => {
     return;
   }
 
-  db.prepare('DELETE FROM images WHERE id = ?').run(image.id);
-  releaseBlobRef(image.content_hash);
+  runInTransaction(db, () => {
+    db.prepare('DELETE FROM images WHERE id = ?').run(image.id);
+    releaseImageAccounting([{ content_hash: image.content_hash, uploaded_by_frame_id: image.uploaded_by_frame_id }]);
+  });
+
+  getIo()?.to(`pairing:${image.pairing_id}`).emit('album:imageDeleted', {
+    imageId: image.id,
+    pairingId: image.pairing_id,
+  });
 
   res.json({ ok: true });
 });

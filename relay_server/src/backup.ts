@@ -36,6 +36,10 @@ function pruneOldBackups(): void {
   for (const file of fs.readdirSync(BACKUPS_DIR)) {
     const filePath = path.join(BACKUPS_DIR, file);
     const stat = fs.statSync(filePath);
+    // Skip anything that isn't a plain file (e.g. a stray subdirectory in
+    // the backups folder) - unlinkSync on a directory throws EISDIR and
+    // previously aborted pruning entirely (Code-Review-Backlog).
+    if (!stat.isFile()) continue;
     if (stat.mtimeMs < cutoff) {
       fs.unlinkSync(filePath);
     }

@@ -9,9 +9,15 @@ export const configPushRouter = Router();
 
 configPushRouter.use(requireDeviceAuth);
 
+// 65536 chars (base64/hex-ish ciphertext) comfortably covers any realistic
+// source-config payload (SMB host/share/credentials etc.) with generous
+// headroom, while bounding config_pushes storage growth per row - previously
+// unbounded (Code-Review-Backlog: "keine Größenbegrenzung ... Storage-DoS-Potenzial").
+const MAX_CIPHERTEXT_LENGTH = 65536;
+
 const pushSchema = z.object({
   targetFrameId: z.string().min(1),
-  ciphertext: z.string().min(1),
+  ciphertext: z.string().min(1).max(MAX_CIPHERTEXT_LENGTH),
 });
 
 /**
@@ -75,6 +81,34 @@ configPushRouter.post('/:pushId/ack', (req, res) => {
 
   db.prepare(
     "UPDATE config_pushes SET applied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+  ).run(req.params.pushId);
+  res.json({ ok: true });
+});
+
+/**
+ * Lets the target frame explicitly decline a pending config push (e.g. the
+ * user dismisses the "apply this config?" confirmation dialog) instead of
+ * leaving it neither applied nor rejected forever. Only the target frame may
+ * reject its own push - mirrors the ack endpoint above.
+ */
+configPushRouter.post('/:pushId/reject', (req, res) => {
+  const db = getDb();
+  const push = db.prepare('SELECT * FROM config_pushes WHERE id = ?').get(req.params.pushId) as
+    | { id: string; target_frame_id: string; applied_at: string | null; rejected_at: string | null }
+    | undefined;
+
+  if (!push || push.target_frame_id !== req.frameId) {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
+
+  if (push.applied_at) {
+    res.status(409).json({ error: 'this config push was already applied' });
+    return;
+  }
+
+  db.prepare(
+    "UPDATE config_pushes SET rejected_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
   ).run(req.params.pushId);
   res.json({ ok: true });
 });
