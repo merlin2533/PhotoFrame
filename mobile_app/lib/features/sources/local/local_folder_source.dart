@@ -38,11 +38,11 @@ typedef DirectoryPicker = Future<String?> Function({String? dialogTitle});
 ///    [File] pointing directly at the already-local file. If the file has
 ///    disappeared (USB stick pulled) between listing and fetch, this
 ///    surfaces as [NotFound] rather than a crash.
-///  - Image detection uses an extension whitelist. GIF and common RAW
-///    formats are recognized-but-unsupported: they are excluded from
-///    [listImages] results but counted in [unsupportedCount] rather than
-///    silently vanishing, so a future UI can surface "N files skipped
-///    (unsupported format)".
+///  - Image detection uses an extension whitelist. GIF, common RAW formats,
+///    and video files (mp4/mov/...) are recognized-but-unsupported: they are
+///    excluded from [listImages] results but counted in [unsupportedCount]
+///    rather than silently vanishing, so a future UI can surface "N files
+///    skipped (unsupported format)".
 class LocalFolderSource implements PhotoSource {
   LocalFolderSource({
     required this.id,
@@ -87,10 +87,21 @@ class LocalFolderSource implements PhotoSource {
   /// Extensions recognized as media but not currently displayable. These are
   /// excluded from [listImages] but counted in [unsupportedCount] instead of
   /// being dropped without a trace.
+  ///
+  /// **Video clips (P2 decision):** `docs/PLAN.md` reserves
+  /// `MediaType.video` on `PhotoItem` for a later "kurzer Loop wie bei
+  /// Frameo" feature, but per explicit product decision that feature is
+  /// *not* being built in this round - video files are treated exactly like
+  /// GIF/RAW: recognized, counted here, and filtered out of [listImages]
+  /// rather than surfaced as `MediaType.video` items. Should video playback
+  /// be added later, only this set (and the classification below) needs to
+  /// change - `MediaType.video` already exists on the model for that.
   static const Set<String> _unsupportedMediaExtensions = {
     'gif',
     // Common RAW formats.
     'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
+    // Video formats - recognized-but-unsupported, see doc comment above.
+    'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp',
   };
 
   int _unsupportedCount = 0;

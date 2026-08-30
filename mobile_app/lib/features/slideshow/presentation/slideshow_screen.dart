@@ -4,20 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../favorites/state/favorites_providers.dart';
 import '../../index/working_set_pool.dart';
+import '../../playlists/playlist.dart';
 import '../../settings/domain/app_settings.dart';
 import '../../settings/state/settings_providers.dart';
 import '../../sources/domain/photo_item.dart';
 import '../../sources/domain/photo_source.dart';
 import '../../sources/state/sources_providers.dart';
+import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../state/slideshow_providers.dart';
 import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
+import 'widgets/ken_burns_effect.dart';
 import 'widgets/slide_renderer.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
+import 'widgets/weather_overlay.dart';
 
 /// Hosts the existing [SlideshowEngine], rendering [SlideshowEngine.currentItem]
 /// with the configured [DisplayMode]/transition and the clock/source-label
@@ -64,10 +69,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Future<void> _buildEngine() async {
     final sources = ref.read(sourcesProvider);
     final settings = ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+    final favorites = ref.read(favoritesStoreProvider);
 
     final pool = InMemoryWorkingSetPool(targetSize: settings.poolTargetSize);
     final itemsByKey = <String, PhotoItem>{};
     final sourcesById = <String, PhotoSource>{};
+    final allItems = <PhotoItem>[];
 
     for (final source in sources) {
       sourcesById[source.id] = source;
@@ -77,14 +84,32 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         await for (final itemResult in source.listImages(folder)) {
           final item = itemResult.valueOrNull;
           if (item == null) continue;
-          itemsByKey['${item.sourceId}::${item.id}'] = item;
-          pool.add(PoolEntry(
-            sourceId: item.sourceId,
-            itemId: item.id,
-            addedToPoolAt: DateTime.now(),
-          ));
+          allItems.add(item);
         }
       }
+    }
+
+    // Playlist "favoritesOnly" filter mode (see docs/PLAN.md playlist model
+    // and `AppSettings.favoritesOnlyMode`): an *additional* mode on top of
+    // the default "everything from the configured sources" behaviour below,
+    // not a replacement for it - when off, `applyPlaylistFilter` is a no-op
+    // and every crawled item is admitted exactly as before this feature.
+    final filter = PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode);
+    final eligibleItems = applyPlaylistFilter<PhotoItem>(
+      allItems,
+      filter,
+      stableIdOf: (item) => item.stableId,
+      takenAtOf: (item) => item.takenAt,
+      isFavorite: favorites.isFavorite,
+    );
+
+    for (final item in eligibleItems) {
+      itemsByKey['${item.sourceId}::${item.id}'] = item;
+      pool.add(PoolEntry(
+        sourceId: item.sourceId,
+        itemId: item.id,
+        addedToPoolAt: DateTime.now(),
+      ));
     }
 
     if (!mounted) return;
@@ -218,6 +243,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
     final settings = settingsAsync.valueOrNull ?? const AppSettings();
     final isNight = settings.nightSchedule.isNightAt(DateTime.now());
+    final favorites = ref.watch(favoritesStoreProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -230,22 +256,54 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           if (item != null) _showInfo(item);
         },
         onOpenSettings: () => _openSettings(settings.settingsPin),
+        isFavorite: engine.currentItem != null &&
+            favorites.isFavorite(engine.currentItem!.stableId),
+        onToggleFavorite: engine.currentItem == null
+            ? null
+            : () => favorites.toggleFavorite(engine.currentItem!.stableId),
         child: StreamBuilder<PhotoItem?>(
           stream: engine.currentItemChanges,
           initialData: engine.currentItem,
           builder: (context, snapshot) {
             final item = snapshot.data;
+            // "Bewegung reduzieren" (system accessibility signal) forces
+            // transition=none and Ken Burns off regardless of the user's
+            // settings - see EffectiveVisualSettings' doc comment.
+            final reduceMotion = MediaQuery.of(context).disableAnimations;
+            final effective = EffectiveVisualSettings.fromSettings(
+              settings,
+              reduceMotion: reduceMotion,
+            );
+
+            Widget slide = item == null
+                ? const SizedBox.shrink(key: ValueKey('empty'))
+                : SlideRenderer(
+                    item: item,
+                    displayMode: settings.displayMode,
+                  );
+            if (item != null && effective.kenBurnsEnabled) {
+              slide = KenBurnsEffect(
+                key: ValueKey(item.id),
+                duration: settings.interval,
+                child: slide,
+              );
+            } else if (item != null) {
+              slide = KeyedSubtree(key: ValueKey(item.id), child: slide);
+            }
+
             return Stack(
               fit: StackFit.expand,
               children: [
                 AnimatedSwitcher(
-                  duration: settings.transition == SlideshowTransition.none
+                  duration: effective.transition == SlideshowTransition.none
                       ? Duration.zero
                       : const Duration(milliseconds: 600),
                   transitionBuilder: (child, animation) {
-                    switch (settings.transition) {
-                      case SlideshowTransition.fade:
+                    switch (effective.transition) {
                       case SlideshowTransition.none:
+                        // Instant swap, no animated transition at all.
+                        return child;
+                      case SlideshowTransition.fade:
                         return FadeTransition(opacity: animation, child: child);
                       case SlideshowTransition.slide:
                         return SlideTransition(
@@ -257,21 +315,40 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                         );
                     }
                   },
-                  child: item == null
-                      ? const SizedBox.shrink(key: ValueKey('empty'))
-                      : SlideRenderer(
-                          key: ValueKey(item.id),
-                          item: item,
-                          displayMode: settings.displayMode,
-                        ),
+                  child: slide,
                 ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
-                if (settings.showClock) const ClockOverlay(),
+                // Clock and weather share the bottom-left corner: shown
+                // combined in one pill when both are enabled, otherwise
+                // whichever one is enabled renders alone. See
+                // WeatherOverlayContent's doc comment for the full
+                // positioning rationale.
+                if (settings.showClock && settings.weatherEnabled)
+                  const Positioned(
+                    left: 16,
+                    bottom: 16,
+                    child: InfoBarPill(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClockText(),
+                          SizedBox(width: 10),
+                          _InfoBarDivider(),
+                          SizedBox(width: 10),
+                          WeatherOverlayContent(),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (settings.showClock)
+                  const ClockOverlay()
+                else if (settings.weatherEnabled)
+                  const WeatherOverlay(),
                 if (isNight)
                   IgnorePointer(
                     child: Container(
-                      color: Colors.black.withOpacity(settings.nightSchedule.dimAmount),
+                      color: Colors.black.withValues(alpha: settings.nightSchedule.dimAmount),
                     ),
                   ),
               ],
@@ -280,5 +357,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Tiny visual separator between the clock and weather content in the
+/// combined bottom-left info-bar pill (see [_SlideshowScreenState.build]).
+class _InfoBarDivider extends StatelessWidget {
+  const _InfoBarDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 16, color: Colors.white38);
   }
 }

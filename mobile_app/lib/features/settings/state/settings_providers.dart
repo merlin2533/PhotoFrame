@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../services/weather/weather_client.dart';
 import '../domain/app_settings.dart';
 
 const String _prefsKey = 'app_settings_v1';
@@ -90,6 +91,16 @@ class CacheInfo {
   double get usedFraction =>
       limitBytes <= 0 ? 0 : (usedBytes / limitBytes).clamp(0, 1).toDouble();
 }
+
+// --- Weather ---------------------------------------------------------------
+
+/// Single, app-lifetime [WeatherClient] instance so its in-memory
+/// last-reading cache (see `weather_client.dart`) is actually shared across
+/// widget rebuilds/remounts instead of refetching every time the overlay or
+/// settings screen is built.
+final Provider<WeatherClient> weatherClientProvider = Provider<WeatherClient>((ref) {
+  return WeatherClient();
+});
 
 final Provider<CacheInfo> cacheInfoProvider = Provider<CacheInfo>((ref) {
   final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();

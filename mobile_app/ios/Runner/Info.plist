@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Wird nur verwendet, wenn du in den Wetter-Einstellungen optional "Aktuellen Standort verwenden" statt manueller Ortseingabe wählst.</string>
 </dict>
 </plist>

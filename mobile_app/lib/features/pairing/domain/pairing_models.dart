@@ -13,6 +13,7 @@ class PairingMember {
     required this.role,
     required this.joinedAt,
     required this.keyFingerprint,
+    this.publicKey,
   });
 
   final String frameId;
@@ -26,6 +27,23 @@ class PairingMember {
   /// [PairingMember] snapshot may be checked at different times with
   /// different outcomes.
   final String? keyFingerprint;
+
+  /// The member's raw base64 X25519 public key, needed to actually encrypt
+  /// a config-push to this frame (see `config_push_crypto.dart`) - the
+  /// fingerprint alone is one-way and cannot be used for encryption.
+  ///
+  /// SERVER GAP: as of this writing, `GET /pairing/:id`
+  /// (relay_server/src/routes/pairing.ts) only returns each member's
+  /// *derived* `keyFingerprint`, not the raw `public_key` column. This
+  /// field is wired up to parse a `publicKey` property if/when the server
+  /// starts sending one (see [PairingMemberInfo.publicKey] in
+  /// `relay_api_client.dart`), but will be `null` against the current
+  /// server - `sendEncryptedConfigPush` fails clearly in that case rather
+  /// than silently sending plaintext or garbage. Sending the raw public
+  /// key over the same channel as the fingerprint is fine security-wise:
+  /// the public key is, by definition, public - only the out-of-band
+  /// fingerprint check protects against a substituted key.
+  final String? publicKey;
 
   bool get isOwner => role == PairingRole.owner;
 }

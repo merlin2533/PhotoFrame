@@ -1,3 +1,5 @@
+import 'media_stable_id.dart';
+
 /// Cache state of a [MediaIndexEntry]'s underlying file.
 enum CacheState {
   /// Not fetched yet - only metadata is known.
@@ -76,6 +78,10 @@ class MediaIndexEntry {
   DateTime lastSeenAt;
 
   CacheState cacheState;
+
+  /// Stable identifier (`sourceId:pathHash`) - see [MediaStableId]. Used to
+  /// key favorites, "on this day" bookkeeping, and playlist `excludeIds`.
+  String get stableId => MediaStableId.compute(sourceId: sourceId, path: path);
 
   @override
   String toString() =>

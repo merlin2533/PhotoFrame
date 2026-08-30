@@ -1,26 +1,34 @@
-import 'dart:convert';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
+import '../../../core/errors/failure.dart';
 import '../../../services/relay/relay_api_client.dart';
+import '../domain/frame_keypair.dart';
 
 /// Lets the user recover a lost/reset frame device by rebinding its
 /// `frameId` to a freshly generated keypair on this device
 /// (`POST /frames/:frameId/recover`, see relay_server/src/auth/recovery.ts).
 ///
-/// Keypair generation itself is a placeholder here: a real implementation
-/// needs an actual asymmetric keypair (e.g. X25519 via `package:cryptography`,
-/// already a project dependency for exactly this purpose) with the private
-/// key persisted in `flutter_secure_storage` and never sent to the relay.
-/// That crypto wiring is intentionally out of scope for this pass - see
-/// [_generatePlaceholderPublicKey] - so this screen focuses on the
-/// recovery *flow* (calling the endpoint, handling `fp`, prompting the
-/// user to re-share their fingerprint) rather than the key material.
+/// Keypair generation goes through
+/// [FrameKeypairStore.generateCandidateKeypair]: this device gets a
+/// brand-new X25519 keypair, but its private key is held only in memory
+/// (never persisted) until the server has actually confirmed the recovery
+/// request with that key's public half. Only then is the candidate
+/// committed to `flutter_secure_storage`, overwriting whatever keypair (if
+/// any) existed before - matching the server's own behaviour of discarding
+/// any `config_pushes` that were encrypted for the previous key. If the
+/// request fails for any reason (network error, wrong frame ID, rate
+/// limit, ...), the candidate is simply discarded and this device's
+/// existing keypair - if it had one - is left completely untouched.
 class RecoveryCodeScreen extends StatefulWidget {
-  const RecoveryCodeScreen({super.key, required this.apiClient, required this.onRecovered});
+  RecoveryCodeScreen({
+    super.key,
+    required this.apiClient,
+    required this.onRecovered,
+    FrameKeypairStore? keypairStore,
+  }) : keypairStore = keypairStore ?? FrameKeypairStore();
 
   final RelayApiClient apiClient;
+  final FrameKeypairStore keypairStore;
 
   /// Called with the recovered frame's new `deviceToken` and (if
   /// available) its new fingerprint once recovery succeeds.
@@ -42,17 +50,6 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
     super.dispose();
   }
 
-  /// TODO(crypto): replace with a real keypair generated via
-  /// `package:cryptography` (e.g. `X25519()..newKeyPair()`), persisting the
-  /// private key in secure storage. This placeholder only produces
-  /// something long/unique enough to satisfy the server's `minLength: 16`
-  /// validation so the recovery *flow* can be exercised end-to-end.
-  String _generatePlaceholderPublicKey() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
-    return base64UrlEncode(bytes);
-  }
-
   Future<void> _recover() async {
     final frameId = _frameIdController.text.trim();
     if (frameId.isEmpty) {
@@ -65,18 +62,66 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
       _error = null;
     });
 
-    final newPublicKey = _generatePlaceholderPublicKey();
-    final result = await widget.apiClient.recoverFrame(frameId: frameId, newPublicKey: newPublicKey);
+    // Generate the new keypair as an unpersisted candidate first - its
+    // private key is only committed to secure storage below, after the
+    // server has actually accepted the public key. A failed request must
+    // never destroy this device's existing identity (see class doc).
+    final candidate = await widget.keypairStore.generateCandidateKeypair();
+    final result = await widget.apiClient.recoverFrame(
+      frameId: frameId,
+      newPublicKey: candidate.publicKeyBase64,
+    );
+
+    // fold (not when) because committing the candidate is itself async and
+    // must complete - and be awaited - before this method proceeds; when()
+    // invokes its callbacks synchronously and would let an async onOk race
+    // with the setState below.
+    //
+    // Deliberately NOT gated on `mounted` before this point: if the server
+    // already accepted the recovery (result is Ok), the candidate MUST be
+    // committed regardless of whether this screen is still on-screen -
+    // skipping the commit here would leave the server's `frames.public_key`
+    // rotated to a key this device never actually persisted, desyncing the
+    // two in a way that is worse than the original bug (a *successful*
+    // recovery the device can no longer act on). `mounted` is only checked
+    // before touching `setState`/`context`-dependent callbacks afterwards.
+    String? recoveredFingerprint;
+    Failure? recoveryError;
+    await result.fold<Future<void>>(
+      (recovery) async {
+        try {
+          await candidate.commit();
+          recoveredFingerprint = recovery.fingerprint;
+          if (mounted) {
+            widget.onRecovered(recovery.frameId, recovery.deviceToken, recovery.fingerprint);
+          }
+        } on StateError catch (e) {
+          // Candidate expired (>60 min since generation, e.g. the user left
+          // this screen open for a long time before the network call
+          // finally completed). The server has already rotated its key to
+          // one this device cannot persist/use - surface it as an error
+          // rather than silently losing the recovery.
+          recoveryError = Unsupported(
+            'Wiederherstellung fehlgeschlagen: der neue Schlüssel ist abgelaufen (${e.message}). '
+            'Bitte erneut versuchen.',
+          );
+        }
+      },
+      (failure) async {
+        recoveryError = failure;
+      },
+    );
 
     if (!mounted) return;
-    result.when(
-      onOk: (recovery) {
-        setState(() => _newFingerprint = recovery.fingerprint);
-        widget.onRecovered(recovery.frameId, recovery.deviceToken, recovery.fingerprint);
-      },
-      onErr: (failure) => setState(() => _error = failure.message),
-    );
-    setState(() => _submitting = false);
+    setState(() {
+      _submitting = false;
+      if (recoveredFingerprint != null) {
+        _newFingerprint = recoveredFingerprint;
+      }
+      if (recoveryError != null) {
+        _error = recoveryError!.message;
+      }
+    });
   }
 
   @override

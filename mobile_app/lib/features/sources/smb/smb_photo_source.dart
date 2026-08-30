@@ -96,9 +96,15 @@ class SmbPhotoSource implements PhotoSource {
     'heif',
   };
 
+  /// Recognized-but-unsupported extensions: GIF/RAW plus video formats.
+  /// Video clips are *not* played (P2 decision - see `docs/PLAN.md`'s
+  /// `MediaType.video` note and `local_folder_source.dart`'s doc comment for
+  /// the full rationale); they are counted like GIF/RAW rather than
+  /// surfaced as playable items.
   static const Set<String> _unsupportedMediaExtensions = {
     'gif',
     'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
+    'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp',
   };
 
   /// Number of files skipped in the most recent [listImages] run because

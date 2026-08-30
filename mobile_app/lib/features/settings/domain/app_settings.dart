@@ -33,12 +33,21 @@ class AppSettings {
     this.poolTargetSize = 1000,
     this.poolRefillIntervalHours = 1,
     this.poolNewImageQuota = 0.2,
+    // Favorites / date filter (P2)
+    this.favoritesOnlyMode = false,
+    this.preferOnThisDayEnabled = false,
+    this.onThisDayQuota = 0.1,
     // Sharing/Relay (URL only - pairing logic lives elsewhere)
     this.relayServerUrl,
     // Slideshow-lock PIN (optional, guards long-press -> settings)
     this.settingsPin,
     // Onboarding
     this.onboardingCompleted = false,
+    // Weather overlay
+    this.weatherEnabled = false,
+    this.weatherLatitude,
+    this.weatherLongitude,
+    this.weatherLocationLabel,
   });
 
   // --- Slideshow ------------------------------------------------------
@@ -64,6 +73,56 @@ class AppSettings {
   final int poolRefillIntervalHours;
   final double poolNewImageQuota;
 
+  // --- Favorites / date filter (P2) ---------------------------------------
+
+  /// When enabled, the working set is populated only from favorited items
+  /// (see `FavoritesStore`/`playlists/playlist.dart`'s `favoritesOnly`
+  /// filter) instead of the full configured sources. An additional mode on
+  /// top of - not a replacement for - the default "all configured sources"
+  /// behaviour.
+  final bool favoritesOnlyMode;
+
+  /// "Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen" -
+  /// whether items matching `filterOnThisDay` (same month+day as today, any
+  /// year - see `date_filter.dart`) should get a reserved share of the
+  /// working-set pool's refill slots, analogous to [poolNewImageQuota].
+  final bool preferOnThisDayEnabled;
+
+  /// Fraction of a refill's *newly filled slots* reserved for "on this day"
+  /// candidates when [preferOnThisDayEnabled] is `true`, in `[0, 1]`.
+  ///
+  /// **How this combines with [poolNewImageQuota]** (documented per task
+  /// instructions, since `WorkingSetPool.refill` only natively models one
+  /// reserved quota - the "new" one): the two quotas are applied as
+  /// independent, non-overlapping reservations against the same pool of
+  /// available refill slots, in priority order "on this day" first, then
+  /// "new", then everything else:
+  ///
+  ///  1. `ceil(slotsToFill * onThisDayQuota)` slots are reserved for
+  ///     candidates that pass `filterOnThisDay` (when
+  ///     [preferOnThisDayEnabled] is on) - filled first, since a photo from
+  ///     today's date in a past year is a rare, high-value match that
+  ///     should not be crowded out.
+  ///  2. Of the *remaining* slots, `ceil(remainingSlots * poolNewImageQuota)`
+  ///     are reserved for "new" candidates, exactly as
+  ///     `WorkingSetPool.refill` already does today.
+  ///  3. Any slots left after both reservations are filled from whatever
+  ///     candidates remain (old-first, as today), including "on this day"
+  ///     or "new" candidates that didn't fit within their own reservation.
+  ///
+  /// A candidate can satisfy both categories (an old, rarely-shown photo
+  /// that also happens to match today's date) - the priority order above
+  /// means it is consumed from the "on this day" reservation first, freeing
+  /// up the "new" reservation for other candidates.
+  ///
+  /// This composition happens at the call site that builds a refill's
+  /// candidate list (splitting candidates into "on this day" vs. the rest
+  /// and calling `WorkingSetPool.refill` per bucket against a shrinking
+  /// slot budget), not inside `WorkingSetPool` itself - `WorkingSetPool`'s
+  /// own `newImageQuota` handling is left unchanged so existing pool
+  /// behaviour/tests are unaffected when this feature is off (the default).
+  final double onThisDayQuota;
+
   // --- Sharing/Relay ------------------------------------------------------
   final String? relayServerUrl;
 
@@ -72,6 +131,22 @@ class AppSettings {
 
   // --- Onboarding -----------------------------------------------------
   final bool onboardingCompleted;
+
+  // --- Weather overlay --------------------------------------------------
+  /// Whether the temperature/condition overlay is shown on the slideshow.
+  final bool weatherEnabled;
+
+  /// Manually-entered (default) or geolocated (opt-in) coordinates the
+  /// weather overlay fetches for. Both null until the user picks/confirms a
+  /// location in `weather_settings_screen.dart`.
+  final double? weatherLatitude;
+  final double? weatherLongitude;
+
+  /// Human-readable label for [weatherLatitude]/[weatherLongitude], e.g.
+  /// "Berlin, Deutschland" or "Aktueller Standort" - shown in settings so
+  /// the user can see which location is configured without re-deriving it
+  /// from raw coordinates.
+  final String? weatherLocationLabel;
 
   Duration get interval => Duration(seconds: intervalSeconds);
 
@@ -96,11 +171,19 @@ class AppSettings {
     int? poolTargetSize,
     int? poolRefillIntervalHours,
     double? poolNewImageQuota,
+    bool? favoritesOnlyMode,
+    bool? preferOnThisDayEnabled,
+    double? onThisDayQuota,
     String? relayServerUrl,
     bool clearRelayServerUrl = false,
     String? settingsPin,
     bool clearSettingsPin = false,
     bool? onboardingCompleted,
+    bool? weatherEnabled,
+    double? weatherLatitude,
+    double? weatherLongitude,
+    String? weatherLocationLabel,
+    bool clearWeatherLocation = false,
   }) {
     return AppSettings(
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
@@ -118,10 +201,22 @@ class AppSettings {
       poolRefillIntervalHours:
           poolRefillIntervalHours ?? this.poolRefillIntervalHours,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
+      favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
+      preferOnThisDayEnabled:
+          preferOnThisDayEnabled ?? this.preferOnThisDayEnabled,
+      onThisDayQuota: onThisDayQuota ?? this.onThisDayQuota,
       relayServerUrl:
           clearRelayServerUrl ? null : (relayServerUrl ?? this.relayServerUrl),
       settingsPin: clearSettingsPin ? null : (settingsPin ?? this.settingsPin),
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      weatherEnabled: weatherEnabled ?? this.weatherEnabled,
+      weatherLatitude:
+          clearWeatherLocation ? null : (weatherLatitude ?? this.weatherLatitude),
+      weatherLongitude:
+          clearWeatherLocation ? null : (weatherLongitude ?? this.weatherLongitude),
+      weatherLocationLabel: clearWeatherLocation
+          ? null
+          : (weatherLocationLabel ?? this.weatherLocationLabel),
     );
   }
 
@@ -139,9 +234,16 @@ class AppSettings {
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
         'poolNewImageQuota': poolNewImageQuota,
+        'favoritesOnlyMode': favoritesOnlyMode,
+        'preferOnThisDayEnabled': preferOnThisDayEnabled,
+        'onThisDayQuota': onThisDayQuota,
         'relayServerUrl': relayServerUrl,
         'settingsPin': settingsPin,
         'onboardingCompleted': onboardingCompleted,
+        'weatherEnabled': weatherEnabled,
+        'weatherLatitude': weatherLatitude,
+        'weatherLongitude': weatherLongitude,
+        'weatherLocationLabel': weatherLocationLabel,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -173,9 +275,17 @@ class AppSettings {
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
       poolNewImageQuota:
           (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
+      favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
+      preferOnThisDayEnabled:
+          json['preferOnThisDayEnabled'] as bool? ?? false,
+      onThisDayQuota: (json['onThisDayQuota'] as num?)?.toDouble() ?? 0.1,
       relayServerUrl: json['relayServerUrl'] as String?,
       settingsPin: json['settingsPin'] as String?,
       onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
+      weatherEnabled: json['weatherEnabled'] as bool? ?? false,
+      weatherLatitude: (json['weatherLatitude'] as num?)?.toDouble(),
+      weatherLongitude: (json['weatherLongitude'] as num?)?.toDouble(),
+      weatherLocationLabel: json['weatherLocationLabel'] as String?,
     );
   }
 }

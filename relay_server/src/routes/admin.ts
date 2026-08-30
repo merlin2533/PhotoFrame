@@ -7,6 +7,7 @@ import { signAdminToken, verifyAdminCredentials } from '../auth/adminAuth';
 import { authRateLimiter } from '../middleware/rateLimit';
 import { runGarbageCollection } from '../storage/contentAddressedStore';
 import { releaseImageAccounting } from '../storage/imageCleanup';
+import { runBlobConsistencyCheck } from '../storage/blobConsistencyCheck';
 
 export const adminRouter = Router();
 
@@ -142,6 +143,12 @@ adminRouter.post('/gc', (_req, res) => {
   const result = runGarbageCollection();
   audit('admin', 'run_gc', 'system', undefined);
   res.json(result);
+});
+
+adminRouter.get('/blob-consistency-report', (_req, res) => {
+  const report = runBlobConsistencyCheck();
+  audit('admin', 'run_blob_consistency_check', 'system', undefined);
+  res.json(report);
 });
 
 adminRouter.get('/audit', (_req, res) => {

@@ -1,3 +1,4 @@
+import '../../index/media_stable_id.dart';
 import 'media_type.dart';
 
 /// A single photo (or, later, video) item as reported by a [PhotoSource].
@@ -50,6 +51,13 @@ class PhotoItem {
 
   /// Last-modified time as reported by the source.
   final DateTime mtime;
+
+  /// Stable identifier (`sourceId:pathHash`) that stays the same across app
+  /// restarts and re-crawls as long as [id] (the source-relative path)
+  /// doesn't change - see [MediaStableId]. Used to key favorites, "on this
+  /// day" bookkeeping, and playlist `excludeIds`, independent of [id]'s
+  /// per-source uniqueness scope.
+  String get stableId => MediaStableId.compute(sourceId: sourceId, path: id);
 
   @override
   bool operator ==(Object other) =>

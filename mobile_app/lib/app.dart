@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/state/settings_providers.dart';
+import 'l10n/app_localizations.dart';
 
 /// Root widget of the PhotoFrame companion app.
 ///
@@ -72,15 +73,19 @@ class _RoutedAppState extends State<_RoutedApp> {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
       routerConfig: _router,
+      // German is this app's primary/default locale (see docs/DECISIONS.md,
+      // ADR "i18n scaffold"); AppLocalizations.delegate resolves the
+      // AppLocalizations.of(context) strings used by the (partially)
+      // migrated screens, the Global*Localizations delegates cover
+      // framework-level strings (date pickers, text selection toolbar, ...).
+      locale: const Locale('de'),
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('de'),
-      ],
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 }

@@ -48,6 +48,23 @@ abstract class PairingRepository {
   /// relay; callers own the crypto and pass the resulting ciphertext.
   Future<Result<String>> sendConfigPush({required String targetFrameId, required String ciphertext});
 
+  /// Convenience that does the encryption for the caller: looks up
+  /// [targetFrameId]'s current public key within [pairingId] (via
+  /// [getPairing]), encrypts [plaintextJson] to it
+  /// (`ConfigPushCrypto.encryptForRecipient`), and forwards the resulting
+  /// ciphertext to [sendConfigPush].
+  ///
+  /// Returns an [Unsupported] failure if the target frame has no public
+  /// key on file yet - which, against the relay server as of this writing,
+  /// is every frame (see the "SERVER GAP" note on
+  /// `PairingMember.publicKey`) until the server starts returning raw
+  /// public keys from `GET /pairing/:id`.
+  Future<Result<String>> sendEncryptedConfigPush({
+    required String pairingId,
+    required String targetFrameId,
+    required String plaintextJson,
+  });
+
   /// Fetches pending config-pushes targeting [localFrameId] together with
   /// the TOFU verdict for each sender, resolved against [pairingId]'s
   /// current member list.

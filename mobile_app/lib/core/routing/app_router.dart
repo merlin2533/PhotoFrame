@@ -3,12 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/accessibility_settings_screen.dart';
 import '../../features/settings/presentation/always_on_settings_screen.dart';
+import '../../features/settings/presentation/autostart_help_screen.dart';
 import '../../features/settings/presentation/cache_settings_screen.dart';
 import '../../features/settings/presentation/night_mode_settings_screen.dart';
 import '../../features/settings/presentation/pool_settings_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/sharing_settings_screen.dart';
 import '../../features/settings/presentation/slideshow_settings_screen.dart';
+import '../../features/settings/presentation/weather_settings_screen.dart';
 import '../../features/slideshow/presentation/slideshow_screen.dart';
 import '../../features/sources/presentation/add_source_screen.dart';
 import '../../features/sources/presentation/source_list_screen.dart';
@@ -71,9 +73,19 @@ GoRouter buildAppRouter({required String initialLocation}) {
             builder: (context, state) => const SharingSettingsScreen(),
           ),
           GoRoute(
+            path: 'weather',
+            name: 'settings-weather',
+            builder: (context, state) => const WeatherSettingsScreen(),
+          ),
+          GoRoute(
             path: 'accessibility',
             name: 'settings-accessibility',
             builder: (context, state) => const AccessibilitySettingsScreen(),
+          ),
+          GoRoute(
+            path: 'autostart-help',
+            name: 'settings-autostart-help',
+            builder: (context, state) => const AutostartHelpScreen(),
           ),
           GoRoute(
             path: 'sources',
