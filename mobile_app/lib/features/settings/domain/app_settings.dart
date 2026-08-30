@@ -25,6 +25,8 @@ class AppSettings {
     this.portraitPairLayoutEnabled = false,
     // Always-on / Dauer-Modus
     this.alwaysOnMode = AlwaysOnMode.duringSlideshowOnly,
+    // Kiosk/Autostart (ADR-004)
+    this.kioskModeEnabled = false,
     // Night mode
     this.nightSchedule = const NightSchedule.disabled(),
     // Cache
@@ -61,6 +63,16 @@ class AppSettings {
 
   // --- Always-on / "Dauer-Modus" --------------------------------------
   final AlwaysOnMode alwaysOnMode;
+
+  // --- Kiosk/Autostart (ADR-004) -----------------------------------------
+  /// Whether the user has opted into kiosk behaviour: register the app as
+  /// selectable as the device's Home app (see AndroidManifest.xml) and
+  /// activate screen pinning (`startLockTask()`, via
+  /// `KioskModeController`) while the slideshow is showing. Off by default -
+  /// this changes system-level behaviour (Home button interception) that a
+  /// user must explicitly opt into, not something to silently switch on.
+  /// Android-only; has no effect on iOS (see ADR-004/`kiosk_settings_screen.dart`).
+  final bool kioskModeEnabled;
 
   // --- Night mode -------------------------------------------------------
   final NightSchedule nightSchedule;
@@ -166,6 +178,7 @@ class AppSettings {
     bool? kenBurnsEnabled,
     bool? portraitPairLayoutEnabled,
     AlwaysOnMode? alwaysOnMode,
+    bool? kioskModeEnabled,
     NightSchedule? nightSchedule,
     int? cacheLimitBytes,
     int? poolTargetSize,
@@ -195,6 +208,7 @@ class AppSettings {
       portraitPairLayoutEnabled:
           portraitPairLayoutEnabled ?? this.portraitPairLayoutEnabled,
       alwaysOnMode: alwaysOnMode ?? this.alwaysOnMode,
+      kioskModeEnabled: kioskModeEnabled ?? this.kioskModeEnabled,
       nightSchedule: nightSchedule ?? this.nightSchedule,
       cacheLimitBytes: cacheLimitBytes ?? this.cacheLimitBytes,
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
@@ -229,6 +243,7 @@ class AppSettings {
         'kenBurnsEnabled': kenBurnsEnabled,
         'portraitPairLayoutEnabled': portraitPairLayoutEnabled,
         'alwaysOnMode': alwaysOnMode.name,
+        'kioskModeEnabled': kioskModeEnabled,
         'nightSchedule': nightSchedule.toJson(),
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
@@ -266,6 +281,7 @@ class AppSettings {
         (m) => m.name == json['alwaysOnMode'],
         orElse: () => AlwaysOnMode.duringSlideshowOnly,
       ),
+      kioskModeEnabled: json['kioskModeEnabled'] as bool? ?? false,
       nightSchedule: json['nightSchedule'] is Map
           ? NightSchedule.fromJson(
               Map<String, dynamic>.from(json['nightSchedule'] as Map))

@@ -5,6 +5,7 @@ import '../../features/settings/presentation/accessibility_settings_screen.dart'
 import '../../features/settings/presentation/always_on_settings_screen.dart';
 import '../../features/settings/presentation/autostart_help_screen.dart';
 import '../../features/settings/presentation/cache_settings_screen.dart';
+import '../../features/settings/presentation/kiosk_settings_screen.dart';
 import '../../features/settings/presentation/night_mode_settings_screen.dart';
 import '../../features/settings/presentation/pool_settings_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -88,6 +89,11 @@ GoRouter buildAppRouter({required String initialLocation}) {
             path: 'autostart-help',
             name: 'settings-autostart-help',
             builder: (context, state) => const AutostartHelpScreen(),
+          ),
+          GoRoute(
+            path: 'kiosk',
+            name: 'settings-kiosk',
+            builder: (context, state) => const KioskSettingsScreen(),
           ),
           GoRoute(
             path: 'sources',

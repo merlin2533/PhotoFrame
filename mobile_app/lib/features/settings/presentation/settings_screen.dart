@@ -93,6 +93,13 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => context.push('/settings/autostart-help'),
           ),
           ListTile(
+            leading: const Icon(Icons.home_outlined),
+            title: Text(l10n.settingsKioskTitle),
+            subtitle: Text(l10n.settingsKioskSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/kiosk'),
+          ),
+          ListTile(
             leading: const Icon(Icons.help_outline),
             title: Text(l10n.settingsReplayOnboardingTitle),
             trailing: const Icon(Icons.chevron_right),
