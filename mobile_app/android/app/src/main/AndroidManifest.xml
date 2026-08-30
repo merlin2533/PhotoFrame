@@ -29,6 +29,20 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Registers this Activity as selectable as the device's Home
+                 app/launcher (see docs/DECISIONS.md ADR-004: Kiosk/Autostart
+                 limits). This is what actually gets the app to reappear
+                 automatically after boot on Android - a bare BOOT_COMPLETED
+                 receiver cannot start an Activity from the background since
+                 API 29. The user must still explicitly confirm the "use as
+                 Home app" system dialog the first time the Home button is
+                 pressed after this is enabled (see kiosk_settings_screen.dart)
+                 - there is no way to force that choice programmatically. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.HOME"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

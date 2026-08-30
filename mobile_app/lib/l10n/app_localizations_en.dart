@@ -100,6 +100,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'Xiaomi, Huawei, Samsung, OnePlus & co.';
 
   @override
+  String get settingsKioskTitle => 'Photo frame home screen';
+
+  @override
+  String get settingsKioskSubtitle => 'Set up as home screen, pin the screen';
+
+  @override
+  String get kioskScreenTitle => 'Photo frame home screen';
+
+  @override
+  String get kioskToggleTitle => 'Use as photo frame home screen';
+
+  @override
+  String get kioskToggleSubtitle =>
+      'Registers the app as a home screen and pins the screen while the slideshow runs';
+
+  @override
+  String get kioskIntro =>
+      'Turns this device into a dedicated digital photo frame: PhotoFrame becomes selectable as the home screen (home app), and the screen is pinned (screen pinning) when the slideshow starts, so nobody accidentally switches to another app.';
+
+  @override
+  String get kioskHomeAppNote =>
+      'After enabling this, the next time you press the Home button a system dialog appears letting you set PhotoFrame as the default home screen. You have to confirm that yourself - Android does not let apps confirm or bypass that dialog automatically.';
+
+  @override
+  String get kioskPinningNote =>
+      'As soon as the slideshow starts, the screen is pinned (screen pinning). Since this app has no device-owner/MDM privileges, Android may show a small \"unpin\"/\"exit\" hint at the top of the screen while pinned - that is platform behaviour and cannot be fully suppressed by this app.';
+
+  @override
+  String get kioskAndroidOnlyNote =>
+      'Android only. iOS has no comparable autostart mechanism for third-party apps - there, only the built-in \"Guided Access\" helps (see onboarding).';
+
+  @override
   String get settingsReplayOnboardingTitle => 'Show setup guide again';
 
   @override

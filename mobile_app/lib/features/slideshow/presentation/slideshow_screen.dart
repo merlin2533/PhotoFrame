@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../favorites/state/favorites_providers.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';
@@ -12,6 +13,7 @@ import '../../settings/state/settings_providers.dart';
 import '../../sources/domain/photo_item.dart';
 import '../../sources/domain/photo_source.dart';
 import '../../sources/state/sources_providers.dart';
+import '../domain/always_on_controller.dart';
 import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
@@ -48,9 +50,28 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Object? _loadError;
   Timer? _nightTick;
 
+  // Resolved once in `initState` and reused in `dispose`, rather than
+  // calling `ref.read(...)` again there: if this whole widget (and its
+  // ancestor `ProviderScope`) is torn down in the same frame - e.g. the app
+  // root rebuilding with a new `GoRouter` after onboarding completes, or a
+  // widget test tearing the tree down - Flutter's element-unmount pass can
+  // reach `State.dispose()` after Riverpod has already marked this
+  // element's `ref` unusable, and `ref.read` inside `dispose()` throws
+  // ("Cannot use 'ref' after the widget was disposed"). Caching the actual
+  // controller instances up front sidesteps that ordering hazard entirely,
+  // since calling a method on an already-resolved object doesn't touch
+  // `ref` at all.
+  late final AlwaysOnController _alwaysOnController;
+  late final KioskModeController _kioskModeController;
+
   @override
   void initState() {
     super.initState();
+    // Resolved eagerly (not lazily via `late final = ref.read(...)`) so the
+    // very first access can never happen inside `dispose()` itself - see
+    // the field-level doc comment above for why that ordering matters.
+    _alwaysOnController = ref.read(alwaysOnControllerProvider);
+    _kioskModeController = ref.read(kioskModeControllerProvider);
     unawaited(_buildEngine());
     _nightTick = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
   }
@@ -60,7 +81,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _nightTick?.cancel();
     final engine = _engine;
     if (engine != null) {
-      unawaited(ref.read(alwaysOnControllerProvider).onSlideshowStopped());
+      unawaited(_alwaysOnController.onSlideshowStopped());
+      unawaited(_kioskModeController.stop());
       unawaited(engine.dispose());
     }
     super.dispose();
@@ -144,7 +166,14 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _engine = engine;
         _loading = false;
       });
-      await ref.read(alwaysOnControllerProvider).onSlideshowStarted();
+      await _alwaysOnController.onSlideshowStarted();
+      // Kiosk/Autostart (ADR-004): only pin the screen when the user opted
+      // in via kiosk_settings_screen.dart - see KioskModeController's doc
+      // comment for why this is safe to call unconditionally on unsupported
+      // platforms (silently no-ops there).
+      if (settings.kioskModeEnabled) {
+        await _kioskModeController.start();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

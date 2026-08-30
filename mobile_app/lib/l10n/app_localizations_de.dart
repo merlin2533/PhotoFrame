@@ -103,6 +103,39 @@ class AppLocalizationsDe extends AppLocalizations {
       'Xiaomi, Huawei, Samsung, OnePlus & Co.';
 
   @override
+  String get settingsKioskTitle => 'Fotorahmen-Startbildschirm';
+
+  @override
+  String get settingsKioskSubtitle =>
+      'Als Home-Bildschirm einrichten, Bildschirm fixieren';
+
+  @override
+  String get kioskScreenTitle => 'Fotorahmen-Startbildschirm';
+
+  @override
+  String get kioskToggleTitle => 'Als Fotorahmen-Startbildschirm verwenden';
+
+  @override
+  String get kioskToggleSubtitle =>
+      'Registriert die App als Home-Bildschirm und fixiert den Bildschirm während der Diashow';
+
+  @override
+  String get kioskIntro =>
+      'Verwandelt dieses Gerät in einen dedizierten digitalen Fotorahmen: PhotoFrame wird als Startbildschirm (Home-App) auswählbar, und der Bildschirm wird beim Betreten der Diashow fixiert (Screen-Pinning), damit niemand versehentlich zu anderen Apps wechselt.';
+
+  @override
+  String get kioskHomeAppNote =>
+      'Nach dem Aktivieren erscheint beim nächsten Drücken der Home-Taste ein Systemdialog, mit dem du PhotoFrame als Standard-Startbildschirm festlegen kannst. Das musst du selbst bestätigen - Android erlaubt es Apps nicht, diesen Dialog automatisch zu bestätigen oder zu umgehen.';
+
+  @override
+  String get kioskPinningNote =>
+      'Sobald die Diashow startet, wird der Bildschirm fixiert (Screen-Pinning). Da diese App keine Geräteverwaltungs-/MDM-Rechte hat, zeigt Android dabei am oberen Bildschirmrand ggf. einen kleinen \"Entsperren\"/\"Verlassen\"-Hinweis an - das ist Plattformverhalten und kann von dieser App nicht vollständig unterdrückt werden.';
+
+  @override
+  String get kioskAndroidOnlyNote =>
+      'Nur auf Android verfügbar. Auf iOS gibt es keinen vergleichbaren Autostart-Mechanismus für Drittanbieter-Apps - dort hilft nur der systemeigene \"Geführte Zugriff\" (siehe Onboarding).';
+
+  @override
   String get settingsReplayOnboardingTitle => 'Setup-Guide erneut anzeigen';
 
   @override

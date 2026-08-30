@@ -272,6 +272,60 @@ abstract class AppLocalizations {
   /// **'Xiaomi, Huawei, Samsung, OnePlus & Co.'**
   String get settingsAutostartHelpSubtitle;
 
+  /// Titel des Kiosk-Modus-Einstellungseintrags.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotorahmen-Startbildschirm'**
+  String get settingsKioskTitle;
+
+  /// Untertitel des Kiosk-Modus-Einstellungseintrags.
+  ///
+  /// In de, this message translates to:
+  /// **'Als Home-Bildschirm einrichten, Bildschirm fixieren'**
+  String get settingsKioskSubtitle;
+
+  /// AppBar-Titel der Kiosk-Modus-Einstellungsseite.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotorahmen-Startbildschirm'**
+  String get kioskScreenTitle;
+
+  /// Beschriftung des Kiosk-Modus-Schalters.
+  ///
+  /// In de, this message translates to:
+  /// **'Als Fotorahmen-Startbildschirm verwenden'**
+  String get kioskToggleTitle;
+
+  /// Untertitel des Kiosk-Modus-Schalters.
+  ///
+  /// In de, this message translates to:
+  /// **'Registriert die App als Home-Bildschirm und fixiert den Bildschirm während der Diashow'**
+  String get kioskToggleSubtitle;
+
+  /// Einleitungstext der Kiosk-Modus-Einstellungsseite.
+  ///
+  /// In de, this message translates to:
+  /// **'Verwandelt dieses Gerät in einen dedizierten digitalen Fotorahmen: PhotoFrame wird als Startbildschirm (Home-App) auswählbar, und der Bildschirm wird beim Betreten der Diashow fixiert (Screen-Pinning), damit niemand versehentlich zu anderen Apps wechselt.'**
+  String get kioskIntro;
+
+  /// Hinweis zum Home-App-Auswahldialog auf der Kiosk-Modus-Einstellungsseite.
+  ///
+  /// In de, this message translates to:
+  /// **'Nach dem Aktivieren erscheint beim nächsten Drücken der Home-Taste ein Systemdialog, mit dem du PhotoFrame als Standard-Startbildschirm festlegen kannst. Das musst du selbst bestätigen - Android erlaubt es Apps nicht, diesen Dialog automatisch zu bestätigen oder zu umgehen.'**
+  String get kioskHomeAppNote;
+
+  /// Hinweis zum Screen-Pinning-Verhalten auf der Kiosk-Modus-Einstellungsseite.
+  ///
+  /// In de, this message translates to:
+  /// **'Sobald die Diashow startet, wird der Bildschirm fixiert (Screen-Pinning). Da diese App keine Geräteverwaltungs-/MDM-Rechte hat, zeigt Android dabei am oberen Bildschirmrand ggf. einen kleinen \"Entsperren\"/\"Verlassen\"-Hinweis an - das ist Plattformverhalten und kann von dieser App nicht vollständig unterdrückt werden.'**
+  String get kioskPinningNote;
+
+  /// Hinweis zur Plattformgrenze (nur Android) auf der Kiosk-Modus-Einstellungsseite.
+  ///
+  /// In de, this message translates to:
+  /// **'Nur auf Android verfügbar. Auf iOS gibt es keinen vergleichbaren Autostart-Mechanismus für Drittanbieter-Apps - dort hilft nur der systemeigene \"Geführte Zugriff\" (siehe Onboarding).'**
+  String get kioskAndroidOnlyNote;
+
   /// Titel des Eintrags, der das Onboarding erneut öffnet.
   ///
   /// In de, this message translates to:

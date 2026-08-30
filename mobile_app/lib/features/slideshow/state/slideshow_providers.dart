@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../settings/domain/app_settings.dart';
 import '../../settings/state/settings_providers.dart';
 import '../domain/always_on_controller.dart';
@@ -32,4 +33,16 @@ final Provider<AlwaysOnController> alwaysOnControllerProvider =
   );
 
   return controller;
+});
+
+/// Single, app-lifetime [KioskModeController] backed by the real
+/// "photoframe/kiosk" MethodChannel. `slideshow_screen.dart` calls
+/// [KioskModeController.start]/[KioskModeController.stop] around its own
+/// lifecycle, gated on `AppSettings.kioskModeEnabled` - see ADR-004 and
+/// `kiosk_settings_screen.dart` for the full picture. Overridden in widget
+/// tests with a fake implementation so tests never touch a real platform
+/// channel.
+final Provider<KioskModeController> kioskModeControllerProvider =
+    Provider<KioskModeController>((ref) {
+  return MethodChannelKioskModeController();
 });
