@@ -12,8 +12,10 @@ import '../../features/settings/presentation/sharing_settings_screen.dart';
 import '../../features/settings/presentation/slideshow_settings_screen.dart';
 import '../../features/settings/presentation/weather_settings_screen.dart';
 import '../../features/slideshow/presentation/slideshow_screen.dart';
+import '../../features/sources/nextcloud/nextcloud_config_form.dart';
 import '../../features/sources/presentation/add_source_screen.dart';
 import '../../features/sources/presentation/source_list_screen.dart';
+import '../../features/sources/smb/smb_config_form.dart';
 import '../../screens/home_screen.dart';
 
 /// Builds the app's [GoRouter]. [initialLocation] is decided by the caller
@@ -96,6 +98,18 @@ GoRouter buildAppRouter({required String initialLocation}) {
                 path: 'add',
                 name: 'settings-sources-add',
                 builder: (context, state) => const AddSourceScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'smb',
+                    name: 'settings-sources-add-smb',
+                    builder: (context, state) => const SmbConfigFormScreen(),
+                  ),
+                  GoRoute(
+                    path: 'nextcloud',
+                    name: 'settings-sources-add-nextcloud',
+                    builder: (context, state) => const NextcloudConfigFormScreen(),
+                  ),
+                ],
               ),
             ],
           ),

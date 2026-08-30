@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../services/cache/image_cache_manager.dart';
 import '../../../services/weather/weather_client.dart';
 import '../domain/app_settings.dart';
 
@@ -75,13 +77,53 @@ final AsyncNotifierProvider<AppSettingsController, AppSettings>
 
 // --- Cache info -----------------------------------------------------------
 
+/// Fraction of [AppSettings.cacheLimitBytes] reserved for the thumbnail
+/// tier, with the remainder going to the full-image tier - see
+/// `ImageCacheManager`'s "zweistufig" (two-tier) design. No specific ratio
+/// is documented in `docs/PLAN.md`, so this is a deliberately simple,
+/// provisional split: thumbnails are much smaller than full images, so a
+/// relatively small share is enough to hold many of them.
+const double _thumbnailCacheShare = 0.15;
+
+int _thumbnailLimitBytesFor(int totalLimitBytes) =>
+    (totalLimitBytes * _thumbnailCacheShare).round();
+
+int _fullLimitBytesFor(int totalLimitBytes) =>
+    totalLimitBytes - _thumbnailLimitBytesFor(totalLimitBytes);
+
+/// Single, app-lifetime [ImageCacheManager] instance, sized from the
+/// persisted [AppSettings.cacheLimitBytes] and kept in sync with it via
+/// [Ref.listen] so moving the cache-limit slider in
+/// `cache_settings_screen.dart` immediately re-enforces the new limit
+/// (evicting over-budget entries) without recreating the manager - which
+/// would otherwise forget in-memory pin/offline-reserve state for no
+/// reason.
+final Provider<ImageCacheManager> imageCacheManagerProvider = Provider<ImageCacheManager>((ref) {
+  final initialLimit =
+      ref.read(settingsProvider).valueOrNull?.cacheLimitBytes ?? const AppSettings().cacheLimitBytes;
+  final manager = ImageCacheManager(
+    thumbnailLimitBytes: _thumbnailLimitBytesFor(initialLimit),
+    fullLimitBytes: _fullLimitBytesFor(initialLimit),
+  );
+
+  ref.listen<AsyncValue<AppSettings>>(settingsProvider, (previous, next) {
+    final limit = next.valueOrNull?.cacheLimitBytes;
+    if (limit == null || limit == previous?.valueOrNull?.cacheLimitBytes) return;
+    unawaited(manager.setLimitBytes(CacheTier.thumbnail, _thumbnailLimitBytesFor(limit)));
+    unawaited(manager.setLimitBytes(CacheTier.full, _fullLimitBytesFor(limit)));
+  });
+
+  return manager;
+});
+
 /// Snapshot of cache usage shown in the cache-management settings page.
 ///
-/// TODO(parallel-agent/ImageCacheManager): replace this placeholder with a
-/// provider that reads real numbers from `ImageCacheManager` once that
-/// service lands (see `docs/PLAN.md` -> `services/cache/image_cache_manager.dart`).
-/// The settings UI only depends on this simple data shape, so wiring the
-/// real implementation later is a one-provider change.
+/// Reads real numbers from [imageCacheManagerProvider] - note this only
+/// reflects what has actually been stored in the manager via `put()`/
+/// `recordSuccessfullyDisplayed()`. As of this change no fetch pipeline
+/// calls into `ImageCacheManager` yet (see that class's doc comment), so
+/// `usedBytes` legitimately reads 0 until a source's `fetchToCache()`
+/// result is routed through it - that wiring is a separate, later step.
 class CacheInfo {
   const CacheInfo({required this.usedBytes, required this.limitBytes});
 
@@ -104,11 +146,11 @@ final Provider<WeatherClient> weatherClientProvider = Provider<WeatherClient>((r
 
 final Provider<CacheInfo> cacheInfoProvider = Provider<CacheInfo>((ref) {
   final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
-  // Placeholder usage value until ImageCacheManager exists - see class doc
-  // comment above.
-  const placeholderUsedBytes = 128 * 1024 * 1024;
+  final manager = ref.watch(imageCacheManagerProvider);
+  final usedBytes =
+      manager.currentSizeBytes(CacheTier.thumbnail) + manager.currentSizeBytes(CacheTier.full);
   return CacheInfo(
-    usedBytes: placeholderUsedBytes,
+    usedBytes: usedBytes,
     limitBytes: settings.cacheLimitBytes,
   );
 });

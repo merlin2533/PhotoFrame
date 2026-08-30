@@ -1,20 +1,47 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../local/local_folder_source.dart';
 import '../mock/mock_photo_source.dart';
 import '../state/sources_providers.dart';
 
 /// Lets the user pick a source type to add.
 ///
-/// Only "Mock/Test-Quelle" is actually wired up here - `SmbPhotoSource`,
-/// `NextcloudPhotoSource` and `LocalFolderSource` config forms
-/// (`smb_config_form.dart`, `nextcloud_config_form.dart`, a local-folder
-/// picker) are expected to come from a parallel agent per `docs/PLAN.md`.
-/// This screen shows them as disabled placeholders so the navigation
-/// structure is complete without pretending those flows already work.
+/// SMB and Nextcloud each navigate to their own configuration form
+/// (`smb_config_form.dart`/`nextcloud_config_form.dart`); the local folder
+/// option opens the platform directory picker directly, since it needs no
+/// other input.
 class AddSourceScreen extends ConsumerWidget {
   const AddSourceScreen({super.key});
+
+  Future<void> _addLocalFolder(BuildContext context, WidgetRef ref) async {
+    final id = ref.read(sourceIdGeneratorProvider).v4();
+    final source = LocalFolderSource(id: id);
+    final result = await source.pickRootFolder(dialogTitle: 'Ordner auswählen');
+
+    if (!context.mounted) return;
+
+    result.when(
+      onOk: (path) {
+        if (path == null) {
+          // User cancelled the picker - nothing to register.
+          unawaited(source.dispose());
+          return;
+        }
+        ref.read(sourcesProvider.notifier).add(source);
+        context.pop();
+      },
+      onErr: (failure) {
+        unawaited(source.dispose());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ordner konnte nicht ausgewählt werden: ${failure.message}')),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,23 +50,26 @@ class AddSourceScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const _SourceTypeCard(
+          _SourceTypeCard(
             icon: Icons.folder_outlined,
             title: 'Lokaler Ordner',
-            subtitle: 'Noch nicht verfügbar - kommt in einem späteren Schritt',
-            enabled: false,
+            subtitle: 'Ordner auf diesem Gerät oder einem angeschlossenen Speicher',
+            enabled: true,
+            onTap: () => _addLocalFolder(context, ref),
           ),
-          const _SourceTypeCard(
+          _SourceTypeCard(
             icon: Icons.dns_outlined,
             title: 'SMB-Netzwerkfreigabe',
-            subtitle: 'Noch nicht verfügbar - kommt in einem späteren Schritt',
-            enabled: false,
+            subtitle: 'NAS oder Windows-Freigabe im lokalen Netzwerk',
+            enabled: true,
+            onTap: () => context.push('/settings/sources/add/smb'),
           ),
-          const _SourceTypeCard(
+          _SourceTypeCard(
             icon: Icons.cloud_outlined,
             title: 'Nextcloud',
-            subtitle: 'Noch nicht verfügbar - kommt in einem späteren Schritt',
-            enabled: false,
+            subtitle: 'Account oder öffentlicher Freigabe-Link',
+            enabled: true,
+            onTap: () => context.push('/settings/sources/add/nextcloud'),
           ),
           _SourceTypeCard(
             icon: Icons.science_outlined,
