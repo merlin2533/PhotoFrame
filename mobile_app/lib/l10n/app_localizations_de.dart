@@ -257,4 +257,32 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get onboardingAndroidOnlyStepBody =>
       'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem Gerät übersprungen.';
+
+  @override
+  String get settingsLanguageTitle => 'Sprache';
+
+  @override
+  String get settingsLanguageSubtitle => 'App-Sprache festlegen';
+
+  @override
+  String get languageScreenTitle => 'Sprache';
+
+  @override
+  String get languageSystemOption => 'Systemsprache';
+
+  @override
+  String get pairingSendConfigButton => 'Konfiguration an Gerät senden';
+
+  @override
+  String get pairingNoRelayHint =>
+      'Erst einen Relay-Server einrichten, um Geräte zu koppeln.';
+
+  @override
+  String get pairingNoActivePairingHint =>
+      'Noch keine Pairing-Gruppe verbunden.';
+
+  @override
+  String configPushConfirmSmbTitle(String senderLabel) {
+    return 'Neue SMB-Quelle von $senderLabel übernehmen?';
+  }
 }

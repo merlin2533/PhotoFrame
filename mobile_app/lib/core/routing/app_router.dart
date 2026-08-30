@@ -1,11 +1,14 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/pairing/presentation/pairing_route_screens.dart';
+import '../../features/pairing/state/pairing_providers.dart';
 import '../../features/settings/presentation/accessibility_settings_screen.dart';
 import '../../features/settings/presentation/always_on_settings_screen.dart';
 import '../../features/settings/presentation/autostart_help_screen.dart';
 import '../../features/settings/presentation/cache_settings_screen.dart';
 import '../../features/settings/presentation/kiosk_settings_screen.dart';
+import '../../features/settings/presentation/language_settings_screen.dart';
 import '../../features/settings/presentation/night_mode_settings_screen.dart';
 import '../../features/settings/presentation/pool_settings_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -21,8 +24,19 @@ import '../../screens/home_screen.dart';
 
 /// Builds the app's [GoRouter]. [initialLocation] is decided by the caller
 /// (see `app.dart`) based on whether onboarding has been completed yet.
+///
+/// Uses [rootNavigatorKey] (`pairing_providers.dart`) as its
+/// [GoRouter.navigatorKey] so [ConfigPushListener] - which sits above this
+/// router entirely, in `MaterialApp.router`'s `builder` - can resolve a
+/// [BuildContext] to call `GoRouter.of(context).push(...)` from an incoming
+/// realtime event, where no local route [BuildContext] is available. This is
+/// also this router's first use of [GoRouterState.extra] (see the
+/// `confirm-push` route below): reserved for values with no clean,
+/// size-bounded URL encoding - plain ids/flags should keep using path/query
+/// parameters like every other route here.
 GoRouter buildAppRouter({required String initialLocation}) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: initialLocation,
     routes: [
       GoRoute(
@@ -74,6 +88,40 @@ GoRouter buildAppRouter({required String initialLocation}) {
             path: 'sharing',
             name: 'settings-sharing',
             builder: (context, state) => const SharingSettingsScreen(),
+            routes: [
+              GoRoute(
+                path: 'pairing',
+                name: 'settings-sharing-pairing',
+                builder: (context, state) => PairingRouteScreen(
+                  queryPairingId: state.uri.queryParameters['pairingId'],
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'send',
+                    name: 'settings-sharing-pairing-send',
+                    builder: (context, state) {
+                      final pairingId = state.uri.queryParameters['pairingId'] ?? '';
+                      return SendConfigPushRouteScreen(
+                        pairingId: pairingId,
+                        initialTargetFrameId: state.uri.queryParameters['targetFrameId'],
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'confirm-push',
+                    name: 'settings-sharing-pairing-confirm-push',
+                    builder: (context, state) => ConfigPushConfirmationRouteScreen(
+                      args: state.extra as ConfigPushConfirmationArgs,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'language',
+            name: 'settings-language',
+            builder: (context, state) => const LanguageSettingsScreen(),
           ),
           GoRoute(
             path: 'weather',

@@ -43,6 +43,8 @@ class AppSettings {
     this.relayServerUrl,
     // Slideshow-lock PIN (optional, guards long-press -> settings)
     this.settingsPin,
+    // Language
+    this.languageCode,
     // Onboarding
     this.onboardingCompleted = false,
     // Weather overlay
@@ -141,6 +143,14 @@ class AppSettings {
   // --- Slideshow lock -----------------------------------------------------
   final String? settingsPin;
 
+  // --- Language ---------------------------------------------------------
+  /// User-chosen UI language (`'de'`, `'en'`), or `null` to follow the
+  /// system locale (falling back to `'de'` if the system locale isn't among
+  /// [AppLocalizations.supportedLocales] - see `app.dart`'s locale
+  /// resolution). Independent of [AppLocalizations]'s own list of ARB
+  /// locales - this only picks which of those is actually used.
+  final String? languageCode;
+
   // --- Onboarding -----------------------------------------------------
   final bool onboardingCompleted;
 
@@ -191,6 +201,8 @@ class AppSettings {
     bool clearRelayServerUrl = false,
     String? settingsPin,
     bool clearSettingsPin = false,
+    String? languageCode,
+    bool clearLanguageCode = false,
     bool? onboardingCompleted,
     bool? weatherEnabled,
     double? weatherLatitude,
@@ -222,6 +234,7 @@ class AppSettings {
       relayServerUrl:
           clearRelayServerUrl ? null : (relayServerUrl ?? this.relayServerUrl),
       settingsPin: clearSettingsPin ? null : (settingsPin ?? this.settingsPin),
+      languageCode: clearLanguageCode ? null : (languageCode ?? this.languageCode),
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       weatherEnabled: weatherEnabled ?? this.weatherEnabled,
       weatherLatitude:
@@ -254,6 +267,7 @@ class AppSettings {
         'onThisDayQuota': onThisDayQuota,
         'relayServerUrl': relayServerUrl,
         'settingsPin': settingsPin,
+        'languageCode': languageCode,
         'onboardingCompleted': onboardingCompleted,
         'weatherEnabled': weatherEnabled,
         'weatherLatitude': weatherLatitude,
@@ -297,6 +311,7 @@ class AppSettings {
       onThisDayQuota: (json['onThisDayQuota'] as num?)?.toDouble() ?? 0.1,
       relayServerUrl: json['relayServerUrl'] as String?,
       settingsPin: json['settingsPin'] as String?,
+      languageCode: json['languageCode'] as String?,
       onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
       weatherEnabled: json['weatherEnabled'] as bool? ?? false,
       weatherLatitude: (json['weatherLatitude'] as num?)?.toDouble(),

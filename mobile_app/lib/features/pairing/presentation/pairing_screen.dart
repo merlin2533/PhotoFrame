@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../services/relay/relay_socket_client.dart';
 import '../domain/key_fingerprint.dart';
 import '../domain/pairing_models.dart';
@@ -19,6 +20,7 @@ class PairingScreen extends StatefulWidget {
     required this.fingerprintStore,
     this.socketClient,
     this.onInvite,
+    this.onSendConfig,
   });
 
   final String pairingId;
@@ -32,6 +34,12 @@ class PairingScreen extends StatefulWidget {
   final RelaySocketClient? socketClient;
 
   final VoidCallback? onInvite;
+
+  /// Navigates to `send_config_push_screen.dart` (see
+  /// `pairing_providers.dart`/`app_router.dart` for the route that wires
+  /// this up with a live [PairingRepository]). `null` hides the button -
+  /// used by tests that construct this screen without a router in scope.
+  final VoidCallback? onSendConfig;
 
   @override
   State<PairingScreen> createState() => _PairingScreenState();
@@ -156,6 +164,7 @@ class _PairingScreenState extends State<PairingScreen> {
   Widget build(BuildContext context) {
     final pairing = _pairing;
     final isOwner = pairing?.isOwnedBy(widget.localFrameId) ?? false;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -165,6 +174,13 @@ class _PairingScreenState extends State<PairingScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
+      floatingActionButton: widget.onSendConfig == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: widget.onSendConfig,
+              icon: const Icon(Icons.send_outlined),
+              label: Text(l10n.pairingSendConfigButton),
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

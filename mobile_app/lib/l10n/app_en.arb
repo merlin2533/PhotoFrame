@@ -76,5 +76,15 @@
   "onboardingAutostartOutro": "The exact menu labels differ slightly depending on the Android version and manufacturer skin. This page deliberately does not open manufacturer-specific settings automatically, since their paths change too often - use your device's app/battery settings instead.",
   "onboardingAddSourceTitle": "Add a source",
   "onboardingAddSourceBody": "Almost done! Now add an image source (e.g. a local folder, a network share, or Nextcloud) so the slideshow can start. You can also do this later at any time via Settings -> Sources.",
-  "onboardingAndroidOnlyStepBody": "This step only applies to Android devices and is skipped on this device."
+  "onboardingAndroidOnlyStepBody": "This step only applies to Android devices and is skipped on this device.",
+
+  "settingsLanguageTitle": "Language",
+  "settingsLanguageSubtitle": "Set the app's language",
+  "languageScreenTitle": "Language",
+  "languageSystemOption": "System language",
+
+  "pairingSendConfigButton": "Send configuration to device",
+  "pairingNoRelayHint": "Set up a relay server first to pair devices.",
+  "pairingNoActivePairingHint": "No pairing group connected yet.",
+  "configPushConfirmSmbTitle": "Apply new SMB source from {senderLabel}?"
 }

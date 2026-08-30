@@ -20,6 +20,7 @@ class RelayTokenStorage {
   static const _kDeviceToken = 'relay_device_token';
   static const _kUserId = 'relay_user_id';
   static const _kFrameId = 'relay_frame_id';
+  static const _kActivePairingId = 'relay_active_pairing_id';
 
   Future<String?> get accessToken => _storage.read(key: _kAccessToken);
 
@@ -30,6 +31,19 @@ class RelayTokenStorage {
   Future<String?> get userId => _storage.read(key: _kUserId);
 
   Future<String?> get frameId => _storage.read(key: _kFrameId);
+
+  /// The pairing id most recently opened via `pairing_screen.dart`'s route
+  /// (see `pairing_providers.dart`), remembered across app restarts so the
+  /// "Sharing/Relay" settings entry point can jump straight back into it
+  /// without a dedicated "list my pairings" endpoint on the relay server
+  /// (there isn't one as of this writing - a device only ever operates on
+  /// one [Pairing] id at a time via this best-effort "last active" memory).
+  Future<String?> get activePairingId => _storage.read(key: _kActivePairingId);
+
+  Future<void> saveActivePairingId(String pairingId) =>
+      _storage.write(key: _kActivePairingId, value: pairingId);
+
+  Future<void> clearActivePairingId() => _storage.delete(key: _kActivePairingId);
 
   Future<void> saveUserSession({
     required String userId,
