@@ -8,6 +8,7 @@ import { authRateLimiter } from '../middleware/rateLimit';
 import { runGarbageCollection } from '../storage/contentAddressedStore';
 import { releaseImageAccounting } from '../storage/imageCleanup';
 import { runBlobConsistencyCheck } from '../storage/blobConsistencyCheck';
+import { revokeAllTokensForFrame } from '../auth/deviceTokens';
 
 export const adminRouter = Router();
 
@@ -60,7 +61,9 @@ adminRouter.get('/users', (_req, res) => {
 adminRouter.get('/frames', (_req, res) => {
   const db = getDb();
   const frames = db
-    .prepare('SELECT id, user_id, display_name, created_at, last_seen_at FROM frames ORDER BY created_at DESC')
+    .prepare(
+      'SELECT id, user_id, display_name, created_at, last_seen_at, deleted_at FROM frames ORDER BY created_at DESC',
+    )
     .all();
   res.json({ frames });
 });
@@ -104,6 +107,67 @@ adminRouter.delete('/users/:userId', (req, res) => {
     db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
   });
   audit('admin', 'delete_user', 'user', req.params.userId);
+  res.json({ ok: true });
+});
+
+/**
+ * Deletes/revokes a SINGLE frame - e.g. a lost device - without touching the
+ * user's account, other frames, or any images.
+ *
+ * Unlike DELETE /users/:userId, this deliberately does NOT `DELETE FROM
+ * frames`: `images.uploaded_by_frame_id` has `ON DELETE CASCADE` back to
+ * `frames(id)` (001_init.sql), so removing the frame row would cascade into
+ * deleting every image it ever uploaded - including images other members of
+ * a shared pairing still see. That would turn "I lost my frame" into "my
+ * pairing lost its photos", which is not what this endpoint is for.
+ *
+ * Instead the frame row is kept and marked `deleted_at` (003 migration),
+ * and every OTHER frame-scoped side effect is cleaned up explicitly, in one
+ * transaction:
+ *  - device_tokens: revoked via the same revokeAllTokensForFrame() used by
+ *    the account-recovery flow, so the lost device can no longer authenticate.
+ *  - pairing_members: this frame's membership row(s) are removed, same as
+ *    POST /:pairingId/leave / DELETE /:pairingId/members/:frameId in
+ *    routes/pairing.ts - and, matching that existing pattern, a pairing is
+ *    NOT auto-deleted just because this was its last member (neither of
+ *    those routes does that either; only an explicit
+ *    DELETE /:pairingId does).
+ *  - config_pushes: rows where this frame is sender OR target are removed
+ *    (both FKs cascade-delete on the frame today, but since the frame row
+ *    itself is deliberately not deleted, they're cleaned up here instead).
+ *  - image_hidden / reports: this frame's own rows are removed; the images
+ *    themselves, and other frames' hidden-state/reports on them, are
+ *    untouched.
+ * `images.uploaded_by_frame_id` is intentionally left pointing at the now-
+ * deleted frame - the images stay owned/visible exactly as before, so no
+ * releaseImageAccounting() call is needed here (no image row is deleted).
+ */
+adminRouter.delete('/frames/:frameId', (req, res) => {
+  const db = getDb();
+  const frame = db.prepare('SELECT id FROM frames WHERE id = ?').get(req.params.frameId) as
+    | { id: string }
+    | undefined;
+
+  if (!frame) {
+    res.status(404).json({ error: 'frame not found' });
+    return;
+  }
+
+  runInTransaction(db, () => {
+    revokeAllTokensForFrame(frame.id);
+    db.prepare('DELETE FROM pairing_members WHERE frame_id = ?').run(frame.id);
+    db.prepare('DELETE FROM config_pushes WHERE target_frame_id = ? OR sender_frame_id = ?').run(
+      frame.id,
+      frame.id,
+    );
+    db.prepare('DELETE FROM image_hidden WHERE frame_id = ?').run(frame.id);
+    db.prepare('DELETE FROM reports WHERE reporter_frame_id = ?').run(frame.id);
+    db.prepare("UPDATE frames SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(
+      frame.id,
+    );
+  });
+
+  audit('admin', 'delete_frame', 'frame', frame.id);
   res.json({ ok: true });
 });
 

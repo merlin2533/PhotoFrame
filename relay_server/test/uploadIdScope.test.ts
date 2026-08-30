@@ -58,7 +58,11 @@ test('migration 002 applies cleanly to a fresh database and creates the scoped u
 
   runMigrations(db);
 
-  assert.equal(getUserVersion(db), 2);
+  // >= 2 rather than === 2: this test only cares that 002 (and everything up
+  // to it) applied cleanly, not that 002 is the latest migration in the repo
+  // (a later migration, e.g. 003_frame_soft_delete, legitimately bumps this
+  // further without affecting anything this test asserts).
+  assert.ok(getUserVersion(db) >= 2);
 
   const indexes = indexNamesOn(db, 'images');
   assert.ok(indexes.includes('idx_images_upload_scope'), 'expected the new composite unique index to exist');
@@ -100,7 +104,7 @@ test('migration 002 applies cleanly to a database already populated under the v1
 
   runMigrations(db);
 
-  assert.equal(getUserVersion(db), 2);
+  assert.ok(getUserVersion(db) >= 2);
 
   const row = db.prepare('SELECT * FROM images WHERE id = ?').get('img1') as any;
   assert.ok(row, 'pre-existing row must survive the migration');
@@ -161,7 +165,7 @@ test('migration 002 preserves image_hidden and reports rows (regression: implici
 
   runMigrations(db);
 
-  assert.equal(getUserVersion(db), 2);
+  assert.ok(getUserVersion(db) >= 2);
 
   const hidden = db.prepare('SELECT * FROM image_hidden WHERE image_id = ?').get('img1');
   assert.ok(hidden, 'image_hidden row must survive the images table rebuild, not be cascade-deleted');
