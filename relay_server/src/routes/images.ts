@@ -65,9 +65,13 @@ imagesRouter.post('/', upload.single('file'), async (req, res, next) => {
     return;
   }
 
+  // Scoped to the uploading frame (see migrations/002_scope_client_upload_id.sql):
+  // client_upload_id is only unique per-frame now, so the dedup lookup must
+  // match on both columns - an unscoped lookup here would let one frame's
+  // guessed/reused client_upload_id resolve to another frame's imageId.
   const existingByClientId = db
-    .prepare('SELECT id FROM images WHERE client_upload_id = ?')
-    .get(clientUploadId) as { id: string } | undefined;
+    .prepare('SELECT id FROM images WHERE uploaded_by_frame_id = ? AND client_upload_id = ?')
+    .get(req.frameId!, clientUploadId) as { id: string } | undefined;
   if (existingByClientId) {
     fs.unlinkSync(req.file.path);
     res.status(200).json({ imageId: existingByClientId.id, deduped: true });
