@@ -100,6 +100,13 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => context.push('/settings/kiosk'),
           ),
           ListTile(
+            leading: const Icon(Icons.language_outlined),
+            title: Text(l10n.settingsLanguageTitle),
+            subtitle: Text(l10n.settingsLanguageSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/language'),
+          ),
+          ListTile(
             leading: const Icon(Icons.help_outline),
             title: Text(l10n.settingsReplayOnboardingTitle),
             trailing: const Icon(Icons.chevron_right),

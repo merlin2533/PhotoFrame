@@ -253,4 +253,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get onboardingAndroidOnlyStepBody =>
       'This step only applies to Android devices and is skipped on this device.';
+
+  @override
+  String get settingsLanguageTitle => 'Language';
+
+  @override
+  String get settingsLanguageSubtitle => 'Set the app\'s language';
+
+  @override
+  String get languageScreenTitle => 'Language';
+
+  @override
+  String get languageSystemOption => 'System language';
+
+  @override
+  String get pairingSendConfigButton => 'Send configuration to device';
+
+  @override
+  String get pairingNoRelayHint =>
+      'Set up a relay server first to pair devices.';
+
+  @override
+  String get pairingNoActivePairingHint => 'No pairing group connected yet.';
+
+  @override
+  String configPushConfirmSmbTitle(String senderLabel) {
+    return 'Apply new SMB source from $senderLabel?';
+  }
 }

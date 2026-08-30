@@ -157,5 +157,26 @@
   "onboardingAddSourceBody": "Fast geschafft! Füge jetzt eine Bildquelle hinzu (z. B. einen lokalen Ordner, eine Netzwerkfreigabe oder Nextcloud), damit die Diashow starten kann. Du kannst das auch später jederzeit über Einstellungen -> Quellen erledigen.",
   "@onboardingAddSourceBody": {"description": "Erklärtext der letzten Onboarding-Seite."},
   "onboardingAndroidOnlyStepBody": "Dieser Schritt betrifft nur Android-Geräte und wird auf diesem Gerät übersprungen.",
-  "@onboardingAndroidOnlyStepBody": {"description": "Generischer Hinweis für Android-only Onboarding-Schritte auf anderen Plattformen."}
+  "@onboardingAndroidOnlyStepBody": {"description": "Generischer Hinweis für Android-only Onboarding-Schritte auf anderen Plattformen."},
+
+  "settingsLanguageTitle": "Sprache",
+  "@settingsLanguageTitle": {"description": "Titel des Sprach-Einstellungseintrags."},
+  "settingsLanguageSubtitle": "App-Sprache festlegen",
+  "@settingsLanguageSubtitle": {"description": "Untertitel des Sprach-Einstellungseintrags."},
+  "languageScreenTitle": "Sprache",
+  "@languageScreenTitle": {"description": "AppBar-Titel der Sprachauswahl-Seite."},
+  "languageSystemOption": "Systemsprache",
+  "@languageSystemOption": {"description": "Option in der Sprachauswahl, die der Systemsprache des Geräts folgt."},
+
+  "pairingSendConfigButton": "Konfiguration an Gerät senden",
+  "@pairingSendConfigButton": {"description": "Button auf der Pairing-Übersichtsseite, der zum Senden einer Konfiguration an ein anderes gepaartes Gerät führt."},
+  "pairingNoRelayHint": "Erst einen Relay-Server einrichten, um Geräte zu koppeln.",
+  "@pairingNoRelayHint": {"description": "Hinweistext, wenn noch keine Relay-Server-URL konfiguriert ist."},
+  "pairingNoActivePairingHint": "Noch keine Pairing-Gruppe verbunden.",
+  "@pairingNoActivePairingHint": {"description": "Hinweistext, wenn ein Relay-Server konfiguriert ist, aber noch keine Pairing-Gruppe aktiv ist."},
+  "configPushConfirmSmbTitle": "Neue SMB-Quelle von {senderLabel} übernehmen?",
+  "@configPushConfirmSmbTitle": {
+    "description": "Bestätigungsfrage auf der Config-Push-Bestätigungsseite für eine empfangene SMB-Quelle.",
+    "placeholders": {"senderLabel": {"type": "String"}}
+  }
 }

@@ -529,6 +529,54 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem Gerät übersprungen.'**
   String get onboardingAndroidOnlyStepBody;
+
+  /// Titel des Sprach-Einstellungseintrags.
+  ///
+  /// In de, this message translates to:
+  /// **'Sprache'**
+  String get settingsLanguageTitle;
+
+  /// Untertitel des Sprach-Einstellungseintrags.
+  ///
+  /// In de, this message translates to:
+  /// **'App-Sprache festlegen'**
+  String get settingsLanguageSubtitle;
+
+  /// AppBar-Titel der Sprachauswahl-Seite.
+  ///
+  /// In de, this message translates to:
+  /// **'Sprache'**
+  String get languageScreenTitle;
+
+  /// Option in der Sprachauswahl, die der Systemsprache des Geräts folgt.
+  ///
+  /// In de, this message translates to:
+  /// **'Systemsprache'**
+  String get languageSystemOption;
+
+  /// Button auf der Pairing-Übersichtsseite, der zum Senden einer Konfiguration an ein anderes gepaartes Gerät führt.
+  ///
+  /// In de, this message translates to:
+  /// **'Konfiguration an Gerät senden'**
+  String get pairingSendConfigButton;
+
+  /// Hinweistext, wenn noch keine Relay-Server-URL konfiguriert ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Erst einen Relay-Server einrichten, um Geräte zu koppeln.'**
+  String get pairingNoRelayHint;
+
+  /// Hinweistext, wenn ein Relay-Server konfiguriert ist, aber noch keine Pairing-Gruppe aktiv ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Pairing-Gruppe verbunden.'**
+  String get pairingNoActivePairingHint;
+
+  /// Bestätigungsfrage auf der Config-Push-Bestätigungsseite für eine empfangene SMB-Quelle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue SMB-Quelle von {senderLabel} übernehmen?'**
+  String configPushConfirmSmbTitle(String senderLabel);
 }
 
 class _AppLocalizationsDelegate

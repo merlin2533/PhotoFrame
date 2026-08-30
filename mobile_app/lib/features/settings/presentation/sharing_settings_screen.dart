@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../state/settings_providers.dart';
 
 /// Relay-server URL configuration only. The actual pairing/QR-code flow
@@ -76,18 +78,19 @@ class _SharingSettingsScreenState extends ConsumerState<SharingSettingsScreen> {
               child: const Text('Speichern'),
             ),
             const Divider(height: 32),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.qr_code_2_outlined),
-              title: const Text('Pairing / Gerät koppeln'),
-              subtitle: Text(
-                settings.relayServerUrl == null || settings.relayServerUrl!.isEmpty
-                    ? 'Erst eine Relay-URL eintragen'
-                    : 'Kommt: QR-Pairing-Flow (separate Komponente)',
-              ),
-              enabled: false,
-              trailing: const Icon(Icons.chevron_right),
-            ),
+            Builder(builder: (context) {
+              final l10n = AppLocalizations.of(context);
+              final hasRelayUrl = settings.relayServerUrl != null && settings.relayServerUrl!.isNotEmpty;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.qr_code_2_outlined),
+                title: const Text('Pairing / Gerät koppeln'),
+                subtitle: Text(hasRelayUrl ? '' : l10n.pairingNoRelayHint),
+                enabled: hasRelayUrl,
+                trailing: const Icon(Icons.chevron_right),
+                onTap: hasRelayUrl ? () => context.push('/settings/sharing/pairing') : null,
+              );
+            }),
           ],
         ),
       ),

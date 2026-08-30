@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../domain/config_push_crypto.dart';
 import '../domain/frame_keypair.dart';
 import '../domain/key_fingerprint.dart';
@@ -107,6 +108,7 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Konfiguration erhalten')),
@@ -118,6 +120,17 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
             Text('Von: ${widget.senderLabel}', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
             Text('Frame-ID: ${widget.push.senderFrameId}', style: theme.textTheme.bodySmall),
+            const SizedBox(height: 12),
+            // Only SMB config-push payloads exist today (see
+            // `send_config_push_screen.dart`'s doc comment) - this question
+            // is shown up front, before decryption even happens, per the
+            // docs/PLAN.md point 9 wording. If/when other payload types are
+            // added, this should become conditional on the decrypted
+            // `type` field instead of always assuming "smb".
+            Text(
+              l10n.configPushConfirmSmbTitle(widget.senderLabel),
+              style: theme.textTheme.titleSmall,
+            ),
             const SizedBox(height: 16),
             if (_isMismatch) ...[
               FingerprintMismatchWarning(
