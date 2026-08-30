@@ -92,11 +92,16 @@ CREATE TABLE IF NOT EXISTS images (
   uploaded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   width INTEGER,
   height INTEGER,
-  client_upload_id TEXT UNIQUE
+  -- client_upload_id idempotency is scoped per-frame, not global - see
+  -- migrations/002_scope_client_upload_id.sql. This file mirrors the schema
+  -- after all migrations, so no column-level UNIQUE here; the constraint is
+  -- the composite index below.
+  client_upload_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_images_pairing_id ON images(pairing_id, uploaded_at);
 CREATE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_images_upload_scope ON images(uploaded_by_frame_id, client_upload_id);
 
 CREATE TABLE IF NOT EXISTS image_hidden (
   image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
