@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../domain/pairing_models.dart';
@@ -170,13 +172,13 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
     // `config_push_confirmation_screen.dart`). Kept as a flat JSON object
     // rather than a shared model class since the relay/crypto layers never
     // need to understand its shape - only the two frame apps do.
-    final plaintextJson = '{'
-        '"type":"smb",'
-        '"host":${_jsonString(_hostController.text.trim())},'
-        '"share":${_jsonString(_shareController.text.trim())},'
-        '"username":${_jsonString(_usernameController.text.trim())},'
-        '"password":${_jsonString(_passwordController.text)}'
-        '}';
+    final plaintextJson = jsonEncode({
+      'type': 'smb',
+      'host': _hostController.text.trim(),
+      'share': _shareController.text.trim(),
+      'username': _usernameController.text.trim(),
+      'password': _passwordController.text,
+    });
 
     final result = await widget.repository.sendEncryptedConfigPush(
       pairingId: widget.pairingId,
@@ -191,9 +193,6 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
     );
     setState(() => _sending = false);
   }
-
-  String _jsonString(String value) =>
-      '"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"';
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +247,11 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
                 ),
               if (_pendingRecipient != null) ...[
                 FingerprintMismatchWarning(
-                  peerLabel: _targetFrameIdController.text.trim(),
+                  // Deliberately the resolved recipient's frameId, not the
+                  // live text field - the user could edit the field while
+                  // this warning is showing, and the warning must always
+                  // describe the frame trust is actually being granted for.
+                  peerLabel: _pendingRecipient!.frameId,
                   observedFingerprint: _pendingRecipient!.fingerprint,
                   acknowledged: _mismatchAcknowledged,
                   onAcknowledgedChanged: (v) => setState(() => _mismatchAcknowledged = v),

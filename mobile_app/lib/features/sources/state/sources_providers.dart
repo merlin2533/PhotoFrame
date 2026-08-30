@@ -37,7 +37,17 @@ class SourcesController extends Notifier<List<PhotoSource>> {
         unawaited(source.dispose());
       }
     });
-    return [MockPhotoSource()];
+    final initial = [MockPhotoSource()];
+    // Source configuration isn't persisted across restarts yet (see class
+    // doc), which means every id previously written to the secure keychain
+    // by a config form is unreachable from this point on - reclaim them now
+    // rather than letting credentials accumulate forever. Once real
+    // persistence lands, this must be called with the *actually restored*
+    // ids instead of just the ones present at this exact moment.
+    unawaited(
+      ref.read(secureCredentialStoreProvider).pruneOrphans(initial.map((s) => s.id).toSet()),
+    );
+    return initial;
   }
 
   void add(PhotoSource source) {

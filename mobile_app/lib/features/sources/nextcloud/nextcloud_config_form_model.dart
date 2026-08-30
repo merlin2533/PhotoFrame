@@ -140,8 +140,25 @@ class NextcloudConfigFormModel {
     return copyWith(
       serverUrl: serverUrl.trim().replaceAll(RegExp(r'/+$'), ''),
       username: username.trim(),
-      shareToken: shareToken.trim(),
+      shareToken: _extractShareToken(shareToken.trim()),
       folderPath: folderPath.trim().replaceAll(RegExp(r'^/+|/+$'), ''),
     );
+  }
+
+  /// The share-token field's hint text explicitly invites either a bare
+  /// token ("AbCdEf") or a full share URL
+  /// ("https://cloud.example.com/s/AbCdEf") - but the token is used
+  /// downstream as a Basic-Auth username against `public.php/webdav`, which
+  /// must be the bare token, never the full URL. Without this extraction, a
+  /// user who (reasonably, given the hint) pastes the full URL gets a
+  /// guaranteed, unexplained 401. Nextcloud share URLs always end in
+  /// `/s/<token>` (optionally followed by a trailing slash or query
+  /// string), so pull that segment out; anything that doesn't look like a
+  /// URL is assumed to already be a bare token and passed through as-is.
+  static String _extractShareToken(String input) {
+    if (!input.contains('/s/')) return input;
+    final afterMarker = input.substring(input.lastIndexOf('/s/') + 3);
+    final token = afterMarker.split(RegExp(r'[/?#]')).first;
+    return token.isEmpty ? input : token;
   }
 }

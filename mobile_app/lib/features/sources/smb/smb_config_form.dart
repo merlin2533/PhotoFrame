@@ -102,6 +102,19 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
     List<DiscoveredSmbHost> hosts;
     try {
       hosts = await discovery.discoverAll();
+    } catch (_) {
+      // discoverAll() can throw (permission denied, broadcast-socket
+      // failure, ...) - without this catch the exception would propagate
+      // out of an unawaited-by-the-caller Future and, critically, skip the
+      // setState below, leaving "Netzwerk durchsuchen" permanently
+      // disabled for the rest of this screen's lifetime.
+      if (mounted) {
+        setState(() => _discovering = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Netzwerksuche fehlgeschlagen. Host manuell eingeben.')),
+        );
+      }
+      return;
     } finally {
       discovery.dispose();
     }
