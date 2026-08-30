@@ -20,7 +20,7 @@ class SourceListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sources = ref.watch(sourcesProvider);
+    final sourcesAsync = ref.watch(sourcesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Quellen')),
@@ -29,13 +29,19 @@ class SourceListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Quelle hinzufügen'),
       ),
-      body: sources.isEmpty
-          ? const Center(child: Text('Noch keine Quelle konfiguriert.'))
-          : ListView.separated(
-              itemCount: sources.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) => _SourceTile(source: sources[index]),
-            ),
+      body: sourcesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(
+          child: Text('Quellen konnten nicht geladen werden: $error'),
+        ),
+        data: (sources) => sources.isEmpty
+            ? const Center(child: Text('Noch keine Quelle konfiguriert.'))
+            : ListView.separated(
+                itemCount: sources.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) => _SourceTile(source: sources[index]),
+              ),
+      ),
     );
   }
 }

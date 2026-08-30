@@ -88,7 +88,7 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     setState(() => _submitted = true);
     final normalized = _model.normalized();
     if (!normalized.isValid) {
@@ -101,17 +101,16 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
     final source = NextcloudPhotoSource(id: id, config: config);
 
     // Persist the secret (app password or share-link password) in the
-    // secure keychain - see SecureCredentialStore's doc comment. As with
-    // the SMB form, the rest of the (non-secret) source configuration isn't
-    // yet persisted across app restarts by `SourcesController` - a
-    // pre-existing gap, out of scope here.
+    // secure keychain - see SecureCredentialStore's doc comment. Awaited so
+    // the write has landed before `add()` triggers `SourcesController`'s own
+    // descriptor persistence; the password itself is read back separately
+    // from `SecureCredentialStore` on the next app start.
     if (config.authPassword.isNotEmpty) {
-      unawaited(
-        ref.read(secureCredentialStoreProvider).write(id, 'password', config.authPassword),
-      );
+      await ref.read(secureCredentialStoreProvider).write(id, 'password', config.authPassword);
     }
 
-    ref.read(sourcesProvider.notifier).add(source);
+    await ref.read(sourcesProvider.notifier).add(source);
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 

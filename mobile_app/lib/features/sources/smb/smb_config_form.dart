@@ -158,7 +158,7 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     setState(() => _submitted = true);
     final normalized = _model.normalized();
     final errors = normalized.validate();
@@ -173,18 +173,17 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
 
     // Persist the password in the secure keychain (never in
     // shared_preferences - see SecureCredentialStore's doc comment) so a
-    // future source-registry reload could restore it without asking the
-    // user to retype it. `sourcesProvider` itself does not yet persist the
-    // rest of the (non-secret) configuration across app restarts - that is
-    // a pre-existing gap in `SourcesController`, unrelated to credential
-    // storage, and out of scope here.
+    // future source-registry reload can restore it without asking the user
+    // to retype it. Awaited (unlike before) so the write has actually landed
+    // before `add()` below triggers `SourcesController`'s own descriptor
+    // persistence, which no longer needs to know about it directly but
+    // reads it back on the *next* app start via `SourcesController.build`.
     if (config.password.isNotEmpty) {
-      unawaited(
-        ref.read(secureCredentialStoreProvider).write(id, 'password', config.password),
-      );
+      await ref.read(secureCredentialStoreProvider).write(id, 'password', config.password);
     }
 
-    ref.read(sourcesProvider.notifier).add(source);
+    await ref.read(sourcesProvider.notifier).add(source);
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
