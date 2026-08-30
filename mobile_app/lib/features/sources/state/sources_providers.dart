@@ -1,19 +1,33 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../../services/storage/secure_credential_store.dart';
 import '../domain/photo_source.dart';
 import '../mock/mock_photo_source.dart';
+
+/// Shared [SecureCredentialStore] instance for source-form widgets (SMB
+/// password, Nextcloud app/share password, ...) - see that class's doc
+/// comment for why credentials never go through `shared_preferences`.
+final Provider<SecureCredentialStore> secureCredentialStoreProvider =
+    Provider<SecureCredentialStore>((ref) => SecureCredentialStore());
+
+/// Generates stable ids for newly configured [PhotoSource] instances.
+/// Exposed as a provider (rather than a bare top-level `Uuid()`) purely so
+/// tests can override it deterministically if ever needed.
+final Provider<Uuid> sourceIdGeneratorProvider = Provider<Uuid>((ref) => const Uuid());
 
 /// Registered [PhotoSource] instances the app currently knows about.
 ///
 /// This is a deliberately small stand-in for the real
-/// `source_registry.dart` (per `docs/PLAN.md`) that a parallel agent is
-/// expected to build alongside the concrete `SmbPhotoSource`/
-/// `NextcloudPhotoSource`/`LocalFolderSource` implementations. Until those
-/// land, the registry starts out with a single [MockPhotoSource] so the
-/// Settings/Sources UI and the slideshow screen have something real to list
-/// and render.
+/// `source_registry.dart` (per `docs/PLAN.md`): it holds sources only for
+/// the lifetime of the app process (no persistence of the *non-secret*
+/// source configuration yet - only credentials are durably persisted, via
+/// [SecureCredentialStore]). The registry starts out with a single
+/// [MockPhotoSource] so the Settings/Sources UI and the slideshow screen
+/// have something real to list and render even before the user configures
+/// anything.
 class SourcesController extends Notifier<List<PhotoSource>> {
   @override
   List<PhotoSource> build() {
@@ -31,7 +45,17 @@ class SourcesController extends Notifier<List<PhotoSource>> {
   }
 
   void removeById(String id) {
+    final removed = state.where((s) => s.id == id);
     state = state.where((s) => s.id != id).toList();
+    for (final source in removed) {
+      unawaited(source.dispose());
+      // Best-effort: also drop any stored credentials for this source so
+      // they don't linger in the secure keychain after the source itself
+      // is gone.
+      unawaited(
+        ref.read(secureCredentialStoreProvider).deleteAllForSource(source.id),
+      );
+    }
   }
 }
 

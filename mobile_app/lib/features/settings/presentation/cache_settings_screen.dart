@@ -46,9 +46,6 @@ class CacheSettingsScreen extends ConsumerWidget {
                         _formatBytes(cacheInfo.limitBytes),
                       ),
                     ),
-                    // TODO(parallel-agent/ImageCacheManager): this reads a
-                    // placeholder value until the real cache manager lands
-                    // (see settings_providers.dart -> cacheInfoProvider).
                   ],
                 ),
               ),
@@ -71,10 +68,14 @@ class CacheSettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             FilledButton.tonalIcon(
-              onPressed: () {
-                // TODO(parallel-agent/ImageCacheManager): wire to the real
-                // cache clear once it exists; for now just confirm to the
-                // user that this is a placeholder action.
+              onPressed: () async {
+                await ref.read(imageCacheManagerProvider).clear();
+                // The manager mutates its own internal LRU state without
+                // notifying Riverpod (it isn't a ChangeNotifier/Notifier),
+                // so `cacheInfoProvider` needs an explicit nudge to re-read
+                // the now-empty size.
+                ref.invalidate(cacheInfoProvider);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(l10n.cacheClearedSnackbar)),
                 );

@@ -11,11 +11,10 @@ import '../state/sources_providers.dart';
 /// Lists configured [PhotoSource]s with a connection-status indicator and a
 /// retry action, per `docs/PLAN.md`'s "Verbindungstests" section.
 ///
-/// Only `MockPhotoSource` is wired up for real today; `SmbPhotoSource`,
-/// `NextcloudPhotoSource` and `LocalFolderSource` are expected from a
-/// parallel agent (see `sources_providers.dart` doc comment) - this screen
-/// works against the `PhotoSource` interface only, so it needs no changes
-/// once those land.
+/// Works against the `PhotoSource` interface only, so it needs no changes
+/// regardless of which concrete source type (`SmbPhotoSource`,
+/// `NextcloudPhotoSource`, `LocalFolderSource`, `MockPhotoSource`, ...) was
+/// added via `add_source_screen.dart`.
 class SourceListScreen extends ConsumerWidget {
   const SourceListScreen({super.key});
 
