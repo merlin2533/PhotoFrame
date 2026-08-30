@@ -21,12 +21,21 @@
 -- previously existed on images (idx_images_pairing_id,
 -- idx_images_content_hash), plus the new composite unique index.
 --
--- foreign_keys is ON for this connection (src/db/index.ts) but migrations
--- run inside their own transaction; SQLite defers FK enforcement of a
--- rename-based rebuild like this until COMMIT, so the CASCADE-referencing
--- tables (image_hidden, reports) below are left untouched - they reference
--- images(id), which is not being changed, and images.id values are
--- preserved by the INSERT...SELECT.
+-- CORRECTION (found by review, verified by actually running this migration
+-- against seeded image_hidden/reports rows): an earlier version of this
+-- comment claimed FK enforcement is deferred until COMMIT and the
+-- CASCADE-referencing tables (image_hidden, reports) are therefore
+-- untouched. That is WRONG, and so is `PRAGMA defer_foreign_keys = ON` as a
+-- fix within this transaction: `DROP TABLE images` performs an implicit
+-- `DELETE FROM images` for every row, and `ON DELETE CASCADE` triggers fire
+-- immediately for that delete regardless of `defer_foreign_keys` (which
+-- only postpones dangling-reference *validation* to COMMIT, not cascade
+-- *actions*). The only way to prevent that is to disable FK enforcement
+-- entirely for the duration of the rebuild - which SQLite only allows
+-- outside an active transaction - so this is now handled by the migration
+-- runner itself (`db/migrations/index.ts` toggles
+-- `PRAGMA foreign_keys = OFF` before BEGIN and back to `ON` after COMMIT
+-- for every migration), not by anything in this file.
 
 CREATE TABLE images_new (
   id TEXT PRIMARY KEY,

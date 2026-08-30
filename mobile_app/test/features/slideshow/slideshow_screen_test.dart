@@ -51,7 +51,7 @@ class _FixedSourcesController extends SourcesController {
   final List<PhotoSource> _initial;
 
   @override
-  List<PhotoSource> build() => _initial;
+  Future<List<PhotoSource>> build() async => _initial;
 }
 
 Widget _wrap(Widget child, {required List<Override> overrides}) {

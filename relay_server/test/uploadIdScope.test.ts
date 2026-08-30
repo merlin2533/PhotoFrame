@@ -128,6 +128,53 @@ test('migration 002 applies cleanly to a database already populated under the v1
   });
 });
 
+test('migration 002 preserves image_hidden and reports rows (regression: implicit CASCADE delete)', () => {
+  // Regression test for a real bug found in review: with `PRAGMA
+  // foreign_keys = ON` (set on every connection, see src/db/index.ts),
+  // `DROP TABLE images` performs an implicit `DELETE FROM images` for every
+  // row, which immediately fires `ON DELETE CASCADE` on image_hidden.image_id
+  // and reports.image_id - silently deleting both, even though images.id
+  // itself is fully preserved by the INSERT...SELECT. The migration must
+  // set `PRAGMA defer_foreign_keys = ON` first (transaction-scoped, unlike
+  // the connection-wide `foreign_keys` pragma) so no cascade fires before
+  // COMMIT, by which point images(id) already matches again.
+  const { db } = openTempDb();
+
+  db.exec('BEGIN');
+  db.exec(readMigration(1));
+  db.exec('PRAGMA user_version = 1');
+  db.exec('COMMIT');
+
+  db.exec(`INSERT INTO users (id, username, password_hash) VALUES ('u1', 'alice', 'hash')`);
+  db.exec(`INSERT INTO frames (id, user_id, display_name) VALUES ('f1', 'u1', 'Frame One')`);
+  db.exec(`INSERT INTO frames (id, user_id, display_name) VALUES ('f2', 'u1', 'Frame Two')`);
+  db.exec(`INSERT INTO pairings (id, name) VALUES ('p1', 'Pairing')`);
+  db.exec(`INSERT INTO blobs (hash, bytes, refcount) VALUES ('h1', 100, 1)`);
+  db.exec(
+    `INSERT INTO images (id, pairing_id, uploaded_by_frame_id, content_hash, width, height, client_upload_id)
+     VALUES ('img1', 'p1', 'f1', 'h1', 10, 10, 'upload-abc')`,
+  );
+  db.exec(`INSERT INTO image_hidden (image_id, frame_id) VALUES ('img1', 'f2')`);
+  db.exec(
+    `INSERT INTO reports (id, image_id, reporter_frame_id, reason) VALUES ('rep1', 'img1', 'f2', 'inappropriate')`,
+  );
+
+  runMigrations(db);
+
+  assert.equal(getUserVersion(db), 2);
+
+  const hidden = db.prepare('SELECT * FROM image_hidden WHERE image_id = ?').get('img1');
+  assert.ok(hidden, 'image_hidden row must survive the images table rebuild, not be cascade-deleted');
+
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get('rep1');
+  assert.ok(report, 'reports row must survive the images table rebuild, not be cascade-deleted');
+
+  // And the foreign keys genuinely still point at valid rows post-migration
+  // (not just "not deleted" by coincidence of a disabled check).
+  const violations = db.prepare('PRAGMA foreign_key_check').all();
+  assert.deepEqual(violations, [], 'no dangling foreign keys after the migration');
+});
+
 // --- HTTP-level: the upload route's dedup check is scoped per frame ---
 
 let getDb: typeof import('../src/db').getDb;

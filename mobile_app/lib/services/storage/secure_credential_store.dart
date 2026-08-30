@@ -56,16 +56,16 @@ class SecureCredentialStore {
 
   /// Deletes every stored credential whose source id is NOT in [knownIds].
   ///
-  /// Source configuration is not yet persisted across app restarts (see
-  /// `SourcesController` - a later milestone), but each saved config form
-  /// already writes its password under a freshly generated source id. Until
-  /// that persistence lands, every restart followed by re-configuring a
-  /// source leaves the previous id's credential behind forever - this is
-  /// the stopgap that reclaims those orphans on the next startup, called
-  /// with whatever ids `SourcesController` currently knows about (an empty
-  /// set today, since nothing is loaded back yet - so this currently prunes
-  /// everything stale on every start, which is exactly the desired
-  /// behaviour until real persistence exists).
+  /// Called by `SourcesController.build()` once every persisted
+  /// `SourceDescriptor` has been reloaded and had its password restored from
+  /// this store, with the now-real, restored ids - reclaiming any credential
+  /// left behind by a source removed on another install, or by a crash
+  /// mid-`removeById`. (Before source configuration itself was persisted,
+  /// this ran with an effectively empty `knownIds` on every single start,
+  /// as a stopgap against config-form-generated ids never being seen again;
+  /// that stopgap is gone now that `SourcesController` actually restores the
+  /// list, but this method's contract - "delete anything not in this set" -
+  /// is unchanged.)
   Future<void> pruneOrphans(Set<String> knownIds) async {
     final all = await _storage.readAll();
     for (final key in all.keys) {

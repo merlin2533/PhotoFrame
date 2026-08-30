@@ -25,7 +25,16 @@ class SourceListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Quellen')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/settings/sources/add'),
+        // Deliberately disabled while sourcesProvider isn't in a Data state
+        // (still loading, or - critically - failed to load): SourcesController
+        // persists the *entire* source list on every add()/removeById(), read
+        // from `state.valueOrNull ?? []`. Reaching "Quelle hinzufügen" while
+        // the provider is in AsyncLoading/AsyncError would make add() treat
+        // the not-yet-loaded (or unrecoverably failed) list as empty and
+        // overwrite every previously configured source's persisted
+        // descriptor with just the one being added - a real, reachable data
+        // loss path found in review, not just a timing theoretical.
+        onPressed: sourcesAsync.hasValue ? () => context.push('/settings/sources/add') : null,
         icon: const Icon(Icons.add),
         label: const Text('Quelle hinzufügen'),
       ),

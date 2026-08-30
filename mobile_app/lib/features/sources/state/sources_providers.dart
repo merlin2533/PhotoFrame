@@ -82,7 +82,19 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
       final descriptors = _loadDescriptors(prefs);
       sources = [];
       for (final descriptor in descriptors) {
-        final password = await credentialStore.read(descriptor.id, 'password');
+        // A single corrupted/inaccessible keychain entry (e.g. an Android
+        // keystore invalidated after a factory-reset-adjacent event) must
+        // not take down every other, perfectly loadable source with it -
+        // build this one without its password rather than letting the
+        // whole provider land in AsyncError (which, per the review that
+        // found this, disables "Quelle hinzufügen" entirely and would
+        // otherwise be indistinguishable from "prefs itself is corrupt").
+        String? password;
+        try {
+          password = await credentialStore.read(descriptor.id, 'password');
+        } catch (_) {
+          password = null;
+        }
         sources.add(fromDescriptor(descriptor, password: password));
       }
     }
@@ -91,8 +103,12 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     // present at this exact moment - the pre-persistence stopgap this
     // replaces), reclaim any credential left behind by a source that no
     // longer exists (removed on another install, a crash mid-`removeById`,
-    // ...).
-    unawaited(credentialStore.pruneOrphans(sources.map((s) => s.id).toSet()));
+    // ...). Awaited (not fire-and-forget): build() must fully finish before
+    // returning, so a source config-form's `add()` - which writes a fresh
+    // password via SecureCredentialStore.write() BEFORE calling add() -
+    // can never run concurrently with this prune and have its brand-new,
+    // not-yet-in-`sources`, credential reclaimed as an "orphan".
+    await credentialStore.pruneOrphans(sources.map((s) => s.id).toSet());
 
     return sources;
   }
@@ -128,14 +144,23 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
   }
 
   Future<void> add(PhotoSource source) async {
-    final current = state.valueOrNull ?? const <PhotoSource>[];
+    // Deliberately `await future` (waits for build() to finish, rethrowing
+    // if it failed) rather than `state.valueOrNull ?? []`: the latter
+    // silently treats a still-loading OR permanently-errored provider as an
+    // *empty* list, and the write below persists the entire list - so a
+    // call landing in that window would overwrite every previously
+    // configured source's descriptor with just this one. The UI additionally
+    // disables the "Quelle hinzufügen" entry point while the provider isn't
+    // in a data state (see source_list_screen.dart), but this guard is what
+    // actually makes that safe rather than just less likely to be hit.
+    final current = await future;
     final updated = [...current, source];
     state = AsyncValue.data(updated);
     await _saveDescriptors(await _prefsInstance(), updated);
   }
 
   Future<void> removeById(String id) async {
-    final current = state.valueOrNull ?? const <PhotoSource>[];
+    final current = await future;
     final removed = current.where((s) => s.id == id).toList();
     final updated = current.where((s) => s.id != id).toList();
     state = AsyncValue.data(updated);
