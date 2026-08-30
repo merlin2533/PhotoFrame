@@ -140,22 +140,69 @@ class RelayPairingRepository implements PairingRepository {
       _api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: ciphertext);
 
   @override
-  Future<Result<String>> sendEncryptedConfigPush({
+  Future<Result<ConfigPushRecipient>> resolveConfigPushRecipient({
     required String pairingId,
     required String targetFrameId,
-    required String plaintextJson,
   }) async {
     final pairingResult = await getPairing(pairingId);
     if (pairingResult.isErr) return Result.err(pairingResult.failureOrNull!);
 
     final target = pairingResult.valueOrNull!.memberById(targetFrameId);
-    final publicKey = target?.publicKey;
+    if (target == null) {
+      return Result.err(Unsupported('Frame $targetFrameId ist kein Mitglied dieses Pairings (mehr).'));
+    }
+
+    // publicKey and fingerprint both come from this single GET /pairing/:id
+    // response, so they are guaranteed to describe the same server-side
+    // state - a malicious relay cannot pair a substituted public key with a
+    // stale/unrelated fingerprint to slip past this check.
+    final fingerprint = target.keyFingerprint;
+    FingerprintTrust? trust;
+    if (fingerprint != null) {
+      trust = await _fingerprints.checkOrTrust(targetFrameId, fingerprint);
+    }
+
+    return Result.ok(ConfigPushRecipient(
+      frameId: targetFrameId,
+      publicKey: target.publicKey,
+      fingerprint: fingerprint,
+      trust: trust,
+    ));
+  }
+
+  @override
+  Future<Result<String>> sendEncryptedConfigPush({
+    required String pairingId,
+    required String targetFrameId,
+    required String plaintextJson,
+  }) async {
+    final recipientResult = await resolveConfigPushRecipient(
+      pairingId: pairingId,
+      targetFrameId: targetFrameId,
+    );
+    if (recipientResult.isErr) return Result.err(recipientResult.failureOrNull!);
+    final recipient = recipientResult.valueOrNull!;
+
+    final publicKey = recipient.publicKey;
     if (publicKey == null) {
       return Result.err(Unsupported(
         'No public key on file for frame $targetFrameId - the relay server '
         'must expose PairingMember.publicKey from GET /pairing/:id before a '
         'config-push can be encrypted to it (see PairingMember.publicKey doc '
         'comment).',
+      ));
+    }
+
+    // Defense in depth: even if a caller skipped the
+    // resolveConfigPushRecipient()-driven mismatch-confirmation UI, this
+    // guards against ever encrypting to an unverified/changed key. A true
+    // mismatch is only cleared once the caller has explicitly confirmed the
+    // warning via confirmSenderTrust, at which point this same check
+    // observes FingerprintTrust.match instead.
+    if (!recipient.isSafeToSend) {
+      return Result.err(Unsupported(
+        'Der Sicherheitsschlüssel von Frame $targetFrameId konnte nicht verifiziert werden oder hat '
+        'sich seit dem letzten Kontakt geändert. Bitte zunächst die Sicherheitswarnung bestätigen.',
       ));
     }
 

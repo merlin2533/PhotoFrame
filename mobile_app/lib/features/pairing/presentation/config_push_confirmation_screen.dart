@@ -5,6 +5,7 @@ import '../domain/frame_keypair.dart';
 import '../domain/key_fingerprint.dart';
 import '../domain/pairing_models.dart';
 import '../domain/pairing_repository.dart';
+import 'widgets/fingerprint_mismatch_warning.dart';
 
 /// Gatekeeper screen shown before a received config-push is applied.
 ///
@@ -119,55 +120,11 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
             Text('Frame-ID: ${widget.push.senderFrameId}', style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
             if (_isMismatch) ...[
-              Card(
-                color: theme.colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: theme.colorScheme.onErrorContainer),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Sicherheitswarnung',
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(color: theme.colorScheme.onErrorContainer),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.push.senderFingerprint == null
-                            ? 'Für dieses Gerät ist noch kein Sicherheitsschlüssel bekannt. '
-                                'Eine Konfiguration kann nicht verifiziert werden.'
-                            : fingerprintMismatchWarningFor(widget.senderLabel),
-                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onErrorContainer),
-                      ),
-                      if (widget.push.senderFingerprint != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Neuer Sicherheitsschlüssel: ${widget.push.senderFingerprint}',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.onErrorContainer),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      CheckboxListTile(
-                        value: _mismatchAcknowledged,
-                        onChanged: (v) => setState(() => _mismatchAcknowledged = v ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: Text(
-                          'Ich habe die Warnung gelesen und bin sicher, dass dieses Gerät '
-                          'vertrauenswürdig ist.',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.onErrorContainer),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              FingerprintMismatchWarning(
+                peerLabel: widget.senderLabel,
+                observedFingerprint: widget.push.senderFingerprint,
+                acknowledged: _mismatchAcknowledged,
+                onAcknowledgedChanged: (v) => setState(() => _mismatchAcknowledged = v),
               ),
             ] else ...[
               Row(

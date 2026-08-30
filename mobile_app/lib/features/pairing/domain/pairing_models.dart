@@ -230,3 +230,43 @@ class PendingConfigPush {
 
   bool get isSafeToAutoDisplay => trust == FingerprintTrust.match;
 }
+
+/// A recipient resolved for an about-to-be-sent config-push, together with
+/// the client-side TOFU verdict for its current fingerprint - the
+/// sending-side mirror of [PendingConfigPush]/[FingerprintTrust] used on
+/// receipt. [publicKey] and [fingerprint] are read from the very same
+/// `GET /pairing/:id` snapshot so they are guaranteed to describe the same
+/// server-side state (a relay operator cannot hand out a substituted public
+/// key alongside a stale/unrelated fingerprint).
+class ConfigPushRecipient {
+  const ConfigPushRecipient({
+    required this.frameId,
+    required this.publicKey,
+    required this.fingerprint,
+    required this.trust,
+  });
+
+  final String frameId;
+
+  /// Raw base64 X25519 public key to encrypt to, or `null` if the relay
+  /// has no key on file yet for this frame (see [PairingMember.publicKey]).
+  final String? publicKey;
+
+  /// The recipient's CURRENT fingerprint as reported by the relay at the
+  /// time this was resolved.
+  final String? fingerprint;
+
+  /// TOFU verdict for [fingerprint] against what was previously trusted for
+  /// [frameId]. `null` if [fingerprint] itself is `null` (recipient has no
+  /// public key - nothing to verify, and nothing safe to encrypt to
+  /// either).
+  final FingerprintTrust? trust;
+
+  /// Whether encryption may proceed without further user confirmation:
+  /// either first contact ([FingerprintTrust.trusted]) or an unchanged,
+  /// already-trusted key ([FingerprintTrust.match]). A [FingerprintTrust
+  /// .mismatch] (or no fingerprint at all) MUST NOT be encrypted to without
+  /// the user explicitly confirming the warning first (see
+  /// `send_config_push_screen.dart`).
+  bool get isSafeToSend => trust == FingerprintTrust.trusted || trust == FingerprintTrust.match;
+}
