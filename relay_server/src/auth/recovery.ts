@@ -38,14 +38,27 @@ export function recoverFrame(
   const db = getDb();
 
   const frame = db
-    .prepare('SELECT id, user_id FROM frames WHERE id = ?')
-    .get(frameId) as { id: string; user_id: string } | undefined;
+    .prepare('SELECT id, user_id, deleted_at FROM frames WHERE id = ?')
+    .get(frameId) as { id: string; user_id: string; deleted_at: string | null } | undefined;
 
   if (!frame) {
     throw new RecoveryError('unknown frame', 404);
   }
   if (frame.user_id !== userId) {
     throw new RecoveryError('frame does not belong to this account', 403);
+  }
+  if (frame.deleted_at) {
+    // Found in review: this frame was administratively soft-deleted (see
+    // admin.ts's DELETE /frames/:frameId - the documented scenario is a
+    // lost/stolen device). Self-service recovery MUST NOT be able to
+    // resurrect it: an admin delete's only real enforcement is revoking
+    // device_tokens, and recovery's whole job is to issue a *new* one for
+    // the same frame_id - which is exactly what a thief holding the lost
+    // device would call. Reactivation, if ever wanted, belongs behind a
+    // separate, explicit, audited admin endpoint - never as a side effect
+    // of a normal user-authenticated recovery request. Checked before any
+    // mutation (no key rotation, no pending-push rejection, no new token).
+    throw new RecoveryError('this frame has been deactivated and cannot be recovered', 410);
   }
   if (!newPublicKey || newPublicKey.length < 16) {
     throw new RecoveryError('a valid new public key is required', 400);

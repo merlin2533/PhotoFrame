@@ -116,3 +116,37 @@ test('recoverFrame rejects an unknown frame id', () => {
   const { userId } = makeUserAndFrame();
   assert.throws(() => recoverFrame(uuidv4(), userId, 'x'.repeat(20)), RecoveryError);
 });
+
+test('recoverFrame rejects a frame that has been administratively soft-deleted', () => {
+  // Regression test for a real bug found in review: an admin's
+  // DELETE /api/v1/admin/frames/:frameId only revokes device_tokens - it
+  // relies on recoverFrame to also refuse the one operation that would
+  // undo it (issuing a brand-new device token for the same frame_id).
+  // Without this check, the frame's own owner (e.g. someone who reported
+  // a device lost/stolen, or whoever is holding it) could call the normal
+  // self-service recovery endpoint and fully re-authenticate as that frame,
+  // leaving `deleted_at` stuck in the past while the frame worked again.
+  const { userId, frameId } = makeUserAndFrame();
+  const db = getDb();
+  db.prepare("UPDATE frames SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(
+    frameId,
+  );
+
+  let caught: unknown;
+  try {
+    recoverFrame(frameId, userId, 'y'.repeat(20));
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof RecoveryError, 'expected a RecoveryError');
+  assert.equal((caught as InstanceType<typeof RecoveryError>).statusCode, 410);
+
+  // And it must be checked BEFORE any mutation: no key rotation, no new
+  // token, deleted_at untouched.
+  const frame = db.prepare('SELECT public_key, deleted_at FROM frames WHERE id = ?').get(frameId) as {
+    public_key: string;
+    deleted_at: string;
+  };
+  assert.equal(frame.public_key, 'original-public-key-0000000000');
+  assert.ok(frame.deleted_at, 'deleted_at must remain set');
+});

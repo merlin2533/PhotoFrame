@@ -40,9 +40,35 @@ framesRouter.post('/', (req, res) => {
 
 framesRouter.get('/', (req, res) => {
   const db = getDb();
-  const frames = db
-    .prepare('SELECT id, display_name, public_key, created_at, last_seen_at FROM frames WHERE user_id = ?')
-    .all(req.userId!);
+  const rows = db
+    .prepare(
+      'SELECT id, display_name, public_key, created_at, last_seen_at, deleted_at FROM frames WHERE user_id = ?',
+    )
+    .all(req.userId!) as {
+    id: string;
+    display_name: string;
+    public_key: string;
+    created_at: string;
+    last_seen_at: string | null;
+    deleted_at: string | null;
+  }[];
+
+  // deleted_at is deliberately exposed rather than filtered out: an admin
+  // soft-delete (see admin.ts) is meant to be visible to the affected user
+  // as "this device was deactivated", not have the frame silently vanish
+  // from their list with no explanation (found in review - the recovery
+  // endpoint used to let a user resurrect it unnoticed; now that recovery
+  // rejects deleted frames, an invisible frame here would just be
+  // confusing instead of exploitable).
+  const frames = rows.map((r) => ({
+    id: r.id,
+    displayName: r.display_name,
+    publicKey: r.public_key,
+    createdAt: r.created_at,
+    lastSeenAt: r.last_seen_at,
+    deletedAt: r.deleted_at,
+  }));
+
   res.json({ frames });
 });
 

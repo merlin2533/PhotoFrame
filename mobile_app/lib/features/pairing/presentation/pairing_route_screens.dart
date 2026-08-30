@@ -67,7 +67,10 @@ class PairingRouteScreen extends ConsumerWidget {
       repository: repository,
       fingerprintStore: fingerprintStore,
       socketClient: socketAsync.valueOrNull,
-      onSendConfig: () => context.push('/settings/sharing/pairing/send?pairingId=$pairingId'),
+      onSendConfig: (targetFrameId) => context.push(
+        '/settings/sharing/pairing/send?pairingId=$pairingId'
+        '${targetFrameId != null ? '&targetFrameId=${Uri.encodeQueryComponent(targetFrameId)}' : ''}',
+      ),
     );
   }
 }

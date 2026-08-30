@@ -144,12 +144,22 @@ adminRouter.delete('/users/:userId', (req, res) => {
  */
 adminRouter.delete('/frames/:frameId', (req, res) => {
   const db = getDb();
-  const frame = db.prepare('SELECT id FROM frames WHERE id = ?').get(req.params.frameId) as
-    | { id: string }
+  const frame = db.prepare('SELECT id, deleted_at FROM frames WHERE id = ?').get(req.params.frameId) as
+    | { id: string; deleted_at: string | null }
     | undefined;
 
   if (!frame) {
     res.status(404).json({ error: 'frame not found' });
+    return;
+  }
+
+  if (frame.deleted_at) {
+    // Idempotent no-op rather than re-running the cleanup: without this, a
+    // second click bumps deleted_at to "now" again (found in review),
+    // making the audit trail lie about when the frame was actually
+    // deactivated. Every side effect below was already applied by the
+    // first delete.
+    res.json({ ok: true, alreadyDeleted: true, deletedAt: frame.deleted_at });
     return;
   }
 

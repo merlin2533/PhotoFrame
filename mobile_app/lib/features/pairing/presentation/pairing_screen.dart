@@ -37,9 +37,16 @@ class PairingScreen extends StatefulWidget {
 
   /// Navigates to `send_config_push_screen.dart` (see
   /// `pairing_providers.dart`/`app_router.dart` for the route that wires
-  /// this up with a live [PairingRepository]). `null` hides the button -
+  /// this up with a live [PairingRepository]). `null` hides the button(s) -
   /// used by tests that construct this screen without a router in scope.
-  final VoidCallback? onSendConfig;
+  ///
+  /// Called with a specific member's `frameId` from the per-member "send
+  /// config to this device" action (pre-fills the target so the payload -
+  /// SMB host/user/password in cleartext once decrypted - can't be
+  /// misdirected to the wrong pairing member by a typo in a free-text
+  /// field, found in review), or with `null` from the general FAB when the
+  /// user wants to type/paste a target frame id themselves.
+  final void Function(String? targetFrameId)? onSendConfig;
 
   @override
   State<PairingScreen> createState() => _PairingScreenState();
@@ -177,7 +184,7 @@ class _PairingScreenState extends State<PairingScreen> {
       floatingActionButton: widget.onSendConfig == null
           ? null
           : FloatingActionButton.extended(
-              onPressed: widget.onSendConfig,
+              onPressed: () => widget.onSendConfig!(null),
               icon: const Icon(Icons.send_outlined),
               label: Text(l10n.pairingSendConfigButton),
             ),
@@ -205,12 +212,24 @@ class _PairingScreenState extends State<PairingScreen> {
                                   ? TextStyle(color: Theme.of(context).colorScheme.error)
                                   : null,
                             ),
-                            trailing: (isOwner && member.frameId != widget.localFrameId)
-                                ? IconButton(
-                                    icon: const Icon(Icons.person_remove),
-                                    onPressed: () => _removeMember(member),
-                                  )
-                                : null,
+                            trailing: member.frameId == widget.localFrameId
+                                ? null
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (widget.onSendConfig != null)
+                                        IconButton(
+                                          icon: const Icon(Icons.send_outlined),
+                                          tooltip: l10n.pairingSendConfigButton,
+                                          onPressed: () => widget.onSendConfig!(member.frameId),
+                                        ),
+                                      if (isOwner)
+                                        IconButton(
+                                          icon: const Icon(Icons.person_remove),
+                                          onPressed: () => _removeMember(member),
+                                        ),
+                                    ],
+                                  ),
                           );
                         },
                       ),
