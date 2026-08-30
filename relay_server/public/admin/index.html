@@ -23,7 +23,7 @@
 
   <section>
     <h2>Frames</h2>
-    <table id="frames-table"><thead><tr><th>ID</th><th>User ID</th><th>Name</th><th>Last seen</th></tr></thead><tbody></tbody></table>
+    <table id="frames-table"><thead><tr><th>ID</th><th>User ID</th><th>Name</th><th>Last seen</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
   </section>
 
   <section>
@@ -60,7 +60,7 @@
         ]);
 
         renderTable('users-table', users.users, (u) => [u.id, u.username, u.storage_used_bytes, u.created_at]);
-        renderTable('frames-table', frames.frames, (f) => [f.id, f.user_id, f.display_name, f.last_seen_at ?? '-']);
+        renderFramesTable(token, frames.frames);
         renderTable('pairings-table', pairings.pairings, (p) => [p.id, p.name, p.created_at]);
         renderTable('reports-table', reports.reports, (r) => [r.id, r.image_id, r.reason, r.created_at]);
 
@@ -89,6 +89,46 @@
           td.textContent = cell;
           tr.appendChild(td);
         }
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Frames get a dedicated renderer (rather than plain renderTable) because
+    // each row needs a "Delete frame" action button, not just text cells.
+    // Deleting a frame only revokes that one device/frame (device tokens,
+    // pairing membership, config pushes, its own hidden/report rows) - the
+    // user account, other frames, and every image (including ones this frame
+    // uploaded) are left untouched. See admin.ts DELETE /frames/:frameId.
+    function renderFramesTable(token, frames) {
+      const tbody = document.querySelector('#frames-table tbody');
+      tbody.innerHTML = '';
+      for (const f of frames) {
+        const tr = document.createElement('tr');
+        for (const cell of [f.id, f.user_id, f.display_name, f.last_seen_at ?? '-', f.deleted_at ? 'deleted' : 'active']) {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        }
+
+        const actionTd = document.createElement('td');
+        if (!f.deleted_at) {
+          const btn = document.createElement('button');
+          btn.textContent = 'Delete frame';
+          btn.addEventListener('click', async () => {
+            if (!confirm(`Delete frame ${f.id}? This revokes its device tokens and pairing membership, but keeps its uploaded images visible to other pairing members.`)) {
+              return;
+            }
+            try {
+              await AdminApi.del(token, `/frames/${f.id}`);
+              window.location.reload();
+            } catch (err) {
+              alert('Failed to delete frame: ' + err.message);
+            }
+          });
+          actionTd.appendChild(btn);
+        }
+        tr.appendChild(actionTd);
+
         tbody.appendChild(tr);
       }
     }

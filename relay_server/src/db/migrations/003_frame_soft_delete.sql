@@ -1,0 +1,21 @@
+-- Adds a soft-delete marker to `frames`, backing the admin
+-- `DELETE /api/v1/admin/frames/:frameId` endpoint (single-frame
+-- revoke/delete, as opposed to the existing whole-account
+-- `DELETE /api/v1/admin/users/:userId`).
+--
+-- Why soft-delete instead of actually removing the row: `images` has
+-- `uploaded_by_frame_id TEXT NOT NULL REFERENCES frames(id) ON DELETE
+-- CASCADE` (001_init.sql). A real `DELETE FROM frames WHERE id = ?` would
+-- therefore cascade into deleting every image that frame ever uploaded -
+-- including images still visible to (and owned in spirit by) the other
+-- members of a shared pairing. That is the opposite of the "lost a device,
+-- keep the account/pairing/photos" use case this endpoint exists for, so
+-- the frame row itself is kept (marked `deleted_at`) and every OTHER
+-- frame-scoped side effect (device_tokens, pairing_members, config_pushes,
+-- image_hidden, reports) is cleaned up explicitly in the route handler
+-- instead of relying on a cascade.
+--
+-- A plain ADD COLUMN is safe here (unlike 002's rebuild): it's a new
+-- nullable column, not a constraint change on an existing one, so no table
+-- rebuild/FK-toggle dance is needed.
+ALTER TABLE frames ADD COLUMN deleted_at TEXT;
