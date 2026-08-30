@@ -43,6 +43,26 @@ typedef DirectoryPicker = Future<String?> Function({String? dialogTitle});
 ///    excluded from [listImages] results but counted in [unsupportedCount]
 ///    rather than silently vanishing, so a future UI can surface "N files
 ///    skipped (unsupported format)".
+///
+/// **KNOWN LIMITATION - Android SAF persistable permission (iteration 2
+/// review):** [rootPath] is now persisted across app restarts via
+/// `SourceDescriptor`/`SourcesController` (`source_descriptor.dart`). On
+/// Android, `file_picker`'s `getDirectoryPath()` uses the Storage Access
+/// Framework, whose grants are normally scoped to the current process
+/// lifetime unless the returned URI's permission is explicitly persisted via
+/// `ContentResolver.takePersistableUriPermission` (and re-taken on every
+/// `flutter_boot`/user unlock). Whether `file_picker` 8.1.2 already does this
+/// internally could not be verified here - no Android device/emulator is
+/// reachable in this environment (same constraint as the SMB spike, see
+/// `smb_photo_source.dart`) and the package's own docs do not state it
+/// explicitly. Practical effect if it does *not*: a persisted [rootPath]
+/// pointing at a SAF-backed folder may throw [PermissionDenied]/
+/// [FileSystemException] from [testConnection]/[listFolders] after a real
+/// device restart, even though the path string itself round-trips through
+/// `shared_preferences` correctly. This is called out explicitly rather than
+/// silently assumed away; verifying it (and adding a
+/// `takePersistableUriPermission` platform-channel call here if needed) is
+/// left as follow-up requiring a real Android device.
 class LocalFolderSource implements PhotoSource {
   LocalFolderSource({
     required this.id,

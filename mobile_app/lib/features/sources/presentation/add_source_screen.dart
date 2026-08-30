@@ -24,23 +24,36 @@ class AddSourceScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
 
-    result.when(
-      onOk: (path) {
-        if (path == null) {
-          // User cancelled the picker - nothing to register.
-          unawaited(source.dispose());
-          return;
-        }
-        ref.read(sourcesProvider.notifier).add(source);
-        context.pop();
-      },
-      onErr: (failure) {
-        unawaited(source.dispose());
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ordner konnte nicht ausgewählt werden: ${failure.message}')),
+    if (result.isErr) {
+      unawaited(source.dispose());
+      final failure = result.failureOrNull!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ordner konnte nicht ausgewählt werden: ${failure.message}')),
+      );
+      return;
+    }
+
+    final path = result.valueOrNull;
+    if (path == null) {
+      // User cancelled the picker - nothing to register.
+      unawaited(source.dispose());
+      return;
+    }
+
+    // `add()` persists the new source's descriptor (see
+    // `SourcesController.add`) - awaited so the screen only pops once that
+    // has actually happened.
+    await ref.read(sourcesProvider.notifier).add(source);
+    if (!context.mounted) return;
+    context.pop();
+  }
+
+  Future<void> _addMock(BuildContext context, WidgetRef ref) async {
+    await ref.read(sourcesProvider.notifier).add(
+          MockPhotoSource(displayName: 'Test-Quelle ${DateTime.now().millisecondsSinceEpoch}'),
         );
-      },
-    );
+    if (!context.mounted) return;
+    context.pop();
   }
 
   @override
@@ -76,12 +89,7 @@ class AddSourceScreen extends ConsumerWidget {
             title: 'Mock/Test-Quelle',
             subtitle: 'Für Entwicklung: generiert Beispielbilder',
             enabled: true,
-            onTap: () {
-              ref.read(sourcesProvider.notifier).add(MockPhotoSource(
-                    displayName: 'Test-Quelle ${DateTime.now().millisecondsSinceEpoch}',
-                  ));
-              context.pop();
-            },
+            onTap: () => _addMock(context, ref),
           ),
         ],
       ),

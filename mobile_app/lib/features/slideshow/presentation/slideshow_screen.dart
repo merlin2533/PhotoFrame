@@ -67,59 +67,68 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   }
 
   Future<void> _buildEngine() async {
-    final sources = ref.read(sourcesProvider);
-    final settings = ref.read(settingsProvider).valueOrNull ?? const AppSettings();
-    final favorites = ref.read(favoritesStoreProvider);
+    try {
+      // `sourcesProvider` now loads its descriptor list (and re-attaches
+      // credentials) from storage asynchronously - see
+      // `SourcesController.build`. Awaiting `.future` here (rather than
+      // `ref.read`) blocks this screen's own loading state on that instead
+      // of racing it with an empty/stale source list; a load failure is
+      // caught below just like an engine-build failure, surfacing the same
+      // "loading failed" state instead of crashing unhandled.
+      final sources = await ref.read(sourcesProvider.future);
+      if (!mounted) return;
+      final settings = ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+      final favorites = ref.read(favoritesStoreProvider);
 
-    final pool = InMemoryWorkingSetPool(targetSize: settings.poolTargetSize);
-    final itemsByKey = <String, PhotoItem>{};
-    final sourcesById = <String, PhotoSource>{};
-    final allItems = <PhotoItem>[];
+      final pool = InMemoryWorkingSetPool(targetSize: settings.poolTargetSize);
+      final itemsByKey = <String, PhotoItem>{};
+      final sourcesById = <String, PhotoSource>{};
+      final allItems = <PhotoItem>[];
 
-    for (final source in sources) {
-      sourcesById[source.id] = source;
-      await for (final folderResult in source.listFolders()) {
-        final folder = folderResult.valueOrNull;
-        if (folder == null) continue;
-        await for (final itemResult in source.listImages(folder)) {
-          final item = itemResult.valueOrNull;
-          if (item == null) continue;
-          allItems.add(item);
+      for (final source in sources) {
+        sourcesById[source.id] = source;
+        await for (final folderResult in source.listFolders()) {
+          final folder = folderResult.valueOrNull;
+          if (folder == null) continue;
+          await for (final itemResult in source.listImages(folder)) {
+            final item = itemResult.valueOrNull;
+            if (item == null) continue;
+            allItems.add(item);
+          }
         }
       }
-    }
 
-    // Playlist "favoritesOnly" filter mode (see docs/PLAN.md playlist model
-    // and `AppSettings.favoritesOnlyMode`): an *additional* mode on top of
-    // the default "everything from the configured sources" behaviour below,
-    // not a replacement for it - when off, `applyPlaylistFilter` is a no-op
-    // and every crawled item is admitted exactly as before this feature.
-    final filter = PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode);
-    final eligibleItems = applyPlaylistFilter<PhotoItem>(
-      allItems,
-      filter,
-      stableIdOf: (item) => item.stableId,
-      takenAtOf: (item) => item.takenAt,
-      isFavorite: favorites.isFavorite,
-    );
+      // Playlist "favoritesOnly" filter mode (see docs/PLAN.md playlist
+      // model and `AppSettings.favoritesOnlyMode`): an *additional* mode on
+      // top of the default "everything from the configured sources"
+      // behaviour below, not a replacement for it - when off,
+      // `applyPlaylistFilter` is a no-op and every crawled item is admitted
+      // exactly as before this feature.
+      final filter = PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode);
+      final eligibleItems = applyPlaylistFilter<PhotoItem>(
+        allItems,
+        filter,
+        stableIdOf: (item) => item.stableId,
+        takenAtOf: (item) => item.takenAt,
+        isFavorite: favorites.isFavorite,
+      );
 
-    for (final item in eligibleItems) {
-      itemsByKey['${item.sourceId}::${item.id}'] = item;
-      pool.add(PoolEntry(
-        sourceId: item.sourceId,
-        itemId: item.id,
-        addedToPoolAt: DateTime.now(),
-      ));
-    }
+      for (final item in eligibleItems) {
+        itemsByKey['${item.sourceId}::${item.id}'] = item;
+        pool.add(PoolEntry(
+          sourceId: item.sourceId,
+          itemId: item.id,
+          addedToPoolAt: DateTime.now(),
+        ));
+      }
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (pool.entries.isEmpty) {
-      setState(() => _loading = false);
-      return;
-    }
+      if (pool.entries.isEmpty) {
+        setState(() => _loading = false);
+        return;
+      }
 
-    try {
       final engine = SlideshowEngine(
         pool: pool,
         sources: sourcesById,

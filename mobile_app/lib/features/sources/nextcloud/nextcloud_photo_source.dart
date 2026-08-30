@@ -47,6 +47,30 @@ class NextcloudSourceConfig {
 
   final bool isShareLink;
 
+  /// Non-secret fields only, for persisting via `SourceDescriptor.config` -
+  /// [authPassword] is deliberately NOT included; it lives solely in
+  /// `SecureCredentialStore`, keyed by the owning source's id. Note
+  /// [authUsername] is stored as-is even for a share link (where it holds
+  /// the share token, not a real secret - see the field doc above).
+  Map<String, dynamic> toJson() => {
+        'davBaseUrl': davBaseUrl,
+        'authUsername': authUsername,
+        'rootPath': rootPath,
+        'isShareLink': isShareLink,
+      };
+
+  /// Rebuilds a config from its non-secret [json] (as produced by [toJson])
+  /// plus a [password] loaded separately from `SecureCredentialStore`.
+  factory NextcloudSourceConfig.fromJson(Map<String, dynamic> json, {required String password}) {
+    return NextcloudSourceConfig(
+      davBaseUrl: json['davBaseUrl'] as String? ?? '',
+      authUsername: json['authUsername'] as String? ?? '',
+      authPassword: password,
+      rootPath: json['rootPath'] as String? ?? '',
+      isShareLink: json['isShareLink'] as bool? ?? false,
+    );
+  }
+
   factory NextcloudSourceConfig.fromForm(NextcloudConfigFormModel form) {
     final normalized = form.normalized();
     switch (normalized.authKind) {
@@ -101,6 +125,11 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   final Directory? _cacheDirectory;
   late webdav.Client _client;
   bool _disposed = false;
+
+  /// The currently active configuration, exposed so `source_descriptor.dart`
+  /// can turn a live instance back into a persistable, non-secret
+  /// [SourceDescriptor] via [NextcloudSourceConfig.toJson].
+  NextcloudSourceConfig get config => _config;
 
   bool _canUpload = false;
 

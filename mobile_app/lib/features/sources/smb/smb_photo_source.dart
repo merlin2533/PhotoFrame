@@ -52,6 +52,30 @@ class SmbSourceConfig {
   /// Path within [share] to treat as the source root, e.g. `Photos/Frame`.
   /// Empty string means the share root itself.
   final String rootPath;
+
+  /// Non-secret fields only, for persisting via `SourceDescriptor.config` -
+  /// [password] is deliberately NOT included; it lives solely in
+  /// `SecureCredentialStore`, keyed by the owning source's id.
+  Map<String, dynamic> toJson() => {
+        'host': host,
+        'share': share,
+        'domain': domain,
+        'username': username,
+        'rootPath': rootPath,
+      };
+
+  /// Rebuilds a config from its non-secret [json] (as produced by [toJson])
+  /// plus a [password] loaded separately from `SecureCredentialStore`.
+  factory SmbSourceConfig.fromJson(Map<String, dynamic> json, {required String password}) {
+    return SmbSourceConfig(
+      host: json['host'] as String? ?? '',
+      share: json['share'] as String? ?? '',
+      domain: json['domain'] as String? ?? '',
+      username: json['username'] as String? ?? '',
+      password: password,
+      rootPath: json['rootPath'] as String? ?? '',
+    );
+  }
 }
 
 /// [PhotoSource] backed by an SMB/CIFS share, via the `smb_connect` package.
@@ -83,6 +107,11 @@ class SmbPhotoSource implements PhotoSource {
   SmbConnect? _connect;
   bool _disposed = false;
   int _unsupportedCount = 0;
+
+  /// The currently active configuration, exposed so `source_descriptor.dart`
+  /// can turn a live instance back into a persistable, non-secret
+  /// [SourceDescriptor] via [SmbSourceConfig.toJson].
+  SmbSourceConfig get config => _config;
 
   /// Extension whitelist, mirroring `LocalFolderSource` - shared logic isn't
   /// factored out yet since these sources may diverge (e.g. SMB one day
