@@ -80,8 +80,7 @@ class FrameKeypairStore {
   /// generating one as a side effect (unlike [loadOrCreateKeyPair]).
   Future<bool> hasKeypair() async => (await _readSeed()) != null;
 
-  /// Generates a brand-new keypair, unconditionally overwriting whatever
-  /// was previously stored, and returns its public key (base64).
+  /// Generates a brand-new candidate keypair WITHOUT persisting it yet.
   ///
   /// Used by the account-recovery flow (`recovery_code_screen.dart`): per
   /// docs/PLAN.md, a device that lost its original private key reactivates
@@ -91,12 +90,20 @@ class FrameKeypairStore {
   /// that were encrypted for the old key (they are no longer decryptable by
   /// anyone once the private key is gone, which is the intended, safe
   /// outcome rather than a bug).
-  Future<String> rotateKeypair() async {
-    final newSeed = _seedGenerator();
-    await _writeSeed(newSeed);
-    final keyPair = await _algorithm.newKeyPairFromSeed(newSeed);
+  ///
+  /// Deliberately two-phase (generate, then [CandidateFrameKeypair.commit])
+  /// rather than a single rotate-and-persist call: the candidate's private
+  /// key lives only in memory until the *server* has actually accepted the
+  /// new public key. If the recovery request fails (network error, wrong
+  /// frame ID, rate limit, ...) the caller simply discards the candidate by
+  /// never calling [CandidateFrameKeypair.commit] - any previously stored
+  /// keypair is left completely untouched, so a failed recovery attempt
+  /// never permanently destroys this device's existing identity.
+  Future<CandidateFrameKeypair> generateCandidateKeypair() async {
+    final seed = _seedGenerator();
+    final keyPair = await _algorithm.newKeyPairFromSeed(seed);
     final publicKey = await keyPair.extractPublicKey();
-    return base64Encode(publicKey.bytes);
+    return CandidateFrameKeypair._(seed, base64Encode(publicKey.bytes), this, DateTime.now());
   }
 
   /// Deletes the locally stored keypair entirely. Mostly useful for tests;
@@ -104,4 +111,43 @@ class FrameKeypairStore {
   /// keypair without rotating on the server" feature - that would silently
   /// desynchronize this device from `frames.public_key`).
   Future<void> forgetForTesting() => _storage.delete(key: _seedStorageKey);
+}
+
+/// A freshly generated keypair whose private key has NOT been persisted
+/// yet - only [publicKeyBase64] exists anywhere outside this object until
+/// [commit] is called.
+///
+/// Valid for [maxAge] (60 minutes) from generation. This bounds how long an
+/// unpersisted private key may be held in memory (e.g. while a recovery
+/// screen is waiting on a slow network call or a user who walked away) and
+/// forces a fresh candidate - fresh key material - rather than committing
+/// something that has been sitting in memory indefinitely. [commit] throws
+/// a [StateError] once expired; the caller should call
+/// [FrameKeypairStore.generateCandidateKeypair] again and retry.
+class CandidateFrameKeypair {
+  CandidateFrameKeypair._(this._seed, this.publicKeyBase64, this._store, this._generatedAt);
+
+  final List<int> _seed;
+  final String publicKeyBase64;
+  final FrameKeypairStore _store;
+  final DateTime _generatedAt;
+
+  static const maxAge = Duration(minutes: 60);
+
+  bool get isExpired => DateTime.now().difference(_generatedAt) > maxAge;
+
+  /// Persists this candidate's private key, making it this device's new
+  /// keypair. Call ONLY after the server has confirmed it accepted
+  /// [publicKeyBase64] (e.g. a successful `recoverFrame`/`registerFrame`
+  /// response) - never speculatively before that call, and never if the
+  /// call failed.
+  Future<void> commit() async {
+    if (isExpired) {
+      throw StateError(
+        'CandidateFrameKeypair expired (older than ${maxAge.inMinutes} min) - '
+        'generate a new candidate instead of committing a stale one.',
+      );
+    }
+    await _store._writeSeed(_seed);
+  }
 }

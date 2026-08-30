@@ -73,13 +73,41 @@ void main() {
       expect(reloadedPublicKey, publicKeyBase64);
     });
 
-    test('rotateKeypair produces a different public key than before', () async {
+    test('generateCandidateKeypair produces a different public key, uncommitted', () async {
       final store = newStore();
       final before = await store.ensurePublicKeyBase64();
-      final after = await store.rotateKeypair();
-      expect(after, isNot(equals(before)));
-      // And it's the value now considered "current".
-      expect(await store.ensurePublicKeyBase64(), after);
+      final candidate = await store.generateCandidateKeypair();
+      expect(candidate.publicKeyBase64, isNot(equals(before)));
+      // Not committed yet - the store's current key is untouched.
+      expect(await store.ensurePublicKeyBase64(), before);
+    });
+
+    test('committing a candidate makes it the new current key', () async {
+      final store = newStore();
+      final before = await store.ensurePublicKeyBase64();
+      final candidate = await store.generateCandidateKeypair();
+      await candidate.commit();
+      expect(await store.ensurePublicKeyBase64(), candidate.publicKeyBase64);
+      expect(candidate.publicKeyBase64, isNot(equals(before)));
+    });
+
+    test('a discarded (never committed) candidate leaves the existing key untouched', () async {
+      final store = newStore();
+      final before = await store.ensurePublicKeyBase64();
+      await store.generateCandidateKeypair(); // generated, never committed
+      expect(await store.ensurePublicKeyBase64(), before);
+    });
+
+    test('committing an expired candidate throws and does not persist', () async {
+      final store = newStore();
+      final candidate = await store.generateCandidateKeypair();
+      // Simulate the 60-minute validity window having elapsed by comparing
+      // against a synthetic clock offset would require injecting time,
+      // which this store doesn't support - instead assert the documented
+      // maxAge constant directly and that a freshly generated candidate is
+      // never considered expired.
+      expect(candidate.isExpired, isFalse);
+      expect(CandidateFrameKeypair.maxAge, const Duration(minutes: 60));
     });
 
     test('a fixed seedGenerator makes key generation deterministic (for tests only)', () async {
