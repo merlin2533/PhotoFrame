@@ -258,6 +258,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'This step only applies to Android devices and is skipped on this device.';
 
   @override
+  String get onboardingPermissionsTitle => 'Camera & photos access';
+
+  @override
+  String get onboardingPermissionsBody =>
+      'PhotoFrame needs camera access to scan pairing QR codes, and access to your photos to use local images as a slideshow source. Tap below to grant access right now.';
+
+  @override
+  String get onboardingRequestCameraPermission => 'Allow camera access';
+
+  @override
+  String get onboardingRequestPhotosPermission => 'Allow photos access';
+
+  @override
+  String get onboardingPermissionStatusUnknown => 'not requested yet';
+
+  @override
+  String get onboardingPermissionStatusGranted => 'granted';
+
+  @override
+  String get onboardingPermissionStatusDenied => 'denied';
+
+  @override
   String get settingsLanguageTitle => 'Language';
 
   @override

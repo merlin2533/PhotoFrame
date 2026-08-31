@@ -38,7 +38,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _page = 0;
 
-  static const int _pageCount = 7;
+  /// Computed once, not hardcoded: previously every step - including the
+  /// Android-only ones on iOS and vice versa - was always shown, each
+  /// falling back to a "not applicable on this platform" placeholder body
+  /// instead of just not being there. Found to be confusing on a real
+  /// device (a user gets a wall of "n/a" steps for the other platform's
+  /// setup instructions before ever reaching anything relevant to them).
+  /// Now the platform-specific steps for the *other* platform are simply
+  /// excluded from the list entirely.
+  late final List<Widget> _steps = [
+    const _WelcomeStep(),
+    const _AlwaysOnExplainerStep(),
+    if (_isAndroid) ...const [
+      _AndroidHomeAppStep(),
+      _AndroidBatteryOptimizationStep(),
+      _OemAutostartHintsStep(),
+    ],
+    if (_isIos) const _IosGuidedAccessStep(),
+    const _PermissionsStep(),
+    const _AddSourceStep(),
+  ];
+
+  int get _pageCount => _steps.length;
 
   @override
   void dispose() {
@@ -95,15 +116,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: PageView(
                 controller: _pageController,
                 onPageChanged: (p) => setState(() => _page = p),
-                children: const [
-                  _WelcomeStep(),
-                  _AlwaysOnExplainerStep(),
-                  _AndroidHomeAppStep(),
-                  _AndroidBatteryOptimizationStep(),
-                  _OemAutostartHintsStep(),
-                  _IosGuidedAccessStep(),
-                  _AddSourceStep(),
-                ],
+                children: _steps,
               ),
             ),
             Padding(
@@ -225,13 +238,8 @@ class _AndroidHomeAppStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (!_isAndroid) {
-      return _StepScaffold(
-        icon: Icons.android,
-        title: l10n.onboardingAndroidHomeAppTitle,
-        body: Text(l10n.onboardingAndroidOnlyStepBody),
-      );
-    }
+    // No `!_isAndroid` fallback needed: this step is excluded from
+    // _OnboardingScreenState._steps entirely on non-Android platforms.
     return _StepScaffold(
       icon: Icons.android,
       title: l10n.onboardingAndroidHomeAppTitle,
@@ -251,13 +259,8 @@ class _AndroidBatteryOptimizationStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (!_isAndroid) {
-      return _StepScaffold(
-        icon: Icons.battery_charging_full_outlined,
-        title: l10n.onboardingBatteryOptTitle,
-        body: Text(l10n.onboardingAndroidOnlyStepBody),
-      );
-    }
+    // No `!_isAndroid` fallback needed: this step is excluded from
+    // _OnboardingScreenState._steps entirely on non-Android platforms.
     return _StepScaffold(
       icon: Icons.battery_charging_full_outlined,
       title: l10n.onboardingBatteryOptTitle,
@@ -273,21 +276,17 @@ class _AndroidBatteryOptimizationStep extends StatelessWidget {
 
 /// OEM-specific autostart/battery-whitelist hints (Task 5). Pure text, no
 /// vendor-specific settings deep links - see `autostart_help_screen.dart`
-/// doc comment for why. Skipped (shown as N/A) on non-Android platforms,
-/// same pattern as the other Android-only steps in this wizard.
+/// doc comment for why. Excluded from the wizard entirely on non-Android
+/// platforms, same as the other Android-only steps (see `_steps` in
+/// `_OnboardingScreenState`).
 class _OemAutostartHintsStep extends StatelessWidget {
   const _OemAutostartHintsStep();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (!_isAndroid) {
-      return _StepScaffold(
-        icon: Icons.phonelink_setup_outlined,
-        title: l10n.onboardingAutostartHintsTitle,
-        body: Text(l10n.onboardingAndroidOnlyStepBody),
-      );
-    }
+    // No `!_isAndroid` fallback needed: this step is excluded from
+    // _OnboardingScreenState._steps entirely on non-Android platforms.
     return _StepScaffold(
       icon: Icons.phonelink_setup_outlined,
       title: l10n.onboardingAutostartHintsTitle,
@@ -327,6 +326,95 @@ class _IosGuidedAccessStep extends StatelessWidget {
   }
 }
 
+/// Requests camera + photo-library access directly, instead of only
+/// explaining the permissions and sending the user to the app settings
+/// screen. Found on a real device: `openAppSettings()` alone never actually
+/// shows the native OS permission popup - the user has to manually flip
+/// the toggle themselves, which most people miss or skip. Calling
+/// `Permission.camera.request()`/`Permission.photos.request()` directly
+/// triggers the real system dialog on first ask; if it was already denied
+/// ("don't ask again"), we fall back to `openAppSettings()` since the OS
+/// won't show the dialog again in that case.
+class _PermissionsStep extends StatefulWidget {
+  const _PermissionsStep();
+
+  @override
+  State<_PermissionsStep> createState() => _PermissionsStepState();
+}
+
+class _PermissionsStepState extends State<_PermissionsStep> {
+  ph.PermissionStatus? _cameraStatus;
+  ph.PermissionStatus? _photosStatus;
+
+  Future<void> _requestCamera() async {
+    final status = await ph.Permission.camera.request();
+    if (!mounted) return;
+    setState(() => _cameraStatus = status);
+    if (status.isPermanentlyDenied) {
+      await ph.openAppSettings();
+    }
+  }
+
+  Future<void> _requestPhotos() async {
+    final status = await ph.Permission.photos.request();
+    if (!mounted) return;
+    setState(() => _photosStatus = status);
+    if (status.isPermanentlyDenied) {
+      await ph.openAppSettings();
+    }
+  }
+
+  String _statusLabel(AppLocalizations l10n, ph.PermissionStatus? status) {
+    if (status == null) return l10n.onboardingPermissionStatusUnknown;
+    if (status.isGranted || status.isLimited) {
+      return l10n.onboardingPermissionStatusGranted;
+    }
+    return l10n.onboardingPermissionStatusDenied;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _StepScaffold(
+      icon: Icons.perm_media_outlined,
+      title: l10n.onboardingPermissionsTitle,
+      body: Text(l10n.onboardingPermissionsBody),
+      extra: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _requestCamera,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: Text(l10n.onboardingRequestCameraPermission),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(_statusLabel(l10n, _cameraStatus)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _requestPhotos,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text(l10n.onboardingRequestPhotosPermission),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(_statusLabel(l10n, _photosStatus)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AddSourceStep extends StatelessWidget {
   const _AddSourceStep();
 
@@ -344,6 +432,15 @@ class _AddSourceStep extends StatelessWidget {
 bool get _isAndroid {
   try {
     return Platform.isAndroid;
+  } catch (_) {
+    // Platform is unavailable on web/some test hosts.
+    return false;
+  }
+}
+
+bool get _isIos {
+  try {
+    return Platform.isIOS;
   } catch (_) {
     // Platform is unavailable on web/some test hosts.
     return false;

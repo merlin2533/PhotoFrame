@@ -78,6 +78,13 @@
   "onboardingAddSourceTitle": "Add a source",
   "onboardingAddSourceBody": "Almost done! Now add an image source (e.g. a local folder, a network share, or Nextcloud) so the slideshow can start. You can also do this later at any time via Settings -> Sources.",
   "onboardingAndroidOnlyStepBody": "This step only applies to Android devices and is skipped on this device.",
+  "onboardingPermissionsTitle": "Camera & photos access",
+  "onboardingPermissionsBody": "PhotoFrame needs camera access to scan pairing QR codes, and access to your photos to use local images as a slideshow source. Tap below to grant access right now.",
+  "onboardingRequestCameraPermission": "Allow camera access",
+  "onboardingRequestPhotosPermission": "Allow photos access",
+  "onboardingPermissionStatusUnknown": "not requested yet",
+  "onboardingPermissionStatusGranted": "granted",
+  "onboardingPermissionStatusDenied": "denied",
 
   "settingsLanguageTitle": "Language",
   "settingsLanguageSubtitle": "Set the app's language",

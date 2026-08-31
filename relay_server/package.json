@@ -1,6 +1,6 @@
 {
   "name": "photoframe-relay-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Self-hosted relay server for the PhotoFrame app (device pairing, image sharing, remote configuration)",
   "private": true,
   "license": "MIT",

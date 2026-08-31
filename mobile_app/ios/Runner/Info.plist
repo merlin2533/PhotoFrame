@@ -47,5 +47,18 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Wird nur verwendet, wenn du in den Wetter-Einstellungen optional "Aktuellen Standort verwenden" statt manueller Ortseingabe wählst.</string>
+	<!-- Required for mobile_scanner's QR pairing scan and image_picker's
+	     camera option. Without this key, iOS terminates the app instantly
+	     (not just denies silently, like Android) the moment
+	     Permission.camera.request() or any camera API call is made -
+	     found while wiring up onboarding_screen.dart's direct
+	     permission-request step. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Wird zum Scannen von Pairing-QR-Codes und für die Kamera-Option beim Hochladen eigener Fotos benötigt.</string>
+	<!-- Required for image_picker's gallery option / any local-photo access
+	     via permission_handler's Permission.photos - same instant-crash-
+	     without-this-key behaviour as NSCameraUsageDescription above. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Wird benötigt, um deine Fotos aus der Mediathek als Diashow-Quelle zu nutzen.</string>
 </dict>
 </plist>

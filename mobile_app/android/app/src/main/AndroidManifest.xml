@@ -1,4 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Found on a real device: NONE of these except location were ever
+         declared, despite docs/PLAN.md's "Plattform-Besonderheiten" section
+         listing exactly this set as required. Without a manifest
+         declaration, Android silently denies the runtime permission
+         request instead of showing the system prompt at all - CAMERA is
+         needed for mobile_scanner's QR pairing scan (pairing_scan_screen.dart)
+         and image_picker's camera option (upload_screen.dart);
+         READ_MEDIA_IMAGES (API 33+)/READ_EXTERNAL_STORAGE (below 33) for
+         image_picker's gallery option and file_picker's legacy (non-SAF)
+         path on older Android versions; INTERNET/ACCESS_NETWORK_STATE/
+         ACCESS_WIFI_STATE for every relay-server, SMB, Nextcloud and
+         weather network call the app makes - without INTERNET specifically,
+         literally no socket in this app could ever have connected. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <!-- Only requested if the user opts in to "aktuellen Standort verwenden" in
          the weather settings screen; manual city entry (default) needs no
          location permission at all. -->

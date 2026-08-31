@@ -262,6 +262,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem Gerät übersprungen.';
 
   @override
+  String get onboardingPermissionsTitle => 'Zugriff auf Kamera & Fotos';
+
+  @override
+  String get onboardingPermissionsBody =>
+      'PhotoFrame braucht Zugriff auf die Kamera zum Scannen von Pairing-QR-Codes und Zugriff auf deine Fotos, um lokale Bilder als Diashow-Quelle nutzen zu können. Tippe unten, um die Freigabe jetzt direkt zu erteilen.';
+
+  @override
+  String get onboardingRequestCameraPermission => 'Kamera-Zugriff erlauben';
+
+  @override
+  String get onboardingRequestPhotosPermission => 'Fotos-Zugriff erlauben';
+
+  @override
+  String get onboardingPermissionStatusUnknown => 'noch nicht angefragt';
+
+  @override
+  String get onboardingPermissionStatusGranted => 'erlaubt';
+
+  @override
+  String get onboardingPermissionStatusDenied => 'abgelehnt';
+
+  @override
   String get settingsLanguageTitle => 'Sprache';
 
   @override

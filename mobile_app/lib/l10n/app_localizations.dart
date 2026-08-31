@@ -536,6 +536,48 @@ abstract class AppLocalizations {
   /// **'Dieser Schritt betrifft nur Android-Geräte und wird auf diesem Gerät übersprungen.'**
   String get onboardingAndroidOnlyStepBody;
 
+  /// Titel des Berechtigungs-Onboarding-Schritts.
+  ///
+  /// In de, this message translates to:
+  /// **'Zugriff auf Kamera & Fotos'**
+  String get onboardingPermissionsTitle;
+
+  /// Erklärtext des Berechtigungs-Onboarding-Schritts.
+  ///
+  /// In de, this message translates to:
+  /// **'PhotoFrame braucht Zugriff auf die Kamera zum Scannen von Pairing-QR-Codes und Zugriff auf deine Fotos, um lokale Bilder als Diashow-Quelle nutzen zu können. Tippe unten, um die Freigabe jetzt direkt zu erteilen.'**
+  String get onboardingPermissionsBody;
+
+  /// Button, der die native Kamera-Berechtigungsabfrage direkt auslöst.
+  ///
+  /// In de, this message translates to:
+  /// **'Kamera-Zugriff erlauben'**
+  String get onboardingRequestCameraPermission;
+
+  /// Button, der die native Fotos-Berechtigungsabfrage direkt auslöst.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotos-Zugriff erlauben'**
+  String get onboardingRequestPhotosPermission;
+
+  /// Statusanzeige, bevor eine Berechtigung angefragt wurde.
+  ///
+  /// In de, this message translates to:
+  /// **'noch nicht angefragt'**
+  String get onboardingPermissionStatusUnknown;
+
+  /// Statusanzeige, wenn eine Berechtigung erteilt wurde.
+  ///
+  /// In de, this message translates to:
+  /// **'erlaubt'**
+  String get onboardingPermissionStatusGranted;
+
+  /// Statusanzeige, wenn eine Berechtigung abgelehnt wurde.
+  ///
+  /// In de, this message translates to:
+  /// **'abgelehnt'**
+  String get onboardingPermissionStatusDenied;
+
   /// Titel des Sprach-Einstellungseintrags.
   ///
   /// In de, this message translates to:
