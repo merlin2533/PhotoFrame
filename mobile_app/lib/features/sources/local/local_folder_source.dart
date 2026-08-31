@@ -94,30 +94,48 @@ class LocalFolderSource implements PhotoSource {
   /// user hasn't picked one yet.
   String? get rootPath => _rootPath;
 
-  /// Extensions recognized as displayable images.
+  /// Extensions recognized as displayable images - i.e. formats
+  /// `Image.file`/Flutter's built-in `dart:ui` codec (Skia) can actually
+  /// decode without any extra plugin: JPEG, PNG, GIF (including animated),
+  /// WebP (including animated), BMP.
+  ///
+  /// Found on a real device: HEIC/HEIF (the default format for iPhone
+  /// photos) was previously listed here as "displayable", but Flutter's
+  /// built-in codec cannot decode it - `SlideRenderer` would just render a
+  /// blank/error frame for every iPhone photo synced onto a NAS/shared
+  /// folder, the single most common real-world case. There is no
+  /// `flutter_image_compress`-based HEIC-to-JPEG conversion step wired into
+  /// the fetch/render pipeline (yet) - until there is, HEIC/HEIF belong in
+  /// [_unsupportedMediaExtensions] below, counted and skipped rather than
+  /// silently shown as a broken image.
   static const Set<String> _imageExtensions = {
     'jpg',
     'jpeg',
     'png',
     'webp',
-    'heic',
-    'heif',
+    'gif',
+    'bmp',
   };
 
   /// Extensions recognized as media but not currently displayable. These are
   /// excluded from [listImages] but counted in [unsupportedCount] instead of
   /// being dropped without a trace.
   ///
+  /// **HEIC/HEIF:** see the doc comment on [_imageExtensions] - not
+  /// decodable by Flutter's built-in image codec without an extra
+  /// conversion step that isn't wired in yet.
+  ///
   /// **Video clips (P2 decision):** `docs/PLAN.md` reserves
   /// `MediaType.video` on `PhotoItem` for a later "kurzer Loop wie bei
   /// Frameo" feature, but per explicit product decision that feature is
   /// *not* being built in this round - video files are treated exactly like
-  /// GIF/RAW: recognized, counted here, and filtered out of [listImages]
-  /// rather than surfaced as `MediaType.video` items. Should video playback
-  /// be added later, only this set (and the classification below) needs to
+  /// RAW: recognized, counted here, and filtered out of [listImages] rather
+  /// than surfaced as `MediaType.video` items. Should video playback be
+  /// added later, only this set (and the classification below) needs to
   /// change - `MediaType.video` already exists on the model for that.
   static const Set<String> _unsupportedMediaExtensions = {
-    'gif',
+    'heic',
+    'heif',
     // Common RAW formats.
     'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
     // Video formats - recognized-but-unsupported, see doc comment above.

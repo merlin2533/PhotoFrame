@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Bumps mobile_app's pubspec.yaml build number (the `+N` after the semver in
+# `version: X.Y.Z+N`) and relay_server's package.json patch version on every
+# commit, then stages the bump so it's included in the commit being made.
+#
+# Only the *build number* is bumped automatically (not the semver X.Y.Z) -
+# that's exactly what the build-number field exists for (Android versionCode
+# / iOS build), it can only ever increase, and it won't inflate the
+# human-readable version on every WIP commit. Bump X.Y.Z manually for an
+# actual release.
+#
+# Setup (once per clone): git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+PUBSPEC="mobile_app/pubspec.yaml"
+if [ -f "$PUBSPEC" ]; then
+  current_line=$(grep -m1 '^version:' "$PUBSPEC")
+  # version: X.Y.Z+N
+  semver=$(echo "$current_line" | sed -E 's/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)\s*$/\1/')
+  build=$(echo "$current_line" | sed -E 's/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)\s*$/\2/')
+  if [[ "$semver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$build" =~ ^[0-9]+$ ]]; then
+    new_build=$((build + 1))
+    new_line="version: ${semver}+${new_build}"
+    sed -i "s/^version:.*/${new_line}/" "$PUBSPEC"
+    git add "$PUBSPEC"
+    echo "[pre-commit] bumped mobile_app version to ${semver}+${new_build}"
+  else
+    echo "[pre-commit] WARNING: could not parse $PUBSPEC version line '$current_line' - skipping bump" >&2
+  fi
+fi
+
+PKGJSON="relay_server/package.json"
+if [ -f "$PKGJSON" ] && command -v node >/dev/null 2>&1; then
+  node -e "
+    const fs = require('fs');
+    const path = '$PKGJSON';
+    const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+    const parts = String(pkg.version || '0.0.0').split('.').map((n) => parseInt(n, 10) || 0);
+    while (parts.length < 3) parts.push(0);
+    parts[2] += 1;
+    pkg.version = parts.join('.');
+    fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+    console.log('[pre-commit] bumped relay_server version to ' + pkg.version);
+  "
+  git add "$PKGJSON"
+fi
+
+exit 0

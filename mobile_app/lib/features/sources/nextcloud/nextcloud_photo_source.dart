@@ -139,22 +139,26 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   @override
   bool get canUpload => _canUpload;
 
+  /// Formats `Image.file`/Flutter's built-in codec can actually decode -
+  /// see `local_folder_source.dart`'s doc comment on the same constant for
+  /// why HEIC/HEIF moved out of this set (not decodable without an extra,
+  /// not-yet-wired-in conversion step) and GIF moved in (it is decodable).
   static const Set<String> _imageExtensions = {
     'jpg',
     'jpeg',
     'png',
     'webp',
-    'heic',
-    'heif',
+    'gif',
+    'bmp',
   };
 
-  /// Recognized-but-unsupported extensions: GIF/RAW plus video formats.
-  /// Video clips are *not* played (P2 decision - see `docs/PLAN.md`'s
-  /// `MediaType.video` note and `local_folder_source.dart`'s doc comment for
-  /// the full rationale); they are counted like GIF/RAW rather than
-  /// surfaced as playable items.
+  /// Recognized-but-unsupported extensions: HEIC/HEIF/RAW plus video
+  /// formats. Video clips are *not* played (P2 decision - see
+  /// `docs/PLAN.md`'s `MediaType.video` note and
+  /// `local_folder_source.dart`'s doc comment for the full rationale); they
+  /// are counted like HEIC/RAW rather than surfaced as playable items.
   static const Set<String> _unsupportedMediaExtensions = {
-    'gif',
+    'heic', 'heif',
     'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
     'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp',
   };

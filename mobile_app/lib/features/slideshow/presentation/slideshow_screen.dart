@@ -64,6 +64,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   late final AlwaysOnController _alwaysOnController;
   late final KioskModeController _kioskModeController;
 
+  // Needed so `SlideRenderer` can call `source.fetchToCache(item)` on the
+  // right source for the currently displayed item - see _buildEngine().
+  Map<String, PhotoSource> _sourcesById = const {};
+
   @override
   void initState() {
     super.initState();
@@ -164,6 +168,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       setState(() {
         _engine = engine;
+        _sourcesById = sourcesById;
         _loading = false;
       });
       await _alwaysOnController.onSlideshowStarted();
@@ -313,10 +318,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
               reduceMotion: reduceMotion,
             );
 
-            Widget slide = item == null
+            final itemSource = item == null ? null : _sourcesById[item.sourceId];
+            Widget slide = (item == null || itemSource == null)
                 ? const SizedBox.shrink(key: ValueKey('empty'))
                 : SlideRenderer(
                     item: item,
+                    source: itemSource,
                     displayMode: settings.displayMode,
                   );
             if (item != null && effective.kenBurnsEnabled) {

@@ -124,6 +124,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Verwandelt dieses Gerät in einen dedizierten digitalen Fotorahmen: PhotoFrame wird als Startbildschirm (Home-App) auswählbar, und der Bildschirm wird beim Betreten der Diashow fixiert (Screen-Pinning), damit niemand versehentlich zu anderen Apps wechselt.';
 
   @override
+  String get kioskExitNowButton => 'Bildschirmfixierung jetzt sofort beenden';
+
+  @override
   String get kioskHomeAppNote =>
       'Nach dem Aktivieren erscheint beim nächsten Drücken der Home-Taste ein Systemdialog, mit dem du PhotoFrame als Standard-Startbildschirm festlegen kannst. Das musst du selbst bestätigen - Android erlaubt es Apps nicht, diesen Dialog automatisch zu bestätigen oder zu umgehen.';
 

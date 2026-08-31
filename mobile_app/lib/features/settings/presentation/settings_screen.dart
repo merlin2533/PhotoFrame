@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../l10n/app_localizations.dart';
 
@@ -112,8 +113,40 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/onboarding'),
           ),
+          const _AppVersionFooter(),
         ],
       ),
+    );
+  }
+}
+
+/// Reads `pubspec.yaml`'s `version:` (e.g. `1.2.3+45`) via `package_info_plus`
+/// at build time - no manual wiring needed when the version is bumped
+/// (including by the repo's own pre-commit hook, see CHANGELOG.md /
+/// CONTRIBUTING.md). Shows nothing until resolved rather than a loading
+/// spinner - this is a footer, not a critical piece of content.
+class _AppVersionFooter extends StatelessWidget {
+  const _AppVersionFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        if (info == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Text(
+              '${info.appName} ${info.version}+${info.buildNumber}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

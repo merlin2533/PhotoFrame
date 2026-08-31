@@ -120,6 +120,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Turns this device into a dedicated digital photo frame: PhotoFrame becomes selectable as the home screen (home app), and the screen is pinned (screen pinning) when the slideshow starts, so nobody accidentally switches to another app.';
 
   @override
+  String get kioskExitNowButton => 'Exit screen pinning now';
+
+  @override
   String get kioskHomeAppNote =>
       'After enabling this, the next time you press the Home button a system dialog appears letting you set PhotoFrame as the default home screen. You have to confirm that yourself - Android does not let apps confirm or bypass that dialog automatically.';
 

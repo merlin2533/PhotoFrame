@@ -308,6 +308,12 @@ abstract class AppLocalizations {
   /// **'Verwandelt dieses Gerät in einen dedizierten digitalen Fotorahmen: PhotoFrame wird als Startbildschirm (Home-App) auswählbar, und der Bildschirm wird beim Betreten der Diashow fixiert (Screen-Pinning), damit niemand versehentlich zu anderen Apps wechselt.'**
   String get kioskIntro;
 
+  /// Button, der die Bildschirmfixierung (Screen-Pinning) sofort beendet, unabhängig vom Schalter-Zustand.
+  ///
+  /// In de, this message translates to:
+  /// **'Bildschirmfixierung jetzt sofort beenden'**
+  String get kioskExitNowButton;
+
   /// Hinweis zum Home-App-Auswahldialog auf der Kiosk-Modus-Einstellungsseite.
   ///
   /// In de, this message translates to:

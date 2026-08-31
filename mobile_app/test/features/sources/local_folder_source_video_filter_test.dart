@@ -29,7 +29,7 @@ void main() {
     await file.writeAsBytes(const [0, 1, 2, 3]);
   }
 
-  test('video files are excluded from listImages and counted as unsupported', () async {
+  test('video files are excluded from listImages and counted as unsupported, GIF is not', () async {
     await writeFile('photo.jpg');
     await writeFile('clip.mp4');
     await writeFile('clip.mov');
@@ -42,11 +42,14 @@ void main() {
     final items = await source.listImages(root).toList();
     final okItems = items.map((r) => r.valueOrNull).whereType<PhotoItem>().toList();
 
-    expect(okItems.length, 1);
-    expect(okItems.single.name, 'photo.jpg');
+    // GIF is decodable by Flutter's built-in codec (see
+    // local_folder_source.dart's doc comment), so it's a real image here,
+    // not unsupported like the video files.
+    expect(okItems.length, 2);
+    expect(okItems.map((i) => i.name), containsAll(['photo.jpg', 'animation.gif']));
     expect(okItems.every((i) => i.mediaType == MediaType.image), isTrue);
-    // 2 videos + 1 gif = 3 unsupported files.
-    expect(source.unsupportedCount, 3);
+    // Only the 2 videos are unsupported.
+    expect(source.unsupportedCount, 2);
   });
 
   test('a mix of video extensions is all treated as unsupported, not as MediaType.video', () async {

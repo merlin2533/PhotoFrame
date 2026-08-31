@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Appends a CHANGELOG.md entry for this commit (right after the
+# COMMIT-HOOK-INSERT-MARKER, newest on top), using the just-finalized commit
+# message. Runs after `pre-commit` (which already bumped mobile_app's
+# version), so the version shown here is the one this commit will actually
+# carry. `git add`-ing CHANGELOG.md here still gets included in the commit
+# being created, since the tree isn't built until after this hook returns
+# successfully.
+#
+# Setup (once per clone): git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+MSG_FILE="$1"
+CHANGELOG="CHANGELOG.md"
+[ -f "$CHANGELOG" ] || exit 0
+
+# First non-empty, non-comment line of the commit message = the summary.
+summary=$(grep -v '^#' "$MSG_FILE" | grep -v '^\s*$' | head -n1)
+[ -n "$summary" ] || exit 0
+
+version="unversioned"
+if [ -f mobile_app/pubspec.yaml ]; then
+  version=$(grep -m1 '^version:' mobile_app/pubspec.yaml | sed -E 's/^version:\s*//')
+fi
+
+date_str=$(date +%Y-%m-%d)
+marker='<!-- COMMIT-HOOK-INSERT-MARKER: new entries are inserted directly below this line. -->'
+entry="- **${date_str}** (mobile_app ${version}) — ${summary}"
+
+# Insert the new entry directly after the marker line, without disturbing
+# anything else in the file.
+awk -v marker="$marker" -v entry="$entry" '
+  { print }
+  $0 == marker { print entry }
+' "$CHANGELOG" > "${CHANGELOG}.tmp" && mv "${CHANGELOG}.tmp" "$CHANGELOG"
+
+git add "$CHANGELOG"
+echo "[commit-msg] CHANGELOG.md updated"
+exit 0
