@@ -147,17 +147,17 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
             },
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _serverUrlController,
-            decoration: InputDecoration(
-              labelText: 'Server-URL',
-              hintText: 'https://cloud.example.com',
-              errorText: errors['serverUrl'],
-            ),
-            keyboardType: TextInputType.url,
-          ),
-          const SizedBox(height: 16),
           if (_authKind == NextcloudAuthKind.account) ...[
+            TextField(
+              controller: _serverUrlController,
+              decoration: InputDecoration(
+                labelText: 'Server-URL',
+                hintText: 'https://cloud.example.com',
+                errorText: errors['serverUrl'],
+              ),
+              keyboardType: TextInputType.url,
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _usernameController,
               decoration: InputDecoration(
@@ -184,10 +184,12 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
             TextField(
               controller: _shareTokenController,
               decoration: InputDecoration(
-                labelText: 'Share-Link oder Token',
-                hintText: 'https://cloud.example.com/s/AbCdEf oder nur AbCdEf',
+                labelText: 'Öffentlicher Link',
+                hintText: 'https://cloud.example.com/s/AbCdEf',
+                helperText: 'Den kompletten Freigabe-Link einfügen - Server und Token werden automatisch erkannt.',
                 errorText: errors['shareToken'],
               ),
+              keyboardType: TextInputType.url,
             ),
             const SizedBox(height: 16),
             TextField(

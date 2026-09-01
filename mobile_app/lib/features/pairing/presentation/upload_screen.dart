@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 
 import '../../sources/shared_album/shared_album_photo_source.dart';
 
@@ -43,6 +44,26 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _pickFromCamera() async {
+    // A user who skipped/never saw the onboarding permissions step (or
+    // denied it there) has no other prompt before reaching this button, so
+    // this is the just-in-time fallback: request here rather than letting
+    // `image_picker` invoke the camera intent without the permission ever
+    // having been granted, which fails silently instead of showing the
+    // system dialog. Mirrors the request/openAppSettings fallback used in
+    // `onboarding_screen.dart`'s `_PermissionsStep`.
+    final status = await ph.Permission.camera.request();
+    if (!mounted) return;
+    if (!status.isGranted) {
+      if (status.isPermanentlyDenied) {
+        await ph.openAppSettings();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kamera-Berechtigung wird benötigt, um Fotos aufzunehmen.')),
+        );
+      }
+      return;
+    }
+
     final picked = await _picker.pickImage(source: ImageSource.camera);
     if (picked == null) return;
     setState(() => _queue.add(_UploadStatus(File(picked.path))));

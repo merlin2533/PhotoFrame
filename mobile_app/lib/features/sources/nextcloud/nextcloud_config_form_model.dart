@@ -81,25 +81,27 @@ class NextcloudConfigFormModel {
   Map<String, String> validate() {
     final errors = <String, String>{};
 
-    final trimmedUrl = serverUrl.trim();
-    if (trimmedUrl.isEmpty) {
-      errors['serverUrl'] = 'Server URL is required';
-    } else {
-      final uri = Uri.tryParse(trimmedUrl);
-      if (uri == null || !uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http')) {
-        errors['serverUrl'] = 'Enter a valid http(s) URL';
-      } else if (uri.scheme == 'http' && !_isPrivateHost(uri.host)) {
-        // Per docs/PLAN.md P0 decisions: HTTPS is enforced except for
-        // explicit LAN opt-out (private IP ranges) - a public hostname over
-        // plain HTTP is rejected here rather than silently sending
-        // credentials in the clear.
-        errors['serverUrl'] =
-            'Plain HTTP is only allowed for private/LAN addresses; use HTTPS for public servers';
-      }
-    }
-
     switch (authKind) {
       case NextcloudAuthKind.account:
+        // The server URL field is only shown (and only meaningful) in
+        // account mode - in share-link mode it's derived from the pasted
+        // link itself, see the case below.
+        final trimmedUrl = serverUrl.trim();
+        if (trimmedUrl.isEmpty) {
+          errors['serverUrl'] = 'Server URL is required';
+        } else {
+          final uri = Uri.tryParse(trimmedUrl);
+          if (uri == null || !uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http')) {
+            errors['serverUrl'] = 'Enter a valid http(s) URL';
+          } else if (uri.scheme == 'http' && !_isPrivateHost(uri.host)) {
+            // Per docs/PLAN.md P0 decisions: HTTPS is enforced except for
+            // explicit LAN opt-out (private IP ranges) - a public hostname
+            // over plain HTTP is rejected here rather than silently sending
+            // credentials in the clear.
+            errors['serverUrl'] =
+                'Plain HTTP is only allowed for private/LAN addresses; use HTTPS for public servers';
+          }
+        }
         if (username.trim().isEmpty) {
           errors['username'] = 'Username is required';
         }
@@ -107,8 +109,27 @@ class NextcloudConfigFormModel {
           errors['appPassword'] = 'App password is required';
         }
       case NextcloudAuthKind.shareLink:
-        if (shareToken.trim().isEmpty) {
-          errors['shareToken'] = 'Share link/token is required';
+        // The server URL field isn't shown in this mode (see
+        // `nextcloud_config_form.dart`) - the whole share link is pasted
+        // into `shareToken` instead and both pieces are derived from it in
+        // `normalized()`, so validate that combined input here rather than
+        // the separate `serverUrl`/`shareToken` checks used for account
+        // mode above. A bare token (no `/s/`) is no longer accepted here,
+        // since there would be no field left to also supply a server URL
+        // for it.
+        final trimmedShareInput = shareToken.trim();
+        if (trimmedShareInput.isEmpty) {
+          errors['shareToken'] = 'Share link is required';
+        } else {
+          final derivedServerUrl = _extractShareServerUrl(trimmedShareInput);
+          if (derivedServerUrl == null) {
+            errors['shareToken'] = 'Enter the full share link, e.g. https://cloud.example.com/s/AbCdEf';
+          } else if (derivedServerUrl.scheme == 'http' && !_isPrivateHost(derivedServerUrl.host)) {
+            // Same HTTPS-except-LAN policy as the account mode above,
+            // applied to the server URL derived from the pasted link.
+            errors['shareToken'] =
+                'Plain HTTP links are only allowed for private/LAN addresses; use an HTTPS share link';
+          }
         }
     }
 
@@ -137,12 +158,40 @@ class NextcloudConfigFormModel {
   /// Trims free-text fields, useful right before building the actual source
   /// config from a validated form.
   NextcloudConfigFormModel normalized() {
+    if (authKind == NextcloudAuthKind.shareLink) {
+      // `serverUrl` isn't a separate input in this mode (see
+      // `nextcloud_config_form.dart`) - both it and `shareToken` are derived
+      // from the one pasted share link.
+      final trimmedShareInput = shareToken.trim();
+      return copyWith(
+        serverUrl: _extractShareServerUrl(trimmedShareInput)?.origin ?? '',
+        shareToken: _extractShareToken(trimmedShareInput),
+        folderPath: folderPath.trim().replaceAll(RegExp(r'^/+|/+$'), ''),
+      );
+    }
     return copyWith(
       serverUrl: serverUrl.trim().replaceAll(RegExp(r'/+$'), ''),
       username: username.trim(),
       shareToken: _extractShareToken(shareToken.trim()),
       folderPath: folderPath.trim().replaceAll(RegExp(r'^/+|/+$'), ''),
     );
+  }
+
+  /// Pulls the server origin (`https://cloud.example.com`) out of a pasted
+  /// public share link (`https://cloud.example.com/s/AbCdEf`) - the part of
+  /// [_extractShareToken]'s input that would otherwise have to be entered a
+  /// second time into a separate server-URL field. Returns `null` if
+  /// [input] doesn't look like a full share link (no `/s/` marker, or the
+  /// part before it isn't a valid http(s) URL) - callers treat that as "not
+  /// a full link", since a bare token alone carries no server information.
+  static Uri? _extractShareServerUrl(String input) {
+    if (!input.contains('/s/')) return null;
+    final beforeMarker = input.substring(0, input.indexOf('/s/'));
+    final uri = Uri.tryParse(beforeMarker);
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
+      return null;
+    }
+    return uri;
   }
 
   /// The share-token field's hint text explicitly invites either a bare

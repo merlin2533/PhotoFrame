@@ -75,18 +75,34 @@ void main() {
 
   group('NextcloudConfigFormModel.validate - share link mode', () {
     test('requires a share token', () {
+      const model = NextcloudConfigFormModel(authKind: NextcloudAuthKind.shareLink);
+      expect(model.validate(), containsPair('shareToken', isNotEmpty));
+    });
+
+    test('a bare token with no server URL embedded is rejected', () {
+      // Share-link mode has no separate server-URL field (see
+      // `nextcloud_config_form.dart`) - the full link must be pasted so both
+      // pieces can be derived from it; a bare token alone has nowhere to
+      // get the server from.
       const model = NextcloudConfigFormModel(
         authKind: NextcloudAuthKind.shareLink,
-        serverUrl: 'https://cloud.example.com',
+        shareToken: 'AbCdEf',
       );
       expect(model.validate(), containsPair('shareToken', isNotEmpty));
+    });
+
+    test('a full share link is valid and requires no separate server URL', () {
+      const model = NextcloudConfigFormModel(
+        authKind: NextcloudAuthKind.shareLink,
+        shareToken: 'https://cloud.example.com/s/AbCdEf',
+      );
+      expect(model.validate(), isEmpty);
     });
 
     test('share password is optional', () {
       const model = NextcloudConfigFormModel(
         authKind: NextcloudAuthKind.shareLink,
-        serverUrl: 'https://cloud.example.com',
-        shareToken: 'AbCdEf',
+        shareToken: 'https://cloud.example.com/s/AbCdEf',
       );
       expect(model.validate(), isEmpty);
     });
@@ -94,12 +110,19 @@ void main() {
     test('share mode does not require account fields', () {
       const model = NextcloudConfigFormModel(
         authKind: NextcloudAuthKind.shareLink,
-        serverUrl: 'https://cloud.example.com',
-        shareToken: 'AbCdEf',
+        shareToken: 'https://cloud.example.com/s/AbCdEf',
       );
       final errors = model.validate();
       expect(errors.containsKey('username'), isFalse);
       expect(errors.containsKey('appPassword'), isFalse);
+    });
+
+    test('plain http share link to a public host is rejected', () {
+      const model = NextcloudConfigFormModel(
+        authKind: NextcloudAuthKind.shareLink,
+        shareToken: 'http://cloud.example.com/s/AbCdEf',
+      );
+      expect(model.validate(), containsPair('shareToken', isNotEmpty));
     });
   });
 
@@ -119,6 +142,16 @@ void main() {
       expect(normalized.username, 'alice');
       expect(normalized.shareToken, 'AbCdEf');
       expect(normalized.folderPath, 'Fotos/Rahmen');
+    });
+
+    test('share link mode derives both server URL and token from the pasted link', () {
+      const model = NextcloudConfigFormModel(
+        authKind: NextcloudAuthKind.shareLink,
+        shareToken: '  https://cloud.example.com/s/AbCdEf/  ',
+      );
+      final normalized = model.normalized();
+      expect(normalized.serverUrl, 'https://cloud.example.com');
+      expect(normalized.shareToken, 'AbCdEf');
     });
   });
 }

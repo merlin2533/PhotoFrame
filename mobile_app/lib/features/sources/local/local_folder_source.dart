@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 
 import '../../../core/errors/failure.dart';
 import '../../../core/utils/cancellation_token.dart';
@@ -12,15 +12,20 @@ import '../domain/photo_folder.dart';
 import '../domain/photo_item.dart';
 import '../domain/photo_source.dart';
 
-/// Signature used to pick a directory on disk, matching
-/// `FilePicker.platform.getDirectoryPath`. Injectable so tests (and this
+/// Result of a [DirectoryPicker] pick: the resolved filesystem path, plus -
+/// on Android - the SAF tree Uri that path was resolved from (see
+/// [LocalFolderSource.rootUri]).
+typedef DirectoryPickResult = ({String path, String? treeUri});
+
+/// Signature used to pick a directory on disk. Injectable so tests (and this
 /// review, since no device/emulator is available here) don't need to touch
 /// the real Storage Access Framework/native folder picker.
-typedef DirectoryPicker = Future<String?> Function({String? dialogTitle});
+typedef DirectoryPicker = Future<DirectoryPickResult?> Function({String? dialogTitle});
 
 /// [PhotoSource] backed by a folder picked directly on the device (Android
-/// Storage Access Framework via `file_picker`, or a plain filesystem path on
-/// other platforms, e.g. a mounted USB stick). This is the "reliable
+/// Storage Access Framework via the native "photoframe/saf" channel, or a
+/// plain filesystem path via `file_picker` on other platforms, e.g. a
+/// mounted USB stick). This is the "reliable
 /// fallback" source called for in docs/PLAN.md's SMB-spike section: no
 /// network/protocol involved, so it degrades gracefully to
 /// [PermissionDenied]/[NotFound] failures (folder revoked, USB stick pulled)
@@ -44,37 +49,53 @@ typedef DirectoryPicker = Future<String?> Function({String? dialogTitle});
 ///    rather than silently vanishing, so a future UI can surface "N files
 ///    skipped (unsupported format)".
 ///
-/// **KNOWN LIMITATION - Android SAF persistable permission (iteration 2
-/// review):** [rootPath] is now persisted across app restarts via
-/// `SourceDescriptor`/`SourcesController` (`source_descriptor.dart`). On
-/// Android, `file_picker`'s `getDirectoryPath()` uses the Storage Access
-/// Framework, whose grants are normally scoped to the current process
-/// lifetime unless the returned URI's permission is explicitly persisted via
-/// `ContentResolver.takePersistableUriPermission` (and re-taken on every
-/// `flutter_boot`/user unlock). Whether `file_picker` 8.1.2 already does this
-/// internally could not be verified here - no Android device/emulator is
-/// reachable in this environment (same constraint as the SMB spike, see
-/// `smb_photo_source.dart`) and the package's own docs do not state it
-/// explicitly. Practical effect if it does *not*: a persisted [rootPath]
-/// pointing at a SAF-backed folder may throw [PermissionDenied]/
-/// [FileSystemException] from [testConnection]/[listFolders] after a real
-/// device restart, even though the path string itself round-trips through
-/// `shared_preferences` correctly. This is called out explicitly rather than
-/// silently assumed away; verifying it (and adding a
-/// `takePersistableUriPermission` platform-channel call here if needed) is
-/// left as follow-up requiring a real Android device.
+/// **Android SAF persistable permission:** [rootPath] is persisted across
+/// app restarts via `SourceDescriptor`/`SourcesController`
+/// (`source_descriptor.dart`), alongside [rootUri]. On Android, picking a
+/// folder goes through the native "photoframe/saf" platform channel
+/// (`MainActivity.kt`) instead of `file_picker`'s `getDirectoryPath()`:
+/// `file_picker` resolves the picked Storage Access Framework tree Uri to a
+/// plain path string but never calls
+/// `ContentResolver.takePersistableUriPermission` on it, nor exposes that Uri
+/// to Dart - so the grant only lasted for the current process, and a
+/// persisted [rootPath] would throw [PermissionDenied]/[FileSystemException]
+/// from [testConnection]/[listFolders] after the next real device restart
+/// even though the path string itself round-tripped through
+/// `shared_preferences` correctly. The native channel takes the persistable
+/// permission itself right after the pick and returns the tree Uri alongside
+/// the resolved path, which is what makes [rootPath] usable via plain
+/// `dart:io` calls (as this class does throughout) across restarts - Android
+/// resolves such calls against the persisted SAF grant for that subtree on
+/// the *primary* shared storage volume. [rootUri] itself is otherwise
+/// unused by this class (no `ContentResolver`/`DocumentFile` calls are made
+/// from Dart); it is kept only so a future need for the raw Uri (e.g.
+/// explicitly releasing the grant on source removal) doesn't require another
+/// migration. On non-Android platforms, folder picking still goes through
+/// `file_picker` as before and [rootUri] stays `null`.
 class LocalFolderSource implements PhotoSource {
   LocalFolderSource({
     required this.id,
     String? displayName,
     String? rootPath,
+    String? rootUri,
     DirectoryPicker? directoryPicker,
   })  : displayName = displayName ?? 'Local Folder',
         _rootPath = rootPath,
+        _rootUri = rootUri,
         _directoryPicker = directoryPicker ?? _defaultDirectoryPicker;
 
-  static Future<String?> _defaultDirectoryPicker({String? dialogTitle}) {
-    return FilePicker.platform.getDirectoryPath(dialogTitle: dialogTitle);
+  static const MethodChannel _safChannel = MethodChannel('photoframe/saf');
+
+  static Future<DirectoryPickResult?> _defaultDirectoryPicker({String? dialogTitle}) async {
+    if (Platform.isAndroid) {
+      final result = await _safChannel.invokeMethod<Map<Object?, Object?>>('pickDirectoryTree');
+      final path = result?['path'] as String?;
+      if (path == null) return null;
+      return (path: path, treeUri: result?['uri'] as String?);
+    }
+    final path = await FilePicker.platform.getDirectoryPath(dialogTitle: dialogTitle);
+    if (path == null) return null;
+    return (path: path, treeUri: null);
   }
 
   @override
@@ -93,6 +114,13 @@ class LocalFolderSource implements PhotoSource {
   /// The currently configured root folder's absolute path, or `null` if the
   /// user hasn't picked one yet.
   String? get rootPath => _rootPath;
+
+  String? _rootUri;
+
+  /// On Android, the `content://` Storage Access Framework tree Uri
+  /// [rootPath] was resolved from - see this class's doc comment. `null` on
+  /// other platforms, or if the folder was picked before this field existed.
+  String? get rootUri => _rootUri;
 
   /// Extensions recognized as displayable images - i.e. formats
   /// `Image.file`/Flutter's built-in `dart:ui` codec (Skia) can actually
@@ -163,11 +191,12 @@ class LocalFolderSource implements PhotoSource {
   Future<Result<String?>> pickRootFolder({String? dialogTitle}) async {
     _checkNotDisposed();
     try {
-      final path = await _directoryPicker(dialogTitle: dialogTitle);
-      if (path != null) {
-        _rootPath = path;
+      final picked = await _directoryPicker(dialogTitle: dialogTitle);
+      if (picked != null) {
+        _rootPath = picked.path;
+        _rootUri = picked.treeUri;
       }
-      return Result.ok(path);
+      return Result.ok(picked?.path);
     } on PlatformException catch (e) {
       return Result.err(
         PermissionDenied('Folder picker failed/was denied', cause: e),

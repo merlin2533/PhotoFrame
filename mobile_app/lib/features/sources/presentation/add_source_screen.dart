@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../domain/photo_source.dart';
 import '../local/local_folder_source.dart';
 import '../mock/mock_photo_source.dart';
 import '../state/sources_providers.dart';
@@ -37,6 +38,23 @@ class AddSourceScreen extends ConsumerWidget {
     if (path == null) {
       // User cancelled the picker - nothing to register.
       unawaited(source.dispose());
+      return;
+    }
+
+    // `SourcesController.add` just appends, so re-picking a folder that's
+    // already configured (e.g. after `testConnection` looked broken and the
+    // user retried via "Quelle hinzufügen" instead of the existing entry's
+    // reconnect action) would otherwise silently create a duplicate entry
+    // for the same path.
+    final existingSources = ref.read(sourcesProvider).valueOrNull ?? const [];
+    final alreadyConfigured = existingSources.any(
+      (existing) => existing.type == SourceType.local && (existing as LocalFolderSource).rootPath == path,
+    );
+    if (alreadyConfigured) {
+      unawaited(source.dispose());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dieser Ordner ist bereits als Quelle konfiguriert.')),
+      );
       return;
     }
 

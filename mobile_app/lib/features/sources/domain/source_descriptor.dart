@@ -74,6 +74,7 @@ PhotoSource fromDescriptor(SourceDescriptor descriptor, {required String? passwo
         id: descriptor.id,
         displayName: descriptor.displayName,
         rootPath: descriptor.config['rootPath'] as String?,
+        rootUri: descriptor.config['rootUri'] as String?,
       );
     case SourceType.mock:
     case SourceType.sharedAlbum:
@@ -109,7 +110,7 @@ extension PhotoSourceDescriptorX on PhotoSource {
         type: SourceType.local,
         id: source.id,
         displayName: source.displayName,
-        config: {'rootPath': source.rootPath ?? ''},
+        config: {'rootPath': source.rootPath ?? '', 'rootUri': source.rootUri ?? ''},
       );
     }
     // MockPhotoSource (and anything else not modeled above, e.g. a future
