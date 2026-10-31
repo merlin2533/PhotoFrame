@@ -25,6 +25,7 @@ class HomeScreen extends ConsumerWidget {
     final index = ref.watch(_homeIndexProvider);
     final background = ref.watch(_backgroundPhotoProvider);
     final worker = ref.watch(smallPhotoWorkerProvider);
+    final prepared = ref.watch(_preparedCountProvider);
 
     final enabledCount = sources.where((s) => !disabled.contains(s.id)).length;
     final snapshot = index.value;
@@ -65,11 +66,14 @@ class HomeScreen extends ConsumerWidget {
                   _StatusRow(
                     icon: Icons.photo_size_select_small_outlined,
                     label: 'Verkleinert',
-                    value: worker.running
-                        ? '${worker.done} von ${worker.total}'
-                        : worker.total == 0
-                            ? 'wird vorbereitet'
-                            : 'fertig (${worker.total})',
+                    // Counted from the files on disk, so the number survives an app
+                    // update or restart.
+                    value: snapshot == null
+                        ? '…'
+                        : prepared.value == null
+                            ? '…'
+                            : '${prepared.value} von ${snapshot.items.length}'
+                                '${worker.running ? ' (läuft)' : ''}',
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,
@@ -133,6 +137,18 @@ final FutureProvider<IndexSnapshot> _homeIndexProvider =
     FutureProvider.autoDispose<IndexSnapshot>(
   (ref) => ref.watch(photoIndexStoreProvider).load(),
 );
+
+/// How many photos of the index have a screen-sized copy on disk.
+final FutureProvider<int> _preparedCountProvider =
+    FutureProvider.autoDispose<int>((ref) async {
+  final snapshot = await ref.watch(_homeIndexProvider.future);
+  final cache = ref.read(smallPhotoCacheProvider);
+  var count = 0;
+  for (final item in snapshot.items) {
+    if (await cache.existing(item) != null) count++;
+  }
+  return count;
+});
 
 /// A random prepared photo as the background (null if none is ready yet).
 final FutureProvider<File?> _backgroundPhotoProvider =
