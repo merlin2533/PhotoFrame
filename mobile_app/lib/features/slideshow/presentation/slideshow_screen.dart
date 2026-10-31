@@ -58,6 +58,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
 
+  /// Photos needed before the slideshow starts; the rest loads in the background.
+  static const _initialPhotoCount = 12;
+
   /// How often the sources are re-scanned for new/removed photos.
   static const _refreshInterval = Duration(minutes: 15);
 
@@ -114,9 +117,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     List<PhotoSource> sources,
     AppSettings settings,
     FavoritesStore favorites,
-    List<String> errors,
-  ) async {
+    List<String> errors, {
+    int? limit,
+  }) async {
     final allItems = <PhotoItem>[];
+    // With [limit] the crawl stops early once that many photos were found, so
+    // the slideshow can start while the rest is still being read.
+    bool full() => limit != null && allItems.length >= limit;
     final seenKeys = <String>{};
     void collect(PhotoItem item) {
       if (seenKeys.add('${item.sourceId}::${item.id}')) allItems.add(item);
@@ -132,6 +139,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           source.type == SourceType.nextcloud) {
         const root = PhotoFolder(id: '', name: '', path: '');
         await for (final r in source.listImages(root, recursive: false)) {
+          if (full()) break;
           final item = r.valueOrNull;
           if (item != null) {
             collect(item);
@@ -141,6 +149,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         }
       }
       await for (final folderResult in source.listFolders()) {
+        if (full()) break;
         final folder = folderResult.valueOrNull;
         if (folder == null) {
           errors.add(
@@ -148,6 +157,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           continue;
         }
         await for (final itemResult in source.listImages(folder)) {
+          if (full()) break;
           final item = itemResult.valueOrNull;
           if (item != null) {
             collect(item);
@@ -160,6 +170,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
 
     for (final source in sources) {
+      if (full()) break;
       if (settings.disabledSourceIds.contains(source.id)) continue;
       try {
         await crawl(source).timeout(const Duration(seconds: 90));
@@ -240,8 +251,15 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final sourcesById = {for (final s in sources) s.id: s};
       final errors = <String>[];
 
-      final eligibleItems =
-          await _crawlEligible(sources, settings, favorites, errors);
+      // Start with the first ~12 photos, then read the rest in the background
+      // (see the refresh call after the engine has started).
+      final eligibleItems = await _crawlEligible(
+        sources,
+        settings,
+        favorites,
+        errors,
+        limit: _initialPhotoCount,
+      );
       for (final item in eligibleItems) {
         itemsByKey['${item.sourceId}::${item.id}'] = item;
         pool.add(PoolEntry(
@@ -284,6 +302,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _sourcesById = sourcesById;
         _loading = false;
       });
+      // Read the remaining photos in the background; the pool is merged in
+      // without interrupting the running slideshow.
+      unawaited(_backgroundRefresh());
       await _alwaysOnController.onSlideshowStarted();
       // Kiosk/Autostart (ADR-004): only pin the screen when the user opted
       // in via kiosk_settings_screen.dart - see KioskModeController's doc
