@@ -13,6 +13,7 @@ import '../../settings/domain/app_settings.dart';
 import '../../settings/state/settings_providers.dart';
 import '../../sources/domain/photo_folder.dart';
 import '../../sources/domain/photo_item.dart';
+import '../../sources/state/source_stats.dart';
 import '../../sources/domain/photo_source.dart';
 import '../../sources/state/sources_providers.dart';
 import '../domain/always_on_controller.dart';
@@ -165,6 +166,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       } catch (e) {
         errors.add('${source.displayName}: $e');
       }
+      ref.read(sourceStatsProvider.notifier).record(
+            source.id,
+            allItems.where((item) => item.sourceId == source.id).length,
+          );
     }
     if (errors.isNotEmpty) {
       debugPrint('Slideshow crawl problems: ${errors.toSet().join(' | ')}');
@@ -607,6 +612,28 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   },
                   child: slide,
                 ),
+                // Thin, subtle bar that runs down over one interval, so it is
+                // visible when the next photo is due. Restarts per photo
+                // (keyed by item id) and is hidden while paused.
+                if (item != null && !_paused)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey('progress-${item.sourceId}-${item.id}'),
+                        tween: Tween(begin: 0, end: 1),
+                        duration: settings.interval,
+                        builder: (context, value, _) => LinearProgressIndicator(
+                          value: value,
+                          minHeight: 2,
+                          backgroundColor: Colors.transparent,
+                          color: Colors.white38,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (settings.showImageDetails && item != null)
                   PathOverlay(
                     text: _originText(item),
