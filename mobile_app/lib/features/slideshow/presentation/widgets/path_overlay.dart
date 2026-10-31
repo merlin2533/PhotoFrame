@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Always-visible source and file path of the shown photo, centred near the
-/// bottom edge (above the system navigation bar).
+/// Source, folder and date of the shown photo near the bottom edge (left or
+/// right, see `AppSettings.imageDetailsOnRight`) (above the system navigation bar).
 class PathOverlay extends StatelessWidget {
-  const PathOverlay({super.key, required this.text});
+  const PathOverlay({super.key, required this.text, this.onRight = false});
 
   final String text;
+  final bool onRight;
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +17,8 @@ class PathOverlay extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: IgnorePointer(
-          child: Center(
+          child: Align(
+            alignment: onRight ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
@@ -27,7 +29,7 @@ class PathOverlay extends StatelessWidget {
                 text,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+                textAlign: onRight ? TextAlign.right : TextAlign.left,
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),

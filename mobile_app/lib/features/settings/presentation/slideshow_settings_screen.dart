@@ -96,6 +96,16 @@ class SlideshowSettingsScreen extends ConsumerWidget {
                   ),
                   RadioListTile<SlideshowTransition>(
                     contentPadding: EdgeInsets.zero,
+                    title: Text('Zoom (einblenden)'),
+                    value: SlideshowTransition.zoom,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Hochschieben (slide up)'),
+                    value: SlideshowTransition.slideUp,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
                     title: Text('Kein Übergang'),
                     value: SlideshowTransition.none,
                   ),
@@ -120,6 +130,33 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(portraitPairLayoutEnabled: v)),
             ),
+            const Divider(height: 32),
+            Text('Bilddetails', style: Theme.of(context).textTheme.titleMedium),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Ordner und Datum anzeigen'),
+              subtitle:
+                  const Text('Unten im Bild: Quelle, Ordner, Aufnahmedatum'),
+              value: settings.showImageDetails,
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(showImageDetails: v)),
+            ),
+            if (settings.showImageDetails)
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                      value: false,
+                      label: Text('Links'),
+                      icon: Icon(Icons.align_horizontal_left)),
+                  ButtonSegment(
+                      value: true,
+                      label: Text('Rechts'),
+                      icon: Icon(Icons.align_horizontal_right)),
+                ],
+                selected: {settings.imageDetailsOnRight},
+                onSelectionChanged: (sel) => notifier.updateSettings(
+                    (s) => s.copyWith(imageDetailsOnRight: sel.first)),
+              ),
             const Divider(height: 32),
             Text('Favoriten & Datum',
                 style: Theme.of(context).textTheme.titleMedium),
