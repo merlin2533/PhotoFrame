@@ -73,7 +73,8 @@ class SmbConfigFormModel {
       errors['host'] =
           'Nur Host oder IP eingeben, ohne Pfad (z. B. 192.168.1.20)';
     } else if (!_hostPattern.hasMatch(trimmedHost)) {
-      errors['host'] = 'Bitte einen gültigen Host oder eine gültige IP-Adresse eingeben';
+      errors['host'] =
+          'Bitte einen gültigen Host oder eine gültige IP-Adresse eingeben';
     }
 
     final trimmedShare = share.trim();

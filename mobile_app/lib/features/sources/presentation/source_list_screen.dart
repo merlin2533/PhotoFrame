@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../settings/state/settings_providers.dart';
 import '../domain/photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
-import '../../settings/state/settings_providers.dart';
 import '../state/source_stats.dart';
 import '../state/sources_providers.dart';
 

@@ -123,8 +123,9 @@ class PairingInvite {
     final params = uri.queryParameters;
     final relayUrl = params['u'];
     final code = params['c'];
-    if (relayUrl == null || relayUrl.isEmpty || code == null || code.isEmpty)
+    if (relayUrl == null || relayUrl.isEmpty || code == null || code.isEmpty) {
       return null;
+    }
 
     return ParsedPairingLink(
       relayUrl: relayUrl,

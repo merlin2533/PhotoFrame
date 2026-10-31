@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/photo_source.dart';
-import '../state/sources_providers.dart';
 import '../nextcloud/nextcloud_folder_picker.dart';
+import '../state/sources_providers.dart';
 import 'smb_config_form_model.dart';
 import 'smb_network_discovery.dart';
 import 'smb_photo_source.dart';

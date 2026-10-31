@@ -109,8 +109,9 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
             ),
           );
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Standort konnte nicht ermittelt werden: $e');
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
