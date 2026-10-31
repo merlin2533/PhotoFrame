@@ -25,7 +25,20 @@ class PhotoOverviewScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Übersicht')),
       body: index.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Index nicht lesbar: $e')),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Index konnte nicht gelesen werden:\n$e',
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => ref.invalidate(_indexProvider),
+                child: const Text('Erneut versuchen'),
+              ),
+            ],
+          ),
+        ),
         data: (items) {
           final byId = {for (final s in sources) s.id: s};
           return Column(
