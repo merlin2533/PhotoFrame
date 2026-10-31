@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/index/background_jobs.dart';
 import 'features/pairing/state/pairing_providers.dart';
 import 'features/settings/state/settings_providers.dart';
 import 'l10n/app_localizations.dart';
@@ -88,6 +89,14 @@ class _RoutedApp extends ConsumerStatefulWidget {
 class _RoutedAppState extends ConsumerState<_RoutedApp> {
   late final GoRouter _router =
       buildAppRouter(initialLocation: widget.initialLocation);
+
+  @override
+  void initState() {
+    super.initState();
+    // Starts the background index, cache and downscaling jobs for the whole
+    // app lifetime (see BackgroundJobs).
+    ref.read(backgroundJobsProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
