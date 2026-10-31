@@ -73,7 +73,7 @@ class HomeScreen extends ConsumerWidget {
                         : prepared.value == null
                             ? '…'
                             : '${prepared.value} von ${snapshot.items.length}'
-                                '${worker.running ? ' (läuft)' : ''}',
+                                '${worker.running ? ' (läuft, ${worker.waiting} wartend)' : ''}',
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -19,6 +20,18 @@ class SmallPhotoCache {
       : _directory = directory;
 
   final Future<Directory> Function() _directory;
+
+  /// Scaling runs strictly one photo at a time: a photo whose wait timed out
+  /// still holds this lock until its native scaling has really finished, so
+  /// two scalings never overlap.
+  Future<void> _scalingTail = Future<void>.value();
+
+  Future<T> _serial<T>(Future<T> Function() job) {
+    final done = Completer<void>();
+    final previous = _scalingTail;
+    _scalingTail = done.future;
+    return previous.then((_) => job()).whenComplete(done.complete);
+  }
 
   Future<File> _fileFor(PhotoItem item) async {
     final dir = await _directory();
@@ -53,23 +66,7 @@ class SmallPhotoCache {
       if (await temp.exists()) await temp.delete();
       File? small;
       try {
-        final result = await FlutterImageCompress.compressAndGetFile(
-          full.path,
-          temp.path,
-          // Sized for a full-screen tablet (about 2K); larger originals are
-          // scaled down, smaller ones stay as they are. Keeps storage small.
-          minWidth: 2048,
-          minHeight: 2048,
-          quality: 90,
-        );
-        if (result != null) {
-          final out = File(result.path);
-          // The native scaler mishandles some files (CMYK, odd colour
-          // profiles) and produces a purple/colour-cast picture. Compare the
-          // average colour with the original and reject such results.
-          if (await looksLikeOriginal(full, out)) small = out;
-        }
-        small ??= await _scaleWithFlutter(full, temp);
+        small = await _serial(() => _scale(full, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
@@ -86,6 +83,27 @@ class SmallPhotoCache {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<File?> _scale(File full, File temp) async {
+    File? small;
+    final result = await FlutterImageCompress.compressAndGetFile(
+      full.path,
+      temp.path,
+      // Sized for a full-screen tablet (about 2K); larger originals are
+      // scaled down, smaller ones stay as they are. Keeps storage small.
+      minWidth: 2048,
+      minHeight: 2048,
+      quality: 90,
+    );
+    if (result != null) {
+      final out = File(result.path);
+      // The native scaler mishandles some files (CMYK, odd colour profiles)
+      // and produces a purple/colour-cast picture. Compare the average colour
+      // with the original and reject such results.
+      if (await looksLikeOriginal(full, out)) small = out;
+    }
+    return small ?? await _scaleWithFlutter(full, temp);
   }
 
   /// Average colour (r, g, b) of [file] decoded at a tiny size by Flutter's own
@@ -177,11 +195,15 @@ final Provider<SmallPhotoCache> smallPhotoCacheProvider =
 
 /// Progress of the background job that prepares the small files.
 class SmallPhotoStatus {
-  const SmallPhotoStatus({this.done = 0, this.total = 0, this.running = false});
+  const SmallPhotoStatus(
+      {this.done = 0, this.total = 0, this.running = false, this.waiting = 0});
 
   final int done;
   final int total;
   final bool running;
+
+  /// Photos still waiting in the queue behind the one being prepared.
+  final int waiting;
 }
 
 /// Prepares the screen-sized copies in batches of [batchSize], one batch after
@@ -233,6 +255,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
             done: _done,
             total: _total,
             running: true,
+            waiting: _queued.length,
           );
         }
         // Give the UI and the slideshow room between batches.
