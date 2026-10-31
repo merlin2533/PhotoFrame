@@ -9,6 +9,7 @@ import '../domain/photo_source.dart';
 import '../nextcloud/nextcloud_photo_source.dart';
 import '../smb/smb_photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
+import '../../index/source_indexer.dart';
 import '../state/source_stats.dart';
 import '../state/sources_providers.dart';
 
@@ -104,6 +105,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         (widget.source as UploadablePhotoSource).canUpload;
 
     final stats = ref.watch(sourceStatsProvider)[widget.source.id];
+    final indexStatus = ref.watch(sourceIndexerProvider)[widget.source.id];
     final editable = widget.source.type == SourceType.smb ||
         widget.source.type == SourceType.nextcloud;
     final disabled = ref.watch(settingsProvider.select(
@@ -116,8 +118,10 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             color: Colors.white, size: 18),
       ),
       title: Text(widget.source.displayName),
-      subtitle:
-          Text(disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle()),
+      subtitle: Text([
+        disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle(),
+        if (indexStatus != null) _indexLine(indexStatus),
+      ].join('\n')),
       // Compact trailing: switch + overflow menu. Three separate icon buttons
       // overflowed the ListTile on phone widths and hid the switch.
       trailing: Row(
@@ -156,6 +160,10 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             onSelected: (value) {
               if (value == 'test') {
                 _test();
+              } else if (value == 'index') {
+                unawaited(ref
+                    .read(sourceIndexerProvider.notifier)
+                    .buildIndex(widget.source));
               } else if (value == 'edit') {
                 final path = widget.source.type == SourceType.smb
                     ? '/settings/sources/add/smb'
@@ -168,6 +176,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                   value: 'test', child: Text('Verbindung erneut testen')),
+              const PopupMenuItem(
+                  value: 'index', child: Text('Index jetzt aufbauen')),
               if (editable)
                 const PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
               const PopupMenuItem(
@@ -177,6 +187,14 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         ],
       ),
     );
+  }
+
+  /// Index status line: running count, finished count, or the error.
+  String _indexLine(SourceIndexStatus status) {
+    if (status.error != null) return 'Index-Fehler: ${status.error}';
+    if (status.running)
+      return 'Index läuft … ${status.imageCount} Bilder gefunden';
+    return 'Index: ${status.imageCount} Bilder';
   }
 
   /// Directory details without network addresses (no IP/host is shown).
