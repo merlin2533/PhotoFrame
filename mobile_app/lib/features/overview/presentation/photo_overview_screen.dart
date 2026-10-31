@@ -188,12 +188,31 @@ class _Thumb extends ConsumerWidget {
       future: ref.read(smallPhotoCacheProvider).existing(item),
       builder: (context, snapshot) {
         final small = snapshot.data;
-        if (small == null) return _Placeholder(name: item.name);
-        return Image.file(
-          small,
-          fit: BoxFit.cover,
-          cacheWidth: 240,
-          errorBuilder: (_, __, ___) => _Placeholder(name: item.name),
+        if (small != null) {
+          return Image.file(
+            small,
+            fit: BoxFit.cover,
+            cacheWidth: 240,
+            errorBuilder: (_, __, ___) => _Placeholder(name: item.name),
+          );
+        }
+        // Not prepared yet: show the photo itself, downloaded on demand.
+        final source = this.source;
+        if (source == null) return _Placeholder(name: item.name);
+        return FutureBuilder<File?>(
+          future: _OneAtATime.run(() => source.fetchToCache(item))
+              .then((r) => r.valueOrNull)
+              .catchError((_) => null),
+          builder: (context, original) {
+            final file = original.data;
+            if (file == null) return _Placeholder(name: item.name);
+            return Image.file(
+              file,
+              fit: BoxFit.cover,
+              cacheWidth: 240,
+              errorBuilder: (_, __, ___) => _Placeholder(name: item.name),
+            );
+          },
         );
       },
     );
@@ -257,5 +276,17 @@ class _Large extends StatelessWidget {
         return InteractiveViewer(child: Image.file(file));
       },
     );
+  }
+}
+
+/// Runs downloads one after the other, so scrolling the overview does not
+/// start many network transfers at once.
+class _OneAtATime {
+  static Future<void> _tail = Future.value();
+
+  static Future<T> run<T>(Future<T> Function() task) {
+    final result = _tail.then((_) => task());
+    _tail = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
   }
 }
