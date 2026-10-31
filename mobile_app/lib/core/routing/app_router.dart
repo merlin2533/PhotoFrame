@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/overview/presentation/photo_overview_screen.dart';
 import '../../features/pairing/presentation/pairing_route_screens.dart';
 import '../../features/pairing/state/pairing_providers.dart';
 import '../../features/settings/presentation/accessibility_settings_screen.dart';
@@ -49,6 +50,11 @@ GoRouter buildAppRouter({required String initialLocation}) {
         path: '/slideshow',
         name: 'slideshow',
         builder: (context, state) => const SlideshowScreen(),
+      ),
+      GoRoute(
+        path: '/overview',
+        name: 'overview',
+        builder: (context, state) => const PhotoOverviewScreen(),
       ),
       GoRoute(
         path: '/onboarding',

@@ -229,9 +229,7 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
         final source = SmbPhotoSource(
           id: id,
           config: config,
-          displayName: folder.isEmpty
-              ? null
-              : 'SMB: ${config.host}/${config.share}/$folder',
+          displayName: folder.isEmpty ? null : 'SMB: ${config.share}/$folder',
         );
         if (config.password.isNotEmpty) {
           await store.write(id, 'password', config.password);

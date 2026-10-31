@@ -54,6 +54,18 @@ class PoolSettingsScreen extends ConsumerWidget {
                   (s) => s.copyWith(poolRefillIntervalHours: v.round())),
             ),
             const SizedBox(height: 16),
+            Text('Zufallsauswahl pro Tag: ${settings.selectionCount} Bilder',
+                style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              value: settings.selectionCount.toDouble(),
+              min: 100,
+              max: 5000,
+              divisions: 49,
+              label: '${settings.selectionCount}',
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(selectionCount: v.round())),
+            ),
+            const SizedBox(height: 16),
             Text('Index-Aktualisierung: alle ${settings.indexRefreshHours} h',
                 style: Theme.of(context).textTheme.titleMedium),
             Slider(

@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../settings/state/settings_providers.dart';
 import '../domain/photo_source.dart';
+import '../nextcloud/nextcloud_photo_source.dart';
+import '../smb/smb_photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
 import '../state/source_stats.dart';
 import '../state/sources_providers.dart';
@@ -133,6 +135,23 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
               return s.copyWith(disabledSourceIds: ids);
             }),
           ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Details',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text(widget.source.displayName),
+                content: Text(_details()),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Schließen'),
+                  ),
+                ],
+              ),
+            ),
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'test') {
@@ -158,6 +177,21 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         ],
       ),
     );
+  }
+
+  /// Directory details without network addresses (no IP/host is shown).
+  String _details() {
+    final source = widget.source;
+    if (source is SmbPhotoSource) {
+      final folder = source.config.rootPath;
+      return 'Freigabe: ${source.config.share}\n'
+          'Ordner: ${folder.isEmpty ? '(Hauptordner)' : folder}';
+    }
+    if (source is NextcloudPhotoSource) {
+      final folder = source.config.rootPath;
+      return 'Ordner: ${folder.isEmpty ? '(Hauptordner)' : folder}';
+    }
+    return widget.source.type.name;
   }
 
   String _statsLine(SourceStats stats) {

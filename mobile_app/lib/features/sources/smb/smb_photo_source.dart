@@ -90,7 +90,7 @@ class SmbPhotoSource implements PhotoSource {
     String? displayName,
     Directory? cacheDirectory,
   })  : _config = config,
-        displayName = displayName ?? 'SMB: ${config.host}/${config.share}',
+        displayName = displayName ?? 'SMB: ${config.share}',
         _cacheDirectory = cacheDirectory;
 
   @override

@@ -27,7 +27,7 @@ class DailySelection {
         for (final key in savedKeys)
           if (byKey.containsKey(key)) byKey[key] as T,
       ];
-      if (kept.isNotEmpty) return kept;
+      if (kept.isNotEmpty) return kept.take(count).toList(growable: false);
     }
 
     final shuffled = List<T>.of(eligible)..shuffle(random ?? Random());
