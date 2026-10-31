@@ -266,6 +266,13 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
 
+  /// Forgets what was prepared or failed (used after the copies were deleted,
+  /// so nothing is skipped as "already done").
+  void reset() {
+    _doneKeys.clear();
+    _failedAt.clear();
+  }
+
   bool _failedRecently(PhotoItem item) {
     final failed = _failedAt[item.stableId];
     return failed != null && DateTime.now().difference(failed) < retryAfter;

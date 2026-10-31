@@ -88,6 +88,7 @@ class CacheSettingsScreen extends ConsumerWidget {
             FilledButton.tonalIcon(
               onPressed: () async {
                 await ref.read(smallPhotoCacheProvider).clear();
+                ref.read(smallPhotoWorkerProvider.notifier).reset();
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
