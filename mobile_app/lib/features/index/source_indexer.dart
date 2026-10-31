@@ -43,16 +43,8 @@ class SourceIndexer extends Notifier<Map<String, SourceIndexStatus>> {
     try {
       final items = await crawlSource(source, onProgress: (n) => report(n));
       final store = ref.read(photoIndexStoreProvider);
-      final snapshot = await store.load();
-      // Replace only this source's photos; keep the saved date so the
-      // regular refresh schedule is unchanged.
-      await store.save(
-        [
-          ...snapshot.items.where((i) => i.sourceId != source.id),
-          ...items,
-        ],
-        savedAt: snapshot.items.isEmpty ? DateTime.now() : snapshot.savedAt,
-      );
+      // Replace only this source's photos (serialized with other index jobs).
+      await store.merge(items, replacing: {source.id});
       ref.read(sourceStatsProvider.notifier).record(source.id, items.length);
       report(items.length, running: false);
     } catch (e) {
