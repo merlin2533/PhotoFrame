@@ -71,7 +71,8 @@ class SecureCredentialStore {
     for (final key in all.keys) {
       if (!key.startsWith(_keyPrefix)) continue;
       final rest = key.substring(_keyPrefix.length);
-      final sourceId = rest.contains('_') ? rest.substring(0, rest.indexOf('_')) : rest;
+      final sourceId =
+          rest.contains('_') ? rest.substring(0, rest.indexOf('_')) : rest;
       if (!knownIds.contains(sourceId)) {
         await _storage.delete(key: key);
       }

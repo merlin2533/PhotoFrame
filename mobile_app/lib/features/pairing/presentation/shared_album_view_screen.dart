@@ -54,7 +54,8 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
     return token == null ? {} : {'Authorization': 'Bearer $token'};
   }
 
-  String _thumbUrl(String imageId) => '${widget.apiClient.baseUrl}/api/v1/images/$imageId/file?variant=thumb';
+  String _thumbUrl(String imageId) =>
+      '${widget.apiClient.baseUrl}/api/v1/images/$imageId/file?variant=thumb';
 
   Future<void> _showActions(RemoteImage image) async {
     final isMine = image.uploadedByFrameId == widget.localFrameId;
@@ -71,7 +72,8 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
             ),
             if (isMine)
               ListTile(
-                leading: Icon(Icons.delete, color: Theme.of(ctx).colorScheme.error),
+                leading:
+                    Icon(Icons.delete, color: Theme.of(ctx).colorScheme.error),
                 title: const Text('Löschen'),
                 onTap: () => Navigator.pop(ctx, 'delete'),
               ),
@@ -89,7 +91,8 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
     if (!mounted) return;
     result.when(
       onOk: (_) => _load(),
-      onErr: (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message))),
+      onErr: (f) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(f.message))),
     );
   }
 
@@ -98,7 +101,9 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gemeinsames Album'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -108,7 +113,8 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
                   ? const Center(child: Text('Noch keine Fotos hochgeladen.'))
                   : GridView.builder(
                       padding: const EdgeInsets.all(4),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3,
                         crossAxisSpacing: 4,
                         mainAxisSpacing: 4,
@@ -121,13 +127,16 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
                           child: FutureBuilder<Map<String, String>>(
                             future: _authHeaders(),
                             builder: (context, snapshot) {
-                              if (!snapshot.hasData) return const ColoredBox(color: Colors.black12);
+                              if (!snapshot.hasData)
+                                return const ColoredBox(color: Colors.black12);
                               return CachedNetworkImage(
                                 imageUrl: _thumbUrl(image.id),
                                 httpHeaders: snapshot.data,
                                 fit: BoxFit.cover,
-                                placeholder: (_, __) => const ColoredBox(color: Colors.black12),
-                                errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
+                                placeholder: (_, __) =>
+                                    const ColoredBox(color: Colors.black12),
+                                errorWidget: (_, __, ___) =>
+                                    const Icon(Icons.broken_image),
                               );
                             },
                           ),

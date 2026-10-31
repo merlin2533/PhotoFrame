@@ -29,7 +29,9 @@ class AddSourceScreen extends ConsumerWidget {
       unawaited(source.dispose());
       final failure = result.failureOrNull!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ordner konnte nicht ausgewählt werden: ${failure.message}')),
+        SnackBar(
+            content: Text(
+                'Ordner konnte nicht ausgewählt werden: ${failure.message}')),
       );
       return;
     }
@@ -48,12 +50,16 @@ class AddSourceScreen extends ConsumerWidget {
     // for the same path.
     final existingSources = ref.read(sourcesProvider).value ?? const [];
     final alreadyConfigured = existingSources.any(
-      (existing) => existing.type == SourceType.local && (existing as LocalFolderSource).rootPath == path,
+      (existing) =>
+          existing.type == SourceType.local &&
+          (existing as LocalFolderSource).rootPath == path,
     );
     if (alreadyConfigured) {
       unawaited(source.dispose());
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dieser Ordner ist bereits als Quelle konfiguriert.')),
+        const SnackBar(
+            content:
+                Text('Dieser Ordner ist bereits als Quelle konfiguriert.')),
       );
       return;
     }
@@ -68,7 +74,9 @@ class AddSourceScreen extends ConsumerWidget {
 
   Future<void> _addMock(BuildContext context, WidgetRef ref) async {
     await ref.read(sourcesProvider.notifier).add(
-          MockPhotoSource(displayName: 'Test-Quelle ${DateTime.now().millisecondsSinceEpoch}'),
+          MockPhotoSource(
+              displayName:
+                  'Test-Quelle ${DateTime.now().millisecondsSinceEpoch}'),
         );
     if (!context.mounted) return;
     context.pop();
@@ -84,7 +92,8 @@ class AddSourceScreen extends ConsumerWidget {
           _SourceTypeCard(
             icon: Icons.folder_outlined,
             title: 'Lokaler Ordner',
-            subtitle: 'Ordner auf diesem Gerät oder einem angeschlossenen Speicher',
+            subtitle:
+                'Ordner auf diesem Gerät oder einem angeschlossenen Speicher',
             enabled: true,
             onTap: () => _addLocalFolder(context, ref),
           ),

@@ -15,10 +15,12 @@ class NextcloudConfigFormScreen extends ConsumerStatefulWidget {
   const NextcloudConfigFormScreen({super.key});
 
   @override
-  ConsumerState<NextcloudConfigFormScreen> createState() => _NextcloudConfigFormScreenState();
+  ConsumerState<NextcloudConfigFormScreen> createState() =>
+      _NextcloudConfigFormScreenState();
 }
 
-class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormScreen> {
+class _NextcloudConfigFormScreenState
+    extends ConsumerState<NextcloudConfigFormScreen> {
   NextcloudAuthKind _authKind = NextcloudAuthKind.account;
 
   final _serverUrlController = TextEditingController();
@@ -106,7 +108,9 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
     // descriptor persistence; the password itself is read back separately
     // from `SecureCredentialStore` on the next app start.
     if (config.authPassword.isNotEmpty) {
-      await ref.read(secureCredentialStoreProvider).write(id, 'password', config.authPassword);
+      await ref
+          .read(secureCredentialStoreProvider)
+          .write(id, 'password', config.authPassword);
     }
 
     await ref.read(sourcesProvider.notifier).add(source);
@@ -171,12 +175,16 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
               obscureText: _obscureAppPassword,
               decoration: InputDecoration(
                 labelText: 'App-Passwort',
-                helperText: 'Erstelle ein App-Passwort unter Nextcloud-Einstellungen -> Sicherheit, '
+                helperText:
+                    'Erstelle ein App-Passwort unter Nextcloud-Einstellungen -> Sicherheit, '
                     'nicht dein eigentliches Account-Passwort.',
                 errorText: errors['appPassword'],
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureAppPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                  onPressed: () => setState(() => _obscureAppPassword = !_obscureAppPassword),
+                  icon: Icon(_obscureAppPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined),
+                  onPressed: () => setState(
+                      () => _obscureAppPassword = !_obscureAppPassword),
                 ),
               ),
             ),
@@ -186,7 +194,8 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
               decoration: InputDecoration(
                 labelText: 'Öffentlicher Link',
                 hintText: 'https://cloud.example.com/s/AbCdEf',
-                helperText: 'Den kompletten Freigabe-Link einfügen - Server und Token werden automatisch erkannt.',
+                helperText:
+                    'Den kompletten Freigabe-Link einfügen - Server und Token werden automatisch erkannt.',
                 errorText: errors['shareToken'],
               ),
               keyboardType: TextInputType.url,
@@ -198,8 +207,11 @@ class _NextcloudConfigFormScreenState extends ConsumerState<NextcloudConfigFormS
               decoration: InputDecoration(
                 labelText: 'Link-Passwort (falls gesetzt)',
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureSharePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                  onPressed: () => setState(() => _obscureSharePassword = !_obscureSharePassword),
+                  icon: Icon(_obscureSharePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined),
+                  onPressed: () => setState(
+                      () => _obscureSharePassword = !_obscureSharePassword),
                 ),
               ),
             ),

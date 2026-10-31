@@ -62,7 +62,8 @@ class NextcloudSourceConfig {
 
   /// Rebuilds a config from its non-secret [json] (as produced by [toJson])
   /// plus a [password] loaded separately from `SecureCredentialStore`.
-  factory NextcloudSourceConfig.fromJson(Map<String, dynamic> json, {required String password}) {
+  factory NextcloudSourceConfig.fromJson(Map<String, dynamic> json,
+      {required String password}) {
     return NextcloudSourceConfig(
       davBaseUrl: json['davBaseUrl'] as String? ?? '',
       authUsername: json['authUsername'] as String? ?? '',
@@ -77,7 +78,8 @@ class NextcloudSourceConfig {
     switch (normalized.authKind) {
       case NextcloudAuthKind.account:
         return NextcloudSourceConfig(
-          davBaseUrl: '${normalized.serverUrl}/remote.php/dav/files/${normalized.username}',
+          davBaseUrl:
+              '${normalized.serverUrl}/remote.php/dav/files/${normalized.username}',
           authUsername: normalized.username,
           authPassword: normalized.appPassword,
           rootPath: normalized.folderPath,
@@ -159,9 +161,25 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   /// `local_folder_source.dart`'s doc comment for the full rationale); they
   /// are counted like HEIC/RAW rather than surfaced as playable items.
   static const Set<String> _unsupportedMediaExtensions = {
-    'heic', 'heif',
-    'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
-    'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp',
+    'heic',
+    'heif',
+    'raw',
+    'cr2',
+    'cr3',
+    'nef',
+    'arw',
+    'dng',
+    'raf',
+    'orf',
+    'rw2',
+    'srw',
+    'mp4',
+    'mov',
+    'm4v',
+    'avi',
+    'mkv',
+    'webm',
+    '3gp',
   };
 
   int _unsupportedCount = 0;
@@ -176,7 +194,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
     // Self-hosted Nextcloud instances often use self-signed or otherwise
     // invalid certificates; the user explicitly chose to accept those.
     client.c.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () => HttpClient()..badCertificateCallback = (cert, host, port) => true,
+      createHttpClient: () =>
+          HttpClient()..badCertificateCallback = (cert, host, port) => true,
     );
     return client;
   }
@@ -214,21 +233,29 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
         return Timeout('$context timed out', cause: e);
       }
       if (status == 401 || status == 403) {
-        return AuthError('$context: authentication/permission failed (HTTP $status)', cause: e);
+        return AuthError(
+            '$context: authentication/permission failed (HTTP $status)',
+            cause: e);
       }
       if (status == 404) {
         return NotFound('$context: not found (HTTP $status)', cause: e);
       }
       if (status == 507 || status == 413) {
-        return QuotaExceeded('$context: quota/size limit exceeded (HTTP $status)', cause: e);
+        return QuotaExceeded(
+            '$context: quota/size limit exceeded (HTTP $status)',
+            cause: e);
       }
       if (e.type == DioExceptionType.connectionError) {
-        return NetworkError('$context: server unreachable (${e.error ?? 'connection error'})', cause: e);
+        return NetworkError(
+            '$context: server unreachable (${e.error ?? 'connection error'})',
+            cause: e);
       }
       if (e.type == DioExceptionType.badCertificate) {
         return NetworkError('$context: invalid TLS certificate', cause: e);
       }
-      return NetworkError('$context failed (HTTP ${status ?? '?'}${e.message != null ? ', ${e.message}' : ''})', cause: e);
+      return NetworkError(
+          '$context failed (HTTP ${status ?? '?'}${e.message != null ? ', ${e.message}' : ''})',
+          cause: e);
     }
     if (e is TimeoutException) {
       return Timeout('$context timed out', cause: e);
@@ -273,7 +300,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   }
 
   Future<bool> _probeWriteAccess() async {
-    final probePath = _davPath('.photoframe_write_probe_${DateTime.now().microsecondsSinceEpoch}');
+    final probePath = _davPath(
+        '.photoframe_write_probe_${DateTime.now().microsecondsSinceEpoch}');
     try {
       await _client.write(probePath, Uint8List(0));
       // Clean up immediately - this must never leave a stray file behind.
@@ -353,7 +381,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
     try {
       entries = await _client.readDir(_davPath(relPath));
     } catch (e) {
-      yield Result.err(_mapError(e, context: 'Listing Nextcloud folder "$relPath"'));
+      yield Result.err(
+          _mapError(e, context: 'Listing Nextcloud folder "$relPath"'));
       return;
     }
 
@@ -393,7 +422,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   }
 
   @override
-  Future<Result<File>> fetchToCache(PhotoItem item, {CancellationToken? token}) async {
+  Future<Result<File>> fetchToCache(PhotoItem item,
+      {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
     try {
@@ -408,16 +438,19 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
     } on CancelledException {
       rethrow;
     } catch (e) {
-      return Result.err(_mapError(e, context: 'Fetching Nextcloud file "${item.id}"'));
+      return Result.err(
+          _mapError(e, context: 'Fetching Nextcloud file "${item.id}"'));
     }
   }
 
   @override
-  Future<Result<void>> uploadImage(File file, {PhotoFolder? targetFolder}) async {
+  Future<Result<void>> uploadImage(File file,
+      {PhotoFolder? targetFolder}) async {
     _checkNotDisposed();
     if (!_canUpload) {
       return Result.err(
-        const Unsupported('This Nextcloud source is read-only (no write permission detected)'),
+        const Unsupported(
+            'This Nextcloud source is read-only (no write permission detected)'),
       );
     }
     try {
@@ -425,7 +458,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
           ? file.uri.pathSegments.last
           : 'upload_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final targetRel = targetFolder?.path ?? '';
-      final remotePath = _davPath(targetRel.isEmpty ? name : '$targetRel/$name');
+      final remotePath =
+          _davPath(targetRel.isEmpty ? name : '$targetRel/$name');
       await _client.writeFromFile(file.path, remotePath);
       return Result.ok(null);
     } catch (e) {

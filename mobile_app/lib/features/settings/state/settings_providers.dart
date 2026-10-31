@@ -14,7 +14,8 @@ const String _prefsKey = 'app_settings_v1';
 /// persist [AppSettings]. Overridden in tests with
 /// `SharedPreferences.setMockInitialValues`.
 final Provider<Future<SharedPreferences>> sharedPreferencesProvider =
-    Provider<Future<SharedPreferences>>((ref) => SharedPreferences.getInstance());
+    Provider<Future<SharedPreferences>>(
+        (ref) => SharedPreferences.getInstance());
 
 /// Owns the persisted [AppSettings] and exposes mutation helpers. Backed by
 /// a single JSON blob in `shared_preferences` (see [AppSettings] doc
@@ -56,7 +57,8 @@ class AppSettingsController extends AsyncNotifier<AppSettings> {
   ///
   /// Named `updateSettings` (not `update`) to avoid colliding with
   /// `AsyncNotifierBase.update`, which has an incompatible signature.
-  Future<void> updateSettings(AppSettings Function(AppSettings current) updater) {
+  Future<void> updateSettings(
+      AppSettings Function(AppSettings current) updater) {
     return _persist(updater(_current));
   }
 
@@ -98,9 +100,10 @@ int _fullLimitBytesFor(int totalLimitBytes) =>
 /// (evicting over-budget entries) without recreating the manager - which
 /// would otherwise forget in-memory pin/offline-reserve state for no
 /// reason.
-final Provider<ImageCacheManager> imageCacheManagerProvider = Provider<ImageCacheManager>((ref) {
-  final initialLimit =
-      ref.read(settingsProvider).value?.cacheLimitBytes ?? const AppSettings().cacheLimitBytes;
+final Provider<ImageCacheManager> imageCacheManagerProvider =
+    Provider<ImageCacheManager>((ref) {
+  final initialLimit = ref.read(settingsProvider).value?.cacheLimitBytes ??
+      const AppSettings().cacheLimitBytes;
   final manager = ImageCacheManager(
     thumbnailLimitBytes: _thumbnailLimitBytesFor(initialLimit),
     fullLimitBytes: _fullLimitBytesFor(initialLimit),
@@ -109,7 +112,8 @@ final Provider<ImageCacheManager> imageCacheManagerProvider = Provider<ImageCach
   ref.listen<AsyncValue<AppSettings>>(settingsProvider, (previous, next) {
     final limit = next.value?.cacheLimitBytes;
     if (limit == null || limit == previous?.value?.cacheLimitBytes) return;
-    unawaited(manager.setLimitBytes(CacheTier.thumbnail, _thumbnailLimitBytesFor(limit)));
+    unawaited(manager.setLimitBytes(
+        CacheTier.thumbnail, _thumbnailLimitBytesFor(limit)));
     unawaited(manager.setLimitBytes(CacheTier.full, _fullLimitBytesFor(limit)));
   });
 
@@ -140,15 +144,16 @@ class CacheInfo {
 /// last-reading cache (see `weather_client.dart`) is actually shared across
 /// widget rebuilds/remounts instead of refetching every time the overlay or
 /// settings screen is built.
-final Provider<WeatherClient> weatherClientProvider = Provider<WeatherClient>((ref) {
+final Provider<WeatherClient> weatherClientProvider =
+    Provider<WeatherClient>((ref) {
   return WeatherClient();
 });
 
 final Provider<CacheInfo> cacheInfoProvider = Provider<CacheInfo>((ref) {
   final settings = ref.watch(settingsProvider).value ?? const AppSettings();
   final manager = ref.watch(imageCacheManagerProvider);
-  final usedBytes =
-      manager.currentSizeBytes(CacheTier.thumbnail) + manager.currentSizeBytes(CacheTier.full);
+  final usedBytes = manager.currentSizeBytes(CacheTier.thumbnail) +
+      manager.currentSizeBytes(CacheTier.full);
   return CacheInfo(
     usedBytes: usedBytes,
     limitBytes: settings.cacheLimitBytes,

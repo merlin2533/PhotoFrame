@@ -58,7 +58,9 @@ class _UploadScreenState extends State<UploadScreen> {
         await ph.openAppSettings();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kamera-Berechtigung wird benötigt, um Fotos aufzunehmen.')),
+          const SnackBar(
+              content: Text(
+                  'Kamera-Berechtigung wird benötigt, um Fotos aufzunehmen.')),
         );
       }
       return;
@@ -122,18 +124,23 @@ class _UploadScreenState extends State<UploadScreen> {
                     itemBuilder: (context, index) {
                       final status = _queue[index];
                       return ListTile(
-                        leading: Image.file(status.file, width: 48, height: 48, fit: BoxFit.cover),
+                        leading: Image.file(status.file,
+                            width: 48, height: 48, fit: BoxFit.cover),
                         title: Text(status.file.uri.pathSegments.last),
                         trailing: status.error != null
-                            ? Icon(Icons.error, color: Theme.of(context).colorScheme.error)
+                            ? Icon(Icons.error,
+                                color: Theme.of(context).colorScheme.error)
                             : status.done
-                                ? const Icon(Icons.check_circle, color: Colors.green)
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.green)
                                 : const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   ),
-                        subtitle: status.error != null ? Text(status.error!) : null,
+                        subtitle:
+                            status.error != null ? Text(status.error!) : null,
                       );
                     },
                   ),

@@ -67,7 +67,8 @@ class KeyFingerprintStore {
 
   /// Returns the fingerprint currently trusted for [frameId], or `null` if
   /// this device has never seen a fingerprint for that frame.
-  Future<String?> trustedFingerprintFor(String frameId) => _storage.read(key: _storageKey(frameId));
+  Future<String?> trustedFingerprintFor(String frameId) =>
+      _storage.read(key: _storageKey(frameId));
 
   /// Compares [observedFingerprint] against the locally stored value for
   /// [frameId] and returns the outcome. On first contact
@@ -83,14 +84,17 @@ class KeyFingerprintStore {
   /// absent fingerprint by throwing [ArgumentError], since silently
   /// treating "no key yet" as "trusted" would defeat the whole point of
   /// TOFU.
-  Future<FingerprintTrust> checkOrTrust(String frameId, String observedFingerprint) async {
+  Future<FingerprintTrust> checkOrTrust(
+      String frameId, String observedFingerprint) async {
     if (observedFingerprint.isEmpty) {
-      throw ArgumentError.value(observedFingerprint, 'observedFingerprint', 'must not be empty');
+      throw ArgumentError.value(
+          observedFingerprint, 'observedFingerprint', 'must not be empty');
     }
 
     final stored = await trustedFingerprintFor(frameId);
     if (stored == null) {
-      await _storage.write(key: _storageKey(frameId), value: observedFingerprint);
+      await _storage.write(
+          key: _storageKey(frameId), value: observedFingerprint);
       return FingerprintTrust.trusted;
     }
     if (stored == observedFingerprint) {
@@ -109,5 +113,6 @@ class KeyFingerprintStore {
   /// Forgets the trusted fingerprint for [frameId] (e.g. the pairing was
   /// left/deleted). Mostly useful for tests and cleanup; not required for
   /// correct TOFU behaviour.
-  Future<void> forget(String frameId) => _storage.delete(key: _storageKey(frameId));
+  Future<void> forget(String frameId) =>
+      _storage.delete(key: _storageKey(frameId));
 }

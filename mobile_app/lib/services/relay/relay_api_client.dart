@@ -213,7 +213,9 @@ class RelayApiClient {
           return;
         }
         final isUserScoped = path.startsWith('/frames');
-        final token = isUserScoped ? await tokenStorage.accessToken : await tokenStorage.deviceToken;
+        final token = isUserScoped
+            ? await tokenStorage.accessToken
+            : await tokenStorage.deviceToken;
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -221,7 +223,8 @@ class RelayApiClient {
       }),
     );
     dioClient.interceptors.add(
-      TokenRefreshInterceptor(tokenStorage: tokenStorage, baseUrl: this.baseUrl),
+      TokenRefreshInterceptor(
+          tokenStorage: tokenStorage, baseUrl: this.baseUrl),
     );
   }
 
@@ -231,7 +234,8 @@ class RelayApiClient {
   final RelayTokenStorage tokenStorage;
   final Dio dioClient;
 
-  static String _stripTrailingSlash(String url) => url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  static String _stripTrailingSlash(String url) =>
+      url.endsWith('/') ? url.substring(0, url.length - 1) : url;
 
   Future<Result<T>> _guard<T>(Future<T> Function() body) async {
     try {
@@ -239,9 +243,11 @@ class RelayApiClient {
     } on DioException catch (e) {
       return Result.err(_mapDioError(e));
     } on SocketException catch (e) {
-      return Result.err(NetworkError('No connection to relay server', cause: e));
+      return Result.err(
+          NetworkError('No connection to relay server', cause: e));
     } catch (e) {
-      return Result.err(NetworkError('Unexpected relay client error', cause: e));
+      return Result.err(
+          NetworkError('Unexpected relay client error', cause: e));
     }
   }
 
@@ -271,7 +277,8 @@ class RelayApiClient {
       case 413:
         return QuotaExceeded(serverMessage ?? 'Quota exceeded', cause: e);
       case 429:
-        return NetworkError(serverMessage ?? 'Rate limited, try again later', cause: e);
+        return NetworkError(serverMessage ?? 'Rate limited, try again later',
+            cause: e);
       default:
         return NetworkError(serverMessage ?? 'Relay request failed', cause: e);
     }
@@ -290,7 +297,8 @@ class RelayApiClient {
     String? inviteCode,
   }) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/auth/register', data: {
+      final response =
+          await dioClient.post<Map<String, dynamic>>('/auth/register', data: {
         'username': username,
         'password': password,
         if (inviteCode != null) 'inviteCode': inviteCode,
@@ -311,9 +319,11 @@ class RelayApiClient {
     });
   }
 
-  Future<Result<AuthSession>> login({required String username, required String password}) {
+  Future<Result<AuthSession>> login(
+      {required String username, required String password}) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/auth/login', data: {
+      final response =
+          await dioClient.post<Map<String, dynamic>>('/auth/login', data: {
         'username': username,
         'password': password,
       });
@@ -340,7 +350,8 @@ class RelayApiClient {
     required String publicKey,
   }) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/frames', data: {
+      final response =
+          await dioClient.post<Map<String, dynamic>>('/frames', data: {
         'displayName': displayName,
         'publicKey': publicKey,
       });
@@ -362,7 +373,8 @@ class RelayApiClient {
     required String newPublicKey,
   }) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/frames/$frameId/recover', data: {
+      final response = await dioClient
+          .post<Map<String, dynamic>>('/frames/$frameId/recover', data: {
         'newPublicKey': newPublicKey,
       });
       final data = response.data!;
@@ -384,9 +396,11 @@ class RelayApiClient {
 
   // --- Pairing ----------------------------------------------------------
 
-  Future<Result<PairingCreated>> createPairingCode({String? pairingName, String? pairingId}) {
+  Future<Result<PairingCreated>> createPairingCode(
+      {String? pairingName, String? pairingId}) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/pairing/create-code', data: {
+      final response = await dioClient
+          .post<Map<String, dynamic>>('/pairing/create-code', data: {
         if (pairingName != null) 'pairingName': pairingName,
         if (pairingId != null) 'pairingId': pairingId,
       });
@@ -403,14 +417,16 @@ class RelayApiClient {
 
   Future<Result<String>> redeemPairingCode(String code) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/pairing/redeem', data: {'code': code});
+      final response = await dioClient
+          .post<Map<String, dynamic>>('/pairing/redeem', data: {'code': code});
       return response.data!['pairingId'] as String;
     });
   }
 
   Future<Result<PairingDetails>> getPairing(String pairingId) {
     return _guard(() async {
-      final response = await dioClient.get<Map<String, dynamic>>('/pairing/$pairingId');
+      final response =
+          await dioClient.get<Map<String, dynamic>>('/pairing/$pairingId');
       final data = response.data!;
       final pairing = data['pairing'] as Map<String, dynamic>;
       final members = (data['members'] as List)
@@ -459,9 +475,11 @@ class RelayApiClient {
 
   // --- Config push (end-to-end encrypted, opaque to the relay) ---------
 
-  Future<Result<String>> sendConfigPush({required String targetFrameId, required String ciphertext}) {
+  Future<Result<String>> sendConfigPush(
+      {required String targetFrameId, required String ciphertext}) {
     return _guard(() async {
-      final response = await dioClient.post<Map<String, dynamic>>('/config-push', data: {
+      final response =
+          await dioClient.post<Map<String, dynamic>>('/config-push', data: {
         'targetFrameId': targetFrameId,
         'ciphertext': ciphertext,
       });
@@ -471,8 +489,10 @@ class RelayApiClient {
 
   Future<Result<List<ConfigPushMessage>>> pendingConfigPushes() {
     return _guard(() async {
-      final response = await dioClient.get<Map<String, dynamic>>('/config-push/pending');
-      final pushes = (response.data!['pushes'] as List).cast<Map<String, dynamic>>();
+      final response =
+          await dioClient.get<Map<String, dynamic>>('/config-push/pending');
+      final pushes =
+          (response.data!['pushes'] as List).cast<Map<String, dynamic>>();
       return pushes
           .map((p) => ConfigPushMessage(
                 id: p['id'] as String,
@@ -503,7 +523,8 @@ class RelayApiClient {
         'clientUploadId': clientUploadId,
         'file': await MultipartFile.fromFile(file.path),
       });
-      final response = await dioClient.post<Map<String, dynamic>>('/images', data: formData);
+      final response =
+          await dioClient.post<Map<String, dynamic>>('/images', data: formData);
       final data = response.data!;
       return UploadedImage(
         imageId: data['imageId'] as String,
@@ -517,8 +538,10 @@ class RelayApiClient {
 
   Future<Result<List<RemoteImage>>> listImages(String pairingId) {
     return _guard(() async {
-      final response = await dioClient.get<Map<String, dynamic>>('/images/pairing/$pairingId');
-      final images = (response.data!['images'] as List).cast<Map<String, dynamic>>();
+      final response = await dioClient
+          .get<Map<String, dynamic>>('/images/pairing/$pairingId');
+      final images =
+          (response.data!['images'] as List).cast<Map<String, dynamic>>();
       return images
           .map((i) => RemoteImage(
                 id: i['id'] as String,

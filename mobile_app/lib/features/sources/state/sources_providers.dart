@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -21,7 +22,8 @@ final Provider<SecureCredentialStore> secureCredentialStoreProvider =
 /// Generates stable ids for newly configured [PhotoSource] instances.
 /// Exposed as a provider (rather than a bare top-level `Uuid()`) purely so
 /// tests can override it deterministically if ever needed.
-final Provider<Uuid> sourceIdGeneratorProvider = Provider<Uuid>((ref) => const Uuid());
+final Provider<Uuid> sourceIdGeneratorProvider =
+    Provider<Uuid>((ref) => const Uuid());
 
 /// Loads (and lazily provides) the [SharedPreferences] instance used to
 /// persist the non-secret source configuration (see [SourceDescriptor]).
@@ -35,7 +37,8 @@ final Provider<Uuid> sourceIdGeneratorProvider = Provider<Uuid>((ref) => const U
 /// thin provider wrappers around it costs nothing at runtime while keeping
 /// the features decoupled.
 final Provider<Future<SharedPreferences>> sourcesSharedPreferencesProvider =
-    Provider<Future<SharedPreferences>>((ref) => SharedPreferences.getInstance());
+    Provider<Future<SharedPreferences>>(
+        (ref) => SharedPreferences.getInstance());
 
 /// Registered [PhotoSource] instances the app currently knows about.
 ///
@@ -76,7 +79,9 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     if (!prefs.containsKey(_prefsKey)) {
       // First run on this device - seed with the historical default so the
       // UI isn't empty, and persist it immediately (see class doc comment).
-      sources = [MockPhotoSource()];
+      // The mock source only yields placeholder boxes ("Mock1_8"), so it is
+      // seeded in debug/test builds only, never in release.
+      sources = kReleaseMode ? <PhotoSource>[] : [MockPhotoSource()];
       await _saveDescriptors(prefs, sources);
     } else {
       final descriptors = _loadDescriptors(prefs);
@@ -95,7 +100,9 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
         } catch (_) {
           password = null;
         }
-        sources.add(fromDescriptor(descriptor, password: password));
+        final source = fromDescriptor(descriptor, password: password);
+        if (kReleaseMode && source.type == SourceType.mock) continue;
+        sources.add(source);
       }
     }
 
@@ -131,7 +138,8 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     }
   }
 
-  Future<void> _saveDescriptors(SharedPreferences prefs, List<PhotoSource> sources) async {
+  Future<void> _saveDescriptors(
+      SharedPreferences prefs, List<PhotoSource> sources) async {
     final descriptors = sources.map((s) => s.toDescriptor().toJson()).toList();
     await prefs.setString(_prefsKey, jsonEncode(descriptors));
   }
@@ -173,12 +181,15 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
       // Best-effort: also drop any stored credentials for this source so
       // they don't linger in the secure keychain after the source itself
       // is gone.
-      unawaited(ref.read(secureCredentialStoreProvider).deleteAllForSource(source.id));
+      unawaited(ref
+          .read(secureCredentialStoreProvider)
+          .deleteAllForSource(source.id));
     }
   }
 }
 
-final AsyncNotifierProvider<SourcesController, List<PhotoSource>> sourcesProvider =
+final AsyncNotifierProvider<SourcesController, List<PhotoSource>>
+    sourcesProvider =
     AsyncNotifierProvider<SourcesController, List<PhotoSource>>(
   SourcesController.new,
 );

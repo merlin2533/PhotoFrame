@@ -106,7 +106,8 @@ class ConfigPushCrypto {
     required String plaintextJson,
   }) async {
     final recipientPublicKeyBytes = base64Decode(recipientPublicKeyBase64);
-    final recipientPublicKey = SimplePublicKey(recipientPublicKeyBytes, type: KeyPairType.x25519);
+    final recipientPublicKey =
+        SimplePublicKey(recipientPublicKeyBytes, type: KeyPairType.x25519);
 
     final ephemeralKeyPair = await _keyExchange.newKeyPair();
     final ephemeralPublicKey = await ephemeralKeyPair.extractPublicKey();
@@ -148,7 +149,8 @@ class ConfigPushCrypto {
     try {
       final decoded = jsonDecode(ciphertext);
       if (decoded is! Map<String, dynamic>) {
-        throw const ConfigPushDecryptionException('envelope is not a JSON object');
+        throw const ConfigPushDecryptionException(
+            'envelope is not a JSON object');
       }
       envelope = decoded;
     } on ConfigPushDecryptionException {
@@ -162,17 +164,20 @@ class ConfigPushCrypto {
     final List<int> cipherTextBytes;
     final List<int> macBytes;
     try {
-      ephemeralPublicKeyBytes = base64Decode(envelope['ephemeralPublicKey'] as String);
+      ephemeralPublicKeyBytes =
+          base64Decode(envelope['ephemeralPublicKey'] as String);
       nonce = base64Decode(envelope['nonce'] as String);
       cipherTextBytes = base64Decode(envelope['ciphertext'] as String);
       macBytes = base64Decode(envelope['mac'] as String);
     } catch (e) {
-      throw ConfigPushDecryptionException('envelope fields missing or not valid base64: $e');
+      throw ConfigPushDecryptionException(
+          'envelope fields missing or not valid base64: $e');
     }
 
     final keyPair = await _keypairStore.loadOrCreateKeyPair();
     final myPublicKey = await keyPair.extractPublicKey();
-    final ephemeralPublicKey = SimplePublicKey(ephemeralPublicKeyBytes, type: KeyPairType.x25519);
+    final ephemeralPublicKey =
+        SimplePublicKey(ephemeralPublicKeyBytes, type: KeyPairType.x25519);
 
     try {
       final sharedSecret = await _keyExchange.sharedSecretKey(
@@ -186,8 +191,10 @@ class ConfigPushCrypto {
         info: _hkdfInfo,
       );
 
-      final secretBox = SecretBox(cipherTextBytes, nonce: nonce, mac: Mac(macBytes));
-      final clearTextBytes = await _cipher.decrypt(secretBox, secretKey: derivedKey);
+      final secretBox =
+          SecretBox(cipherTextBytes, nonce: nonce, mac: Mac(macBytes));
+      final clearTextBytes =
+          await _cipher.decrypt(secretBox, secretKey: derivedKey);
       return utf8.decode(clearTextBytes);
     } on ConfigPushDecryptionException {
       rethrow;
@@ -196,7 +203,8 @@ class ConfigPushCrypto {
       // plausible-looking but wrong AES key, so this still fails at the
       // GCM tag check) and genuine corruption - see class doc comment for
       // why these aren't distinguished.
-      throw ConfigPushDecryptionException('could not decrypt/authenticate payload: $e');
+      throw ConfigPushDecryptionException(
+          'could not decrypt/authenticate payload: $e');
     }
   }
 }

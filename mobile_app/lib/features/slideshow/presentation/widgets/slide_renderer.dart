@@ -38,6 +38,7 @@ class SlideRenderer extends StatefulWidget {
 
 class _SlideRendererState extends State<SlideRenderer> {
   Future<File?>? _fileFuture;
+  String? _fetchError;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _SlideRendererState extends State<SlideRenderer> {
     // elsewhere in the engine.
     _fileFuture = widget.source.fetchToCache(widget.item).then((result) {
       if (result.valueOrNull == null) {
+        _fetchError = result.failureOrNull?.message;
         debugPrint(
             'Fetch failed for ${widget.item.id}: ${result.failureOrNull?.message}');
       }
@@ -94,8 +96,11 @@ class _SlideRendererState extends State<SlideRenderer> {
             );
           case DisplayMode.cover:
             return SizedBox.expand(
-              child:
-                  _PhotoImage(item: widget.item, file: file, fit: BoxFit.cover),
+              child: _PhotoImage(
+                  item: widget.item,
+                  file: file,
+                  error: _fetchError,
+                  fit: BoxFit.cover),
             );
           case DisplayMode.blurredBackdrop:
             return Stack(
@@ -133,8 +138,14 @@ class _SlideRendererState extends State<SlideRenderer> {
 /// back to a deterministic placeholder box so the slideshow never shows a
 /// hard error or a blank frame.
 class _PhotoImage extends StatelessWidget {
-  const _PhotoImage(
-      {required this.item, required this.file, required this.fit});
+  const _PhotoImage({
+    required this.item,
+    required this.file,
+    required this.fit,
+    this.error,
+  });
+
+  final String? error;
 
   final PhotoItem item;
   final File? file;
@@ -143,12 +154,13 @@ class _PhotoImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (file == null) {
-      return _PlaceholderBox(item: item);
+      return _PlaceholderBox(item: item, reason: error);
     }
     return Image.file(
       file!,
       fit: fit,
-      errorBuilder: (context, error, stackTrace) => _PlaceholderBox(item: item),
+      errorBuilder: (context, err, stackTrace) =>
+          _PlaceholderBox(item: item, reason: 'Nicht dekodierbar: $err'),
     );
   }
 }
@@ -156,7 +168,9 @@ class _PhotoImage extends StatelessWidget {
 /// Deterministic placeholder (color derived from the item id, plus its
 /// filename) shown whenever the real photo isn't available/decodable yet.
 class _PlaceholderBox extends StatelessWidget {
-  const _PlaceholderBox({required this.item});
+  const _PlaceholderBox({required this.item, this.reason});
+
+  final String? reason;
 
   final PhotoItem item;
 
@@ -173,6 +187,15 @@ class _PlaceholderBox extends StatelessWidget {
           const Icon(Icons.image_outlined, color: Colors.white70, size: 48),
           const SizedBox(height: 8),
           Text(item.name, style: const TextStyle(color: Colors.white70)),
+          if (reason != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Text(reason!,
+                  textAlign: TextAlign.center,
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            ),
         ],
       ),
     );

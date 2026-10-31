@@ -67,8 +67,11 @@ class SmbConfigFormModel {
     final trimmedHost = host.trim();
     if (trimmedHost.isEmpty) {
       errors['host'] = 'Host/IP is required';
-    } else if (trimmedHost.contains(' ') || trimmedHost.contains('/') || trimmedHost.contains('\\')) {
-      errors['host'] = 'Enter just the host/IP, without a path (e.g. 192.168.1.20)';
+    } else if (trimmedHost.contains(' ') ||
+        trimmedHost.contains('/') ||
+        trimmedHost.contains('\\')) {
+      errors['host'] =
+          'Enter just the host/IP, without a path (e.g. 192.168.1.20)';
     } else if (!_hostPattern.hasMatch(trimmedHost)) {
       errors['host'] = 'Enter a valid hostname or IP address';
     }

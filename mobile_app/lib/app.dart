@@ -86,11 +86,13 @@ class _RoutedApp extends ConsumerStatefulWidget {
 }
 
 class _RoutedAppState extends ConsumerState<_RoutedApp> {
-  late final GoRouter _router = buildAppRouter(initialLocation: widget.initialLocation);
+  late final GoRouter _router =
+      buildAppRouter(initialLocation: widget.initialLocation);
 
   @override
   Widget build(BuildContext context) {
-    final languageCode = ref.watch(settingsProvider.select((s) => s.value?.languageCode));
+    final languageCode =
+        ref.watch(settingsProvider.select((s) => s.value?.languageCode));
 
     return MaterialApp.router(
       title: 'PhotoFrame',
@@ -115,7 +117,8 @@ class _RoutedAppState extends ConsumerState<_RoutedApp> {
       // comment) - placed in `builder` rather than deeper in the tree so it
       // sits above `go_router`'s own navigator and can push a route from an
       // event that isn't tied to whatever screen happens to be showing.
-      builder: (context, child) => ConfigPushListener(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) =>
+          ConfigPushListener(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -27,8 +27,10 @@ class WeatherClient {
   })  : _dio = dio ?? Dio(),
         _now = now ?? DateTime.now;
 
-  static const String forecastBaseUrl = 'https://api.open-meteo.com/v1/forecast';
-  static const String geocodingBaseUrl = 'https://geocoding-api.open-meteo.com/v1/search';
+  static const String forecastBaseUrl =
+      'https://api.open-meteo.com/v1/forecast';
+  static const String geocodingBaseUrl =
+      'https://geocoding-api.open-meteo.com/v1/search';
 
   final Dio _dio;
 
@@ -71,9 +73,11 @@ class WeatherClient {
     );
     final data = response.data;
     if (data == null) {
-      throw const FormatException('Empty response body from Open-Meteo forecast API');
+      throw const FormatException(
+          'Empty response body from Open-Meteo forecast API');
     }
-    final weather = CurrentWeather.fromForecastResponseJson(data, fetchedAt: _now());
+    final weather =
+        CurrentWeather.fromForecastResponseJson(data, fetchedAt: _now());
     _cache[key] = weather;
     return weather;
   }

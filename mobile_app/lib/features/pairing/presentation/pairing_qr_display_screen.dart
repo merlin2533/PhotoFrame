@@ -6,7 +6,8 @@ import '../domain/pairing_models.dart';
 /// Displays a [PairingInvite] as a scannable QR code encoding the
 /// `photoframe://pair?...` deep link (see [PairingInvite.toDeepLink]).
 class PairingQrDisplayScreen extends StatelessWidget {
-  const PairingQrDisplayScreen({super.key, required this.invite, required this.relayUrl});
+  const PairingQrDisplayScreen(
+      {super.key, required this.invite, required this.relayUrl});
 
   final PairingInvite invite;
   final String relayUrl;

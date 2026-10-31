@@ -26,7 +26,9 @@ class LanguageSettingsScreen extends ConsumerWidget {
           return RadioGroup<String?>(
             groupValue: settings.languageCode,
             onChanged: (v) => notifier.updateSettings(
-              (s) => v == null ? s.copyWith(clearLanguageCode: true) : s.copyWith(languageCode: v),
+              (s) => v == null
+                  ? s.copyWith(clearLanguageCode: true)
+                  : s.copyWith(languageCode: v),
             ),
             child: ListView(
               children: [

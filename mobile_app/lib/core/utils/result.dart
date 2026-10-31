@@ -37,8 +37,7 @@ sealed class Result<T> {
       };
 
   /// Chains another [Result]-producing operation on success.
-  Result<R> flatMap<R>(Result<R> Function(T value) transform) =>
-      switch (this) {
+  Result<R> flatMap<R>(Result<R> Function(T value) transform) => switch (this) {
         Ok<T>(value: final v) => transform(v),
         Err<T>(failure: final f) => Result.err(f),
       };
@@ -103,8 +102,7 @@ class Err<T> extends Result<T> {
   final Failure failure;
 
   @override
-  bool operator ==(Object other) =>
-      other is Err<T> && other.failure == failure;
+  bool operator ==(Object other) => other is Err<T> && other.failure == failure;
 
   @override
   int get hashCode => Object.hash(Err<T>, failure);

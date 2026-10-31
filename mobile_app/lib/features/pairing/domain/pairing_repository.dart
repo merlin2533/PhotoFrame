@@ -11,7 +11,8 @@ import 'pairing_models.dart';
 abstract class PairingRepository {
   /// Creates a new pairing (if [existingPairingId] is omitted) or an
   /// invite code into an existing one, for the local device's frame.
-  Future<Result<PairingInvite>> createInvite({String? pairingName, String? existingPairingId});
+  Future<Result<PairingInvite>> createInvite(
+      {String? pairingName, String? existingPairingId});
 
   /// Redeems a scanned/typed invite. [localFrameId] is required to
   /// distinguish "self" when resolving which pairing member the invite's
@@ -46,7 +47,8 @@ abstract class PairingRepository {
   /// PLAN.md "Frame-Fernkonfiguration") is out of scope for this
   /// repository - it is intentionally as opaque here as it is on the
   /// relay; callers own the crypto and pass the resulting ciphertext.
-  Future<Result<String>> sendConfigPush({required String targetFrameId, required String ciphertext});
+  Future<Result<String>> sendConfigPush(
+      {required String targetFrameId, required String ciphertext});
 
   /// Resolves [targetFrameId]'s current public key AND fingerprint from a
   /// single [getPairing] snapshot, and checks that fingerprint against
@@ -111,5 +113,6 @@ abstract class PairingRepository {
   /// for a [PendingConfigPush] whose `trust` was
   /// `FingerprintTrust.mismatch`. Mirrors [confirmRedeemTrust] but for the
   /// config-push flow rather than the invite-redemption flow.
-  Future<void> confirmSenderTrust({required String frameId, required String fingerprint});
+  Future<void> confirmSenderTrust(
+      {required String frameId, required String fingerprint});
 }

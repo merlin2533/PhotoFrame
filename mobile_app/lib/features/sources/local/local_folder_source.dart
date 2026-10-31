@@ -20,7 +20,8 @@ typedef DirectoryPickResult = ({String path, String? treeUri});
 /// Signature used to pick a directory on disk. Injectable so tests (and this
 /// review, since no device/emulator is available here) don't need to touch
 /// the real Storage Access Framework/native folder picker.
-typedef DirectoryPicker = Future<DirectoryPickResult?> Function({String? dialogTitle});
+typedef DirectoryPicker = Future<DirectoryPickResult?> Function(
+    {String? dialogTitle});
 
 /// [PhotoSource] backed by a folder picked directly on the device (Android
 /// Storage Access Framework via the native "photoframe/saf" channel, or a
@@ -86,9 +87,11 @@ class LocalFolderSource implements PhotoSource {
 
   static const MethodChannel _safChannel = MethodChannel('photoframe/saf');
 
-  static Future<DirectoryPickResult?> _defaultDirectoryPicker({String? dialogTitle}) async {
+  static Future<DirectoryPickResult?> _defaultDirectoryPicker(
+      {String? dialogTitle}) async {
     if (Platform.isAndroid) {
-      final result = await _safChannel.invokeMethod<Map<Object?, Object?>>('pickDirectoryTree');
+      final result = await _safChannel
+          .invokeMethod<Map<Object?, Object?>>('pickDirectoryTree');
       final path = result?['path'] as String?;
       if (path == null) return null;
       return (path: path, treeUri: result?['uri'] as String?);
@@ -202,7 +205,8 @@ class LocalFolderSource implements PhotoSource {
         PermissionDenied('Folder picker failed/was denied', cause: e),
       );
     } catch (e) {
-      return Result.err(NetworkError('Folder picker failed unexpectedly', cause: e));
+      return Result.err(
+          NetworkError('Folder picker failed unexpectedly', cause: e));
     }
   }
 
@@ -220,7 +224,8 @@ class LocalFolderSource implements PhotoSource {
       final dir = Directory(root);
       if (!await dir.exists().timeout(timeout)) {
         return Result.err(
-          NotFound('Folder no longer exists: $root (was it removed/unmounted?)'),
+          NotFound(
+              'Folder no longer exists: $root (was it removed/unmounted?)'),
         );
       }
       // Cheaply probe readability: listing lazily throws on the first
@@ -246,11 +251,13 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13 /* EACCES */;
       return Result.err(
         denied
-            ? PermissionDenied('Permission denied reading folder: $root', cause: e)
+            ? PermissionDenied('Permission denied reading folder: $root',
+                cause: e)
             : NotFound('Folder not accessible: $root', cause: e),
       );
     } catch (e) {
-      return Result.err(NetworkError('Unexpected error checking folder: $root', cause: e));
+      return Result.err(
+          NetworkError('Unexpected error checking folder: $root', cause: e));
     }
   }
 
@@ -280,13 +287,16 @@ class LocalFolderSource implements PhotoSource {
     );
 
     try {
-      await for (final entity in startDir.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in startDir.list(recursive: true, followLinks: false)) {
         token?.throwIfCancelled();
         if (entity is! Directory) continue;
         final relId = _relativeId(root, entity.path);
         if (relId.isEmpty) continue;
         final parts = relId.split('/');
-        final parentId = parts.length > 1 ? parts.sublist(0, parts.length - 1).join('/') : null;
+        final parentId = parts.length > 1
+            ? parts.sublist(0, parts.length - 1).join('/')
+            : null;
         yield Result.ok(
           PhotoFolder(
             id: relId,
@@ -302,11 +312,13 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       yield Result.err(
         denied
-            ? PermissionDenied('Permission denied listing folders under $root', cause: e)
+            ? PermissionDenied('Permission denied listing folders under $root',
+                cause: e)
             : NotFound('Folder not accessible: $root', cause: e),
       );
     } catch (e) {
-      yield Result.err(NetworkError('Unexpected error listing folders', cause: e));
+      yield Result.err(
+          NetworkError('Unexpected error listing folders', cause: e));
     }
   }
 
@@ -367,7 +379,9 @@ class LocalFolderSource implements PhotoSource {
             id: relId,
             sourceId: id,
             folderId: relFolder,
-            name: entity.uri.pathSegments.isNotEmpty ? entity.uri.pathSegments.last : relId,
+            name: entity.uri.pathSegments.isNotEmpty
+                ? entity.uri.pathSegments.last
+                : relId,
             mediaType: MediaType.image,
             size: stat.size,
             mtime: stat.modified,
@@ -380,16 +394,20 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       yield Result.err(
         denied
-            ? PermissionDenied('Permission denied listing images under ${folder.path}', cause: e)
+            ? PermissionDenied(
+                'Permission denied listing images under ${folder.path}',
+                cause: e)
             : NotFound('Folder not accessible: ${folder.path}', cause: e),
       );
     } catch (e) {
-      yield Result.err(NetworkError('Unexpected error listing images', cause: e));
+      yield Result.err(
+          NetworkError('Unexpected error listing images', cause: e));
     }
   }
 
   @override
-  Future<Result<File>> fetchToCache(PhotoItem item, {CancellationToken? token}) async {
+  Future<Result<File>> fetchToCache(PhotoItem item,
+      {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
     final root = _rootPath;
@@ -410,7 +428,8 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       return Result.err(
         denied
-            ? PermissionDenied('Permission denied reading file: ${item.id}', cause: e)
+            ? PermissionDenied('Permission denied reading file: ${item.id}',
+                cause: e)
             : NotFound('File not accessible: ${item.id}', cause: e),
       );
     }

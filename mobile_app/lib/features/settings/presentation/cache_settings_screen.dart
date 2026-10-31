@@ -59,8 +59,8 @@ class CacheSettingsScreen extends ConsumerWidget {
               max: 5 * 1024 * 1024 * 1024,
               divisions: 49,
               label: _formatBytes(settings.cacheLimitBytes),
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(cacheLimitBytes: v.round())),
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(cacheLimitBytes: v.round())),
             ),
             Text(
               l10n.cacheLimitDeviceCapHint,

@@ -37,7 +37,8 @@ class RelayServerSetupScreen extends StatefulWidget {
   final void Function(RelayApiClient client) onConnected;
 
   /// Overridable for tests; defaults to constructing a real [RelayApiClient].
-  final RelayApiClient Function(String baseUrl, RelayTokenStorage storage)? buildApiClient;
+  final RelayApiClient Function(String baseUrl, RelayTokenStorage storage)?
+      buildApiClient;
 
   /// Source of this device's E2E keypair for frame registration. Overridable
   /// for tests; defaults to a real [FrameKeypairStore] backed by
@@ -92,7 +93,8 @@ class _RelayServerSetupScreenState extends State<RelayServerSetupScreen> {
       final username = _usernameController.text.trim().isEmpty
           ? 'frame-${DateTime.now().millisecondsSinceEpoch}'
           : _usernameController.text.trim();
-      result = await client.register(username: username, password: _passwordController.text);
+      result = await client.register(
+          username: username, password: _passwordController.text);
     }
 
     if (!mounted) return;
@@ -147,7 +149,9 @@ class _RelayServerSetupScreenState extends State<RelayServerSetupScreen> {
                 controller: _urlController,
                 decoration: const InputDecoration(labelText: 'Relay-URL'),
                 keyboardType: TextInputType.url,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Relay-URL erforderlich' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Relay-URL erforderlich'
+                    : null,
               ),
               const SizedBox(height: 16),
               SwitchListTile(
@@ -158,22 +162,29 @@ class _RelayServerSetupScreenState extends State<RelayServerSetupScreen> {
               TextFormField(
                 controller: _usernameController,
                 decoration: InputDecoration(
-                  labelText: _isExistingAccount ? 'Benutzername' : 'Benutzername (optional)',
+                  labelText: _isExistingAccount
+                      ? 'Benutzername'
+                      : 'Benutzername (optional)',
                 ),
                 validator: (v) =>
-                    _isExistingAccount && (v == null || v.trim().isEmpty) ? 'Benutzername erforderlich' : null,
+                    _isExistingAccount && (v == null || v.trim().isEmpty)
+                        ? 'Benutzername erforderlich'
+                        : null,
               ),
               TextFormField(
                 controller: _passwordController,
                 decoration: const InputDecoration(labelText: 'Passwort'),
                 obscureText: true,
-                validator: (v) => (v == null || v.length < 8) ? 'Mindestens 8 Zeichen' : null,
+                validator: (v) =>
+                    (v == null || v.length < 8) ? 'Mindestens 8 Zeichen' : null,
               ),
               const SizedBox(height: 24),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  child: Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
                 ),
               FilledButton(
                 onPressed: _submitting ? null : _submit,

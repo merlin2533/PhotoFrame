@@ -43,11 +43,14 @@ class TokenRefreshInterceptor extends Interceptor {
     _handle(err, handler);
   }
 
-  Future<void> _handle(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> _handle(
+      DioException err, ErrorInterceptorHandler handler) async {
     final statusCode = err.response?.statusCode;
     final isAuthEndpoint = err.requestOptions.path.contains('/auth/');
     final hadBearerToken =
-        (err.requestOptions.headers['Authorization'] as String?)?.startsWith('Bearer ') ?? false;
+        (err.requestOptions.headers['Authorization'] as String?)
+                ?.startsWith('Bearer ') ??
+            false;
 
     if (statusCode != 401 || isAuthEndpoint || !hadBearerToken) {
       handler.next(err);
@@ -71,7 +74,8 @@ class TokenRefreshInterceptor extends Interceptor {
   }
 
   Future<String?> _refresh() {
-    return _refreshInFlight ??= _doRefresh().whenComplete(() => _refreshInFlight = null);
+    return _refreshInFlight ??=
+        _doRefresh().whenComplete(() => _refreshInFlight = null);
   }
 
   Future<String?> _doRefresh() async {

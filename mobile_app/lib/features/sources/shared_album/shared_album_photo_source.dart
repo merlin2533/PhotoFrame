@@ -52,10 +52,12 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
   final Directory? _cacheDirectory;
   final Uuid _uuid;
 
-  PhotoFolder get _rootFolder => PhotoFolder(id: _pairingId, name: displayName, path: '/');
+  PhotoFolder get _rootFolder =>
+      PhotoFolder(id: _pairingId, name: displayName, path: '/');
 
   @override
-  Future<Result<ConnectionStatus>> testConnection({Duration timeout = const Duration(seconds: 8)}) async {
+  Future<Result<ConnectionStatus>> testConnection(
+      {Duration timeout = const Duration(seconds: 8)}) async {
     final stopwatch = Stopwatch()..start();
     final result = await _api.getPairing(_pairingId);
     stopwatch.stop();
@@ -63,21 +65,25 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
       (pairing) => Result.ok(ConnectionStatus(
         reachable: true,
         latency: stopwatch.elapsed,
-        detail: 'shared album "${pairing.name}" (${pairing.members.length} members)',
+        detail:
+            'shared album "${pairing.name}" (${pairing.members.length} members)',
       )),
-      (failure) => Result.ok(ConnectionStatus(reachable: false, detail: failure.message)),
+      (failure) => Result.ok(
+          ConnectionStatus(reachable: false, detail: failure.message)),
     );
   }
 
   @override
-  Stream<Result<PhotoFolder>> listFolders({PhotoFolder? parent, CancellationToken? token}) async* {
+  Stream<Result<PhotoFolder>> listFolders(
+      {PhotoFolder? parent, CancellationToken? token}) async* {
     if (parent != null) return; // flat structure - see class doc comment.
     token?.throwIfCancelled();
     yield Result.ok(_rootFolder);
   }
 
   @override
-  Stream<Result<PhotoItem>> listImages(PhotoFolder folder, {bool recursive = true, CancellationToken? token}) async* {
+  Stream<Result<PhotoItem>> listImages(PhotoFolder folder,
+      {bool recursive = true, CancellationToken? token}) async* {
     if (folder.id != _pairingId) {
       yield Result.err(NotFound('Unknown shared-album folder: ${folder.id}'));
       return;
@@ -105,24 +111,29 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
         // images (it strips EXIF on ingest) - upload time is the closest
         // available signal and is used consistently for sort/dedupe here.
         takenAt: image.uploadedAt,
-        size: 0, // not reported by GET /images/pairing/:id - unknown until fetched.
+        size:
+            0, // not reported by GET /images/pairing/:id - unknown until fetched.
         mtime: image.uploadedAt,
       ));
     }
   }
 
   @override
-  Future<Result<File>> fetchToCache(PhotoItem item, {CancellationToken? token}) async {
+  Future<Result<File>> fetchToCache(PhotoItem item,
+      {CancellationToken? token}) async {
     token?.throwIfCancelled();
     try {
       final dir = _cacheDirectory ?? await getTemporaryDirectory();
-      final destination = File('${dir.path}${Platform.pathSeparator}shared_${item.id}.jpg');
+      final destination =
+          File('${dir.path}${Platform.pathSeparator}shared_${item.id}.jpg');
       if (await destination.exists()) {
         return Result.ok(destination);
       }
-      return _api.downloadImageToFile(imageId: item.id, destinationPath: destination.path);
+      return _api.downloadImageToFile(
+          imageId: item.id, destinationPath: destination.path);
     } catch (e) {
-      return Result.err(NetworkError('Failed to prepare cache destination', cause: e));
+      return Result.err(
+          NetworkError('Failed to prepare cache destination', cause: e));
     }
   }
 
@@ -143,7 +154,8 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
   bool get canUpload => true;
 
   @override
-  Future<Result<void>> uploadImage(File file, {PhotoFolder? targetFolder}) async {
+  Future<Result<void>> uploadImage(File file,
+      {PhotoFolder? targetFolder}) async {
     final clientUploadId = _uuid.v4();
     final result = await _api.uploadImage(
       pairingId: targetFolder?.id ?? _pairingId,

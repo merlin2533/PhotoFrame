@@ -108,6 +108,7 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
                 onShowInfo: widget.onShowInfo,
                 isFavorite: widget.isFavorite,
                 onToggleFavorite: () => _toggleFavorite(context),
+                onOpenSettings: widget.onOpenSettings,
               ),
             ),
         ],
@@ -124,8 +125,10 @@ class _ControlBar extends StatelessWidget {
     required this.onShowInfo,
     required this.isFavorite,
     required this.onToggleFavorite,
+    required this.onOpenSettings,
   });
 
+  final VoidCallback onOpenSettings;
   final bool isPaused;
   final VoidCallback onTogglePause;
   final VoidCallback onNext;
@@ -135,37 +138,49 @@ class _ControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // SafeArea keeps the bar above the system navigation bar / gesture area.
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
       color: Colors.black.withValues(alpha: 0.5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: Icon(isPaused ? Icons.play_arrow : Icons.pause,
-                color: Colors.white),
-            onPressed: onTogglePause,
-            tooltip: isPaused ? 'Weiter' : 'Pause',
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: Icon(isPaused ? Icons.play_arrow : Icons.pause,
+                    color: Colors.white),
+                onPressed: onTogglePause,
+                tooltip: isPaused ? 'Weiter' : 'Pause',
+              ),
+              IconButton(
+                icon: const Icon(Icons.skip_next, color: Colors.white),
+                onPressed: onNext,
+                tooltip: 'Nächstes Bild',
+              ),
+              IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorite ? Colors.redAccent : Colors.white,
+                ),
+                onPressed: onToggleFavorite,
+                tooltip:
+                    isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren',
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline, color: Colors.white),
+                onPressed: onShowInfo,
+                tooltip: 'Info',
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white),
+                onPressed: onOpenSettings,
+                tooltip: 'Einstellungen',
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.skip_next, color: Colors.white),
-            onPressed: onNext,
-            tooltip: 'Nächstes Bild',
-          ),
-          IconButton(
-            icon: Icon(
-              isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: isFavorite ? Colors.redAccent : Colors.white,
-            ),
-            onPressed: onToggleFavorite,
-            tooltip: isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren',
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline, color: Colors.white),
-            onPressed: onShowInfo,
-            tooltip: 'Info',
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -20,7 +20,8 @@ class WeatherSettingsScreen extends ConsumerStatefulWidget {
   const WeatherSettingsScreen({super.key});
 
   @override
-  ConsumerState<WeatherSettingsScreen> createState() => _WeatherSettingsScreenState();
+  ConsumerState<WeatherSettingsScreen> createState() =>
+      _WeatherSettingsScreenState();
 }
 
 class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
@@ -46,7 +47,8 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
       _error = null;
     });
     try {
-      final results = await ref.read(weatherClientProvider).searchLocations(query);
+      final results =
+          await ref.read(weatherClientProvider).searchLocations(query);
       if (!mounted) return;
       setState(() => _results = results);
     } catch (e) {
@@ -91,11 +93,13 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
       }
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() => _error = 'Standortdienste sind auf diesem Gerät deaktiviert.');
+        setState(() =>
+            _error = 'Standortdienste sind auf diesem Gerät deaktiviert.');
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.low),
       );
       await ref.read(settingsProvider.notifier).updateSettings(
             (s) => s.copyWith(
@@ -105,7 +109,8 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
             ),
           );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Standort konnte nicht ermittelt werden: $e');
+      if (mounted)
+        setState(() => _error = 'Standort konnte nicht ermittelt werden: $e');
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -129,7 +134,8 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
               title: const Text('Wetter-Overlay anzeigen'),
               subtitle: const Text('Temperatur + Wettersymbol in der Diashow'),
               value: settings.weatherEnabled,
-              onChanged: (v) => notifier.updateSettings((s) => s.copyWith(weatherEnabled: v)),
+              onChanged: (v) =>
+                  notifier.updateSettings((s) => s.copyWith(weatherEnabled: v)),
             ),
             const Divider(height: 32),
             Text('Ort', style: Theme.of(context).textTheme.titleMedium),
@@ -137,13 +143,16 @@ class _WeatherSettingsScreenState extends ConsumerState<WeatherSettingsScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.location_on_outlined),
-                title: Text(settings.weatherLocationLabel ?? 'Kein Ort ausgewählt'),
-                subtitle: settings.weatherLatitude != null && settings.weatherLongitude != null
+                title: Text(
+                    settings.weatherLocationLabel ?? 'Kein Ort ausgewählt'),
+                subtitle: settings.weatherLatitude != null &&
+                        settings.weatherLongitude != null
                     ? Text(
                         '${settings.weatherLatitude!.toStringAsFixed(2)}, '
                         '${settings.weatherLongitude!.toStringAsFixed(2)}',
                       )
-                    : const Text('Stadt suchen oder aktuellen Standort verwenden'),
+                    : const Text(
+                        'Stadt suchen oder aktuellen Standort verwenden'),
               ),
             ),
             const SizedBox(height: 16),

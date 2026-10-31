@@ -25,8 +25,7 @@ class CancellationToken {
 
   /// A token that can never be cancelled. Convenient default for call sites
   /// that don't need cancellation support.
-  static final CancellationToken never =
-      CancellationTokenSource().token;
+  static final CancellationToken never = CancellationTokenSource().token;
 }
 
 /// Owns a [CancellationToken] and controls when it becomes cancelled.

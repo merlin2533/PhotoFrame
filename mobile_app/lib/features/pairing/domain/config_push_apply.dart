@@ -30,11 +30,13 @@ Future<Result<void>> applyDecryptedConfigPush(
   try {
     final decoded = jsonDecode(plaintextJson);
     if (decoded is! Map<String, dynamic>) {
-      return Result.err(const Unsupported('Config-push payload is not a JSON object'));
+      return Result.err(
+          const Unsupported('Config-push payload is not a JSON object'));
     }
     payload = decoded;
   } on FormatException catch (e) {
-    return Result.err(Unsupported('Config-push payload is not valid JSON', cause: e));
+    return Result.err(
+        Unsupported('Config-push payload is not valid JSON', cause: e));
   }
 
   final type = payload['type'] as String?;
@@ -42,9 +44,11 @@ Future<Result<void>> applyDecryptedConfigPush(
     case 'smb':
       return _applySmb(payload, ref: ref, senderLabel: senderLabel);
     case null:
-      return Result.err(const Unsupported('Config-push payload is missing a "type" field'));
+      return Result.err(
+          const Unsupported('Config-push payload is missing a "type" field'));
     default:
-      return Result.err(Unsupported('Unsupported config-push payload type: "$type"'));
+      return Result.err(
+          Unsupported('Unsupported config-push payload type: "$type"'));
   }
 }
 
@@ -55,13 +59,16 @@ Future<Result<void>> _applySmb(
 }) async {
   final SmbSourceConfig config;
   try {
-    config = SmbSourceConfig.fromJson(payload, password: payload['password'] as String? ?? '');
+    config = SmbSourceConfig.fromJson(payload,
+        password: payload['password'] as String? ?? '');
   } catch (e) {
-    return Result.err(Unsupported('Malformed SMB config-push payload', cause: e));
+    return Result.err(
+        Unsupported('Malformed SMB config-push payload', cause: e));
   }
 
   if (config.host.isEmpty || config.share.isEmpty) {
-    return Result.err(const Unsupported('SMB config-push payload is missing "host"/"share"'));
+    return Result.err(
+        const Unsupported('SMB config-push payload is missing "host"/"share"'));
   }
 
   final id = ref.read(sourceIdGeneratorProvider).v4();
@@ -81,7 +88,8 @@ Future<Result<void>> _applySmb(
   try {
     await ref.read(sourcesProvider.notifier).add(source);
   } catch (e) {
-    return Result.err(Unsupported('Failed to register received SMB source', cause: e));
+    return Result.err(
+        Unsupported('Failed to register received SMB source', cause: e));
   }
 
   return Result.ok(null);

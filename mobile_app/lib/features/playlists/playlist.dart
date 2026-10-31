@@ -51,8 +51,7 @@ class PlaylistFilter {
   /// other filter fields - e.g. a future "nie wieder zeigen" feature.
   final Set<String> excludeIds;
 
-  bool get isNoOp =>
-      !favoritesOnly && dateRange == null && excludeIds.isEmpty;
+  bool get isNoOp => !favoritesOnly && dateRange == null && excludeIds.isEmpty;
 
   PlaylistFilter copyWith({
     bool? favoritesOnly,

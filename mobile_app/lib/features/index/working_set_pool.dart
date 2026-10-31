@@ -207,10 +207,12 @@ class InMemoryWorkingSetPool implements WorkingSetPool {
   bool get needsRefill => _entriesByKey.length < _targetSize;
 
   bool _isNewCandidate(MediaIndexEntry candidate, DateTime now) {
-    return now.difference(candidate.mtime).inDays <= WorkingSetPool.newItemMaxAgeDays;
+    return now.difference(candidate.mtime).inDays <=
+        WorkingSetPool.newItemMaxAgeDays;
   }
 
-  String _candidateKey(MediaIndexEntry candidate) => '${candidate.sourceId}::${candidate.path}';
+  String _candidateKey(MediaIndexEntry candidate) =>
+      '${candidate.sourceId}::${candidate.path}';
 
   void _admit(MediaIndexEntry candidate, DateTime now) {
     add(
@@ -243,7 +245,8 @@ class InMemoryWorkingSetPool implements WorkingSetPool {
     // "new" candidates where available (ceil so a small non-zero quota on a
     // small refill still reserves at least one slot rather than rounding
     // down to zero).
-    final reservedNewSlots = (slotsToFill * _newImageQuota).ceil().clamp(0, slotsToFill);
+    final reservedNewSlots =
+        (slotsToFill * _newImageQuota).ceil().clamp(0, slotsToFill);
 
     var added = 0;
     var newIndex = 0;
@@ -275,7 +278,9 @@ class InMemoryWorkingSetPool implements WorkingSetPool {
 
   @override
   int replaceExhausted(List<MediaIndexEntry> candidates) {
-    final exhausted = _entriesByKey.values.where((e) => e.shownCount >= 1).toList(growable: false);
+    final exhausted = _entriesByKey.values
+        .where((e) => e.shownCount >= 1)
+        .toList(growable: false);
     for (final entry in exhausted) {
       remove(entry.sourceId, entry.itemId);
     }
@@ -291,7 +296,8 @@ class InMemoryWorkingSetPool implements WorkingSetPool {
   }) {
     if (_entriesByKey.isEmpty) return false;
     if (currentInterval > shortIntervalThreshold) return false;
-    final shownCount = _entriesByKey.values.where((e) => e.shownCount >= 1).length;
+    final shownCount =
+        _entriesByKey.values.where((e) => e.shownCount >= 1).length;
     final shownFraction = shownCount / _entriesByKey.length;
     return shownFraction >= exhaustionThreshold;
   }
