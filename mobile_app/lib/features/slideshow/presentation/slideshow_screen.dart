@@ -367,11 +367,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
       // Prepare a small, screen-sized copy of every photo in batches of 100.
       unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
-        eligible,
+        (List<PhotoItem>.of(eligible)..shuffle()),
         {for (final s in sources) s.id: s},
       ));
 
-      final fresh = await _todaysSelection(eligible, settings.selectionCount);
+      final fresh = await _preferPrepared(
+        await _todaysSelection(eligible, settings.selectionCount),
+      );
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       bool kept(String sourceId, String itemId) =>
           failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
@@ -411,6 +413,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // Failures are ignored: the photo is fetched again when it is shown.
     unawaited(
         source.fetchToCache(item).then<void>((_) {}, onError: (Object _) {}));
+  }
+
+  /// Photos that already have a screen-sized copy come first: while copies are
+  /// still being prepared, the slideshow shows only those. Falls back to all
+  /// photos when none is ready yet.
+  Future<List<PhotoItem>> _preferPrepared(List<PhotoItem> items) async {
+    final cache = ref.read(smallPhotoCacheProvider);
+    final prepared = <PhotoItem>[];
+    for (final item in items) {
+      if (await cache.existing(item) != null) prepared.add(item);
+    }
+    return prepared.isEmpty ? items : prepared;
   }
 
   /// A photo that cannot be fetched (file removed, share offline) is taken out
@@ -458,10 +472,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           .toList();
       final List<PhotoItem> eligibleItems;
       if (indexed.isNotEmpty) {
-        eligibleItems = await _todaysSelection(
+        eligibleItems = await _preferPrepared(await _todaysSelection(
           _applyFavoritesFilter(indexed, settings, favorites),
           settings.selectionCount,
-        );
+        ));
       } else {
         eligibleItems = await _crawlEligible(
           sources,
