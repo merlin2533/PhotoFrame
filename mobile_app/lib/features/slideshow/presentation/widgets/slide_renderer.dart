@@ -5,10 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../cache/small_photo_cache.dart';
 import '../../../../core/utils/result.dart';
-import '../../../sources/domain/media_type.dart';
-
+import '../../../cache/small_photo_cache.dart';
 import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
 import '../../domain/slideshow_config.dart';

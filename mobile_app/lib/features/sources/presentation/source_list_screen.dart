@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../index/source_indexer.dart';
 import '../../settings/state/settings_providers.dart';
 import '../domain/photo_source.dart';
+import '../domain/uploadable_photo_source.dart';
 import '../nextcloud/nextcloud_photo_source.dart';
 import '../smb/smb_photo_source.dart';
-import '../domain/uploadable_photo_source.dart';
-import '../../index/source_indexer.dart';
 import '../state/source_stats.dart';
 import '../state/sources_providers.dart';
 
@@ -120,6 +120,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
       title: Text(widget.source.displayName),
       subtitle: Text([
         disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle(),
+        if (stats != null) _statsLine(stats),
         if (indexStatus != null) _indexLine(indexStatus),
       ].join('\n')),
       // Compact trailing: switch + overflow menu. Three separate icon buttons
@@ -192,8 +193,9 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
   /// Index status line: running count, finished count, or the error.
   String _indexLine(SourceIndexStatus status) {
     if (status.error != null) return 'Index-Fehler: ${status.error}';
-    if (status.running)
+    if (status.running) {
       return 'Index läuft … ${status.imageCount} Bilder gefunden';
+    }
     return 'Index: ${status.imageCount} Bilder';
   }
 

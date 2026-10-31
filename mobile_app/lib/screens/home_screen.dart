@@ -8,9 +8,9 @@ import 'package:go_router/go_router.dart';
 
 import '../features/cache/small_photo_cache.dart';
 import '../features/index/photo_index_store.dart';
+import '../features/settings/state/settings_providers.dart';
 import '../features/sources/domain/photo_source.dart';
 import '../features/sources/state/sources_providers.dart';
-import '../features/settings/state/settings_providers.dart';
 
 /// Start screen: a background photo from the index, the current status of
 /// sources, index and preparation, and the main actions.

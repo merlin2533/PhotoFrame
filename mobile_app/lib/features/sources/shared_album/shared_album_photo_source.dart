@@ -129,7 +129,7 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
       if (await destination.exists()) {
         return Result.ok(destination);
       }
-      return _api.downloadImageToFile(
+      return await _api.downloadImageToFile(
           imageId: item.id, destinationPath: destination.path);
     } catch (e) {
       return Result.err(
