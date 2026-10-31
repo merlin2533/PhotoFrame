@@ -93,7 +93,7 @@ class LocalFolderSource implements PhotoSource {
       if (path == null) return null;
       return (path: path, treeUri: result?['uri'] as String?);
     }
-    final path = await FilePicker.platform.getDirectoryPath(dialogTitle: dialogTitle);
+    final path = await FilePicker.getDirectoryPath(dialogTitle: dialogTitle);
     if (path == null) return null;
     return (path: path, treeUri: null);
   }

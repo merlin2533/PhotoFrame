@@ -48,7 +48,8 @@ class _SlideRendererState extends State<SlideRenderer> {
   @override
   void didUpdateWidget(covariant SlideRenderer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.sourceId != widget.item.sourceId || oldWidget.item.id != widget.item.id) {
+    if (oldWidget.item.sourceId != widget.item.sourceId ||
+        oldWidget.item.id != widget.item.id) {
       _load();
     }
   }
@@ -59,10 +60,16 @@ class _SlideRendererState extends State<SlideRenderer> {
     // directly, once per displayed item, which is enough to actually show
     // real photos and matches the app's current "resolve on demand" state
     // elsewhere in the engine.
-    _fileFuture = widget.source
-        .fetchToCache(widget.item)
-        .then((result) => result.valueOrNull)
-        .catchError((_) => null);
+    _fileFuture = widget.source.fetchToCache(widget.item).then((result) {
+      if (result.valueOrNull == null) {
+        debugPrint(
+            'Fetch failed for ${widget.item.id}: ${result.failureOrNull?.message}');
+      }
+      return result.valueOrNull;
+    }).catchError((Object e) {
+      debugPrint('Fetch threw for ${widget.item.id}: $e');
+      return null;
+    });
     // Trigger a rebuild once the fetch resolves even if didUpdateWidget's
     // caller doesn't naturally call setState again.
     _fileFuture!.whenComplete(() {
@@ -81,12 +88,14 @@ class _SlideRendererState extends State<SlideRenderer> {
             return Center(
               child: AspectRatio(
                 aspectRatio: _aspectRatio,
-                child: _PhotoImage(item: widget.item, file: file, fit: BoxFit.contain),
+                child: _PhotoImage(
+                    item: widget.item, file: file, fit: BoxFit.contain),
               ),
             );
           case DisplayMode.cover:
             return SizedBox.expand(
-              child: _PhotoImage(item: widget.item, file: file, fit: BoxFit.cover),
+              child:
+                  _PhotoImage(item: widget.item, file: file, fit: BoxFit.cover),
             );
           case DisplayMode.blurredBackdrop:
             return Stack(
@@ -94,12 +103,14 @@ class _SlideRendererState extends State<SlideRenderer> {
               children: [
                 ImageFiltered(
                   imageFilter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: _PhotoImage(item: widget.item, file: file, fit: BoxFit.cover),
+                  child: _PhotoImage(
+                      item: widget.item, file: file, fit: BoxFit.cover),
                 ),
                 Center(
                   child: AspectRatio(
                     aspectRatio: _aspectRatio,
-                    child: _PhotoImage(item: widget.item, file: file, fit: BoxFit.contain),
+                    child: _PhotoImage(
+                        item: widget.item, file: file, fit: BoxFit.contain),
                   ),
                 ),
               ],
@@ -122,7 +133,8 @@ class _SlideRendererState extends State<SlideRenderer> {
 /// back to a deterministic placeholder box so the slideshow never shows a
 /// hard error or a blank frame.
 class _PhotoImage extends StatelessWidget {
-  const _PhotoImage({required this.item, required this.file, required this.fit});
+  const _PhotoImage(
+      {required this.item, required this.file, required this.fit});
 
   final PhotoItem item;
   final File? file;

@@ -50,7 +50,7 @@ class AppSettingsController extends AsyncNotifier<AppSettings> {
     await prefs.setString(_prefsKey, jsonEncode(settings.toJson()));
   }
 
-  AppSettings get _current => state.valueOrNull ?? const AppSettings();
+  AppSettings get _current => state.value ?? const AppSettings();
 
   /// Applies [updater] to the current settings and persists the result.
   ///
@@ -100,15 +100,15 @@ int _fullLimitBytesFor(int totalLimitBytes) =>
 /// reason.
 final Provider<ImageCacheManager> imageCacheManagerProvider = Provider<ImageCacheManager>((ref) {
   final initialLimit =
-      ref.read(settingsProvider).valueOrNull?.cacheLimitBytes ?? const AppSettings().cacheLimitBytes;
+      ref.read(settingsProvider).value?.cacheLimitBytes ?? const AppSettings().cacheLimitBytes;
   final manager = ImageCacheManager(
     thumbnailLimitBytes: _thumbnailLimitBytesFor(initialLimit),
     fullLimitBytes: _fullLimitBytesFor(initialLimit),
   );
 
   ref.listen<AsyncValue<AppSettings>>(settingsProvider, (previous, next) {
-    final limit = next.valueOrNull?.cacheLimitBytes;
-    if (limit == null || limit == previous?.valueOrNull?.cacheLimitBytes) return;
+    final limit = next.value?.cacheLimitBytes;
+    if (limit == null || limit == previous?.value?.cacheLimitBytes) return;
     unawaited(manager.setLimitBytes(CacheTier.thumbnail, _thumbnailLimitBytesFor(limit)));
     unawaited(manager.setLimitBytes(CacheTier.full, _fullLimitBytesFor(limit)));
   });
@@ -145,7 +145,7 @@ final Provider<WeatherClient> weatherClientProvider = Provider<WeatherClient>((r
 });
 
 final Provider<CacheInfo> cacheInfoProvider = Provider<CacheInfo>((ref) {
-  final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
+  final settings = ref.watch(settingsProvider).value ?? const AppSettings();
   final manager = ref.watch(imageCacheManagerProvider);
   final usedBytes =
       manager.currentSizeBytes(CacheTier.thumbnail) + manager.currentSizeBytes(CacheTier.full);

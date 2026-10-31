@@ -39,7 +39,8 @@ class SlideshowEngine {
         _resolveItem = resolveItem,
         _config = config {
     if (pool.entries.isEmpty) {
-      throw ArgumentError.value(pool, 'pool', 'must not be empty to start a slideshow');
+      throw ArgumentError.value(
+          pool, 'pool', 'must not be empty to start a slideshow');
     }
     _shuffleBag = ShuffleBag<PoolEntry>(
       pool.entries,

@@ -105,7 +105,7 @@ void main() {
 
       expect(result.isOk, isTrue);
 
-      final sources = fixture.container.read(sourcesProvider).valueOrNull;
+      final sources = fixture.container.read(sourcesProvider).value;
       expect(sources, isNotNull);
       final added = sources!.where((s) => s.type == SourceType.smb).cast<SmbPhotoSource>().toList();
       expect(added, hasLength(1));
@@ -118,7 +118,7 @@ void main() {
 
     testWidgets('unknown payload type returns Unsupported without registering anything', (tester) async {
       final fixture = await _pumpFixture(tester);
-      final before = fixture.container.read(sourcesProvider).valueOrNull!.length;
+      final before = fixture.container.read(sourcesProvider).value!.length;
 
       final plaintext = jsonEncode({'type': 'nextcloud', 'host': 'example.com'});
 
@@ -126,7 +126,7 @@ void main() {
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
-      expect(fixture.container.read(sourcesProvider).valueOrNull!.length, before);
+      expect(fixture.container.read(sourcesProvider).value!.length, before);
     });
 
     testWidgets('missing type field returns Unsupported', (tester) async {

@@ -89,7 +89,8 @@ class AlwaysOnController {
     await _apply(now: now);
   }
 
-  Future<void> updateNightSchedule(NightSchedule schedule, {DateTime? now}) async {
+  Future<void> updateNightSchedule(NightSchedule schedule,
+      {DateTime? now}) async {
     _nightSchedule = schedule;
     await _apply(now: now);
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../sources/presentation/configured_sources_list.dart';
+
 /// Friendly full-screen state shown instead of the slideshow when no
 /// [PhotoSource] is configured yet (or the configured sources yielded no
 /// items), rather than a blank/black screen.
@@ -30,6 +32,8 @@ class EmptyStateView extends StatelessWidget {
                 'oder lass dich vom Setup-Guide durch die Einrichtung führen.',
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 16),
+              const ConfiguredSourcesList(),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () => context.push('/settings/sources/add'),

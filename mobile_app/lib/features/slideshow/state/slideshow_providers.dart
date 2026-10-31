@@ -16,7 +16,8 @@ import '../domain/always_on_controller.dart';
 /// slideshow is already running.
 final Provider<AlwaysOnController> alwaysOnControllerProvider =
     Provider<AlwaysOnController>((ref) {
-  final controller = AlwaysOnController(wakelock: const WakelockPlusController());
+  final controller =
+      AlwaysOnController(wakelock: const WakelockPlusController());
   ref.onDispose(() {
     unawaited(controller.dispose());
   });
@@ -24,7 +25,7 @@ final Provider<AlwaysOnController> alwaysOnControllerProvider =
   ref.listen<AsyncValue<AppSettings>>(
     settingsProvider,
     (previous, next) {
-      final settings = next.valueOrNull;
+      final settings = next.value;
       if (settings == null) return;
       unawaited(controller.updateMode(settings.alwaysOnMode));
       unawaited(controller.updateNightSchedule(settings.nightSchedule));

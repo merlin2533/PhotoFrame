@@ -48,8 +48,8 @@ class PairingRouteScreen extends ConsumerWidget {
     final storedPairingIdAsync = ref.watch(activePairingIdProvider);
     final localFrameIdAsync = ref.watch(localFrameIdProvider);
 
-    final pairingId = queryPairingId ?? storedPairingIdAsync.valueOrNull;
-    final localFrameId = localFrameIdAsync.valueOrNull;
+    final pairingId = queryPairingId ?? storedPairingIdAsync.value;
+    final localFrameId = localFrameIdAsync.value;
 
     if (storedPairingIdAsync.isLoading || localFrameIdAsync.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -66,7 +66,7 @@ class PairingRouteScreen extends ConsumerWidget {
       localFrameId: localFrameId,
       repository: repository,
       fingerprintStore: fingerprintStore,
-      socketClient: socketAsync.valueOrNull,
+      socketClient: socketAsync.value,
       onSendConfig: (targetFrameId) => context.push(
         '/settings/sharing/pairing/send?pairingId=$pairingId'
         '${targetFrameId != null ? '&targetFrameId=${Uri.encodeQueryComponent(targetFrameId)}' : ''}',

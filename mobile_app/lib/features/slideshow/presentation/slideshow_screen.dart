@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../services/kiosk/kiosk_mode_controller.dart';
+import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';
 import '../../settings/domain/app_settings.dart';
 import '../../settings/state/settings_providers.dart';
+import '../../sources/domain/photo_folder.dart';
 import '../../sources/domain/photo_item.dart';
 import '../../sources/domain/photo_source.dart';
 import '../../sources/state/sources_providers.dart';
@@ -49,6 +51,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   bool _loading = true;
   Object? _loadError;
   Timer? _nightTick;
+  Timer? _refreshTimer;
+  InMemoryWorkingSetPool? _pool;
+  final Map<String, PhotoItem> _itemsByKey = {};
+  bool _refreshing = false;
+
+  /// How often the sources are re-scanned for new/removed photos.
+  static const _refreshInterval = Duration(minutes: 15);
 
   // Resolved once in `initState` and reused in `dispose`, rather than
   // calling `ref.read(...)` again there: if this whole widget (and its
@@ -77,12 +86,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
     unawaited(_buildEngine());
-    _nightTick = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
+    _refreshTimer = Timer.periodic(
+        _refreshInterval, (_) => unawaited(_backgroundRefresh()));
+    _nightTick =
+        Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
   }
 
   @override
   void dispose() {
     _nightTick?.cancel();
+    _refreshTimer?.cancel();
     final engine = _engine;
     if (engine != null) {
       unawaited(_alwaysOnController.onSlideshowStopped());
@@ -90,6 +103,116 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       unawaited(engine.dispose());
     }
     super.dispose();
+  }
+
+  /// Crawls every source (one broken or hanging source must not block the
+  /// others) and applies the playlist filter. Problems are appended to
+  /// [errors].
+  Future<List<PhotoItem>> _crawlEligible(
+    List<PhotoSource> sources,
+    AppSettings settings,
+    FavoritesStore favorites,
+    List<String> errors,
+  ) async {
+    final allItems = <PhotoItem>[];
+    final seenKeys = <String>{};
+    void collect(PhotoItem item) {
+      if (seenKeys.add('${item.sourceId}::${item.id}')) allItems.add(item);
+    }
+
+    Future<void> crawl(PhotoSource source) async {
+      // `listFolders` only yields *sub*folders, so images lying directly in
+      // a source's root folder were never found before. Real sources get an
+      // extra non-recursive pass over their root; duplicates are dropped by
+      // `seenKeys`.
+      if (source.type == SourceType.local ||
+          source.type == SourceType.smb ||
+          source.type == SourceType.nextcloud) {
+        const root = PhotoFolder(id: '', name: '', path: '');
+        await for (final r in source.listImages(root, recursive: false)) {
+          final item = r.valueOrNull;
+          if (item != null) {
+            collect(item);
+          } else {
+            errors.add('${source.displayName}: ${r.failureOrNull?.message}');
+          }
+        }
+      }
+      await for (final folderResult in source.listFolders()) {
+        final folder = folderResult.valueOrNull;
+        if (folder == null) {
+          errors.add(
+              '${source.displayName}: ${folderResult.failureOrNull?.message}');
+          continue;
+        }
+        await for (final itemResult in source.listImages(folder)) {
+          final item = itemResult.valueOrNull;
+          if (item != null) {
+            collect(item);
+          } else {
+            errors.add(
+                '${source.displayName}: ${itemResult.failureOrNull?.message}');
+          }
+        }
+      }
+    }
+
+    for (final source in sources) {
+      try {
+        await crawl(source).timeout(const Duration(seconds: 90));
+      } catch (e) {
+        errors.add('${source.displayName}: $e');
+      }
+    }
+    if (errors.isNotEmpty) {
+      debugPrint('Slideshow crawl problems: ${errors.toSet().join(' | ')}');
+    }
+
+    // Playlist "favoritesOnly" filter mode: an additional mode on top of
+    // "everything from the configured sources"; a no-op when off.
+    return applyPlaylistFilter<PhotoItem>(
+      allItems,
+      PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode),
+      stableIdOf: (item) => item.stableId,
+      takenAtOf: (item) => item.takenAt,
+      isFavorite: favorites.isFavorite,
+    ).toList();
+  }
+
+  /// Re-crawls the sources in the background and merges the result into the
+  /// running engine's pool (new photos added, vanished ones dropped) without
+  /// interrupting the slideshow. A crawl that finds nothing (e.g. network
+  /// down) never wipes the current pool.
+  Future<void> _backgroundRefresh() async {
+    final engine = _engine;
+    final pool = _pool;
+    if (_refreshing || engine == null || pool == null) return;
+    _refreshing = true;
+    try {
+      final sources = await ref.read(sourcesProvider.future);
+      final settings =
+          ref.read(settingsProvider).value ?? const AppSettings();
+      final fresh = await _crawlEligible(
+          sources, settings, ref.read(favoritesStoreProvider), []);
+      if (!mounted || _engine != engine || fresh.isEmpty) return;
+      final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
+      for (final e in pool.entries) {
+        if (!freshKeys.contains(e.key)) pool.remove(e.sourceId, e.itemId);
+      }
+      for (final item in fresh) {
+        _itemsByKey['${item.sourceId}::${item.id}'] = item;
+        pool.add(PoolEntry(
+            sourceId: item.sourceId,
+            itemId: item.id,
+            addedToPoolAt: DateTime.now()));
+      }
+      _itemsByKey.removeWhere((k, _) => !freshKeys.contains(k));
+      if (pool.entries.isNotEmpty) engine.refreshPool(pool);
+    } catch (e) {
+      debugPrint('Background refresh failed: $e');
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _buildEngine() async {
@@ -103,42 +226,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // "loading failed" state instead of crashing unhandled.
       final sources = await ref.read(sourcesProvider.future);
       if (!mounted) return;
-      final settings = ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+      final settings =
+          ref.read(settingsProvider).value ?? const AppSettings();
       final favorites = ref.read(favoritesStoreProvider);
 
       final pool = InMemoryWorkingSetPool(targetSize: settings.poolTargetSize);
       final itemsByKey = <String, PhotoItem>{};
-      final sourcesById = <String, PhotoSource>{};
-      final allItems = <PhotoItem>[];
+      final sourcesById = {for (final s in sources) s.id: s};
+      final errors = <String>[];
 
-      for (final source in sources) {
-        sourcesById[source.id] = source;
-        await for (final folderResult in source.listFolders()) {
-          final folder = folderResult.valueOrNull;
-          if (folder == null) continue;
-          await for (final itemResult in source.listImages(folder)) {
-            final item = itemResult.valueOrNull;
-            if (item == null) continue;
-            allItems.add(item);
-          }
-        }
-      }
-
-      // Playlist "favoritesOnly" filter mode (see docs/PLAN.md playlist
-      // model and `AppSettings.favoritesOnlyMode`): an *additional* mode on
-      // top of the default "everything from the configured sources"
-      // behaviour below, not a replacement for it - when off,
-      // `applyPlaylistFilter` is a no-op and every crawled item is admitted
-      // exactly as before this feature.
-      final filter = PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode);
-      final eligibleItems = applyPlaylistFilter<PhotoItem>(
-        allItems,
-        filter,
-        stableIdOf: (item) => item.stableId,
-        takenAtOf: (item) => item.takenAt,
-        isFavorite: favorites.isFavorite,
-      );
-
+      final eligibleItems =
+          await _crawlEligible(sources, settings, favorites, errors);
       for (final item in eligibleItems) {
         itemsByKey['${item.sourceId}::${item.id}'] = item;
         pool.add(PoolEntry(
@@ -151,14 +249,24 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (!mounted) return;
 
       if (pool.entries.isEmpty) {
-        setState(() => _loading = false);
+        setState(() {
+          _loadError = errors.isEmpty ? null : errors.toSet().join('\n');
+          _loading = false;
+        });
         return;
       }
 
+      // Must be filled before `engine.start()`: it resolves the first item
+      // through `_itemsByKey` immediately.
+      _pool = pool;
+      _itemsByKey
+        ..clear()
+        ..addAll(itemsByKey);
       final engine = SlideshowEngine(
         pool: pool,
         sources: sourcesById,
-        resolveItem: (entry) async => itemsByKey['${entry.sourceId}::${entry.itemId}'],
+        resolveItem: (entry) async =>
+            _itemsByKey['${entry.sourceId}::${entry.itemId}'],
         config: settings.toSlideshowConfig(),
       );
       await engine.start();
@@ -216,15 +324,40 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           'Aufgenommen: ${item.takenAt ?? 'unbekannt'}',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Schließen')),
         ],
       ),
     );
   }
 
+  /// Opens the settings and, once they are closed again, rebuilds the engine
+  /// so added/removed sources and changed pool/filter settings take effect
+  /// (the engine used to be built exactly once). The slideshow is paused
+  /// while the settings are open instead of silently fetching in the
+  /// background.
+  Future<void> _pushSettings() async {
+    _engine?.stop();
+    await context.push('/settings');
+    if (!mounted) return;
+    final old = _engine;
+    setState(() {
+      _engine = null;
+      _loadError = null;
+      _paused = false;
+      _loading = true;
+    });
+    if (old != null) {
+      unawaited(_alwaysOnController.onSlideshowStopped());
+      await old.dispose();
+    }
+    if (mounted) await _buildEngine();
+  }
+
   Future<void> _openSettings(String? pin) async {
     if (pin == null || pin.isEmpty) {
-      if (mounted) unawaited(context.push('/settings'));
+      if (mounted) unawaited(_pushSettings());
       return;
     }
     final controller = TextEditingController();
@@ -252,7 +385,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       ),
     );
     if (ok == true && mounted) {
-      unawaited(context.push('/settings'));
+      unawaited(_pushSettings());
     } else if (ok == false && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Falscher PIN')),
@@ -265,26 +398,99 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     final settingsAsync = ref.watch(settingsProvider);
 
     if (_loading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const Center(child: CircularProgressIndicator()),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(
+                child: IconButton(
+                  tooltip: 'Einstellungen',
+                  color: Colors.white70,
+                  icon: const Icon(Icons.settings),
+                  onPressed: () =>
+                      _openSettings(settingsAsync.value?.settingsPin),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
     if (_loadError != null) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: Text('Fehler beim Laden der Diashow: $_loadError',
-              style: const TextStyle(color: Colors.white70)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Fehler beim Laden der Diashow:\n$_loadError',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70)),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _loadError = null;
+                      _loading = true;
+                    });
+                    unawaited(_buildEngine());
+                  },
+                  child: const Text('Erneut versuchen'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () =>
+                      _openSettings(settingsAsync.value?.settingsPin),
+                  child: const Text('Einstellungen'),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
     final engine = _engine;
     if (engine == null) {
-      return const EmptyStateView();
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          const EmptyStateView(),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Neu laden',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      setState(() => _loading = true);
+                      unawaited(_buildEngine());
+                    },
+                  ),
+                  IconButton(
+                    tooltip: 'Einstellungen',
+                    icon: const Icon(Icons.settings),
+                    onPressed: () =>
+                        _openSettings(settingsAsync.value?.settingsPin),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
     }
 
-    final settings = settingsAsync.valueOrNull ?? const AppSettings();
+    final settings = settingsAsync.value ?? const AppSettings();
     final isNight = settings.nightSchedule.isNightAt(DateTime.now());
     final favorites = ref.watch(favoritesStoreProvider);
 
@@ -318,7 +524,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
               reduceMotion: reduceMotion,
             );
 
-            final itemSource = item == null ? null : _sourcesById[item.sourceId];
+            final itemSource =
+                item == null ? null : _sourcesById[item.sourceId];
             Widget slide = (item == null || itemSource == null)
                 ? const SizedBox.shrink(key: ValueKey('empty'))
                 : SlideRenderer(
@@ -393,7 +600,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                 if (isNight)
                   IgnorePointer(
                     child: Container(
-                      color: Colors.black.withValues(alpha: settings.nightSchedule.dimAmount),
+                      color: Colors.black
+                          .withValues(alpha: settings.nightSchedule.dimAmount),
                     ),
                   ),
               ],

@@ -187,7 +187,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      final sources = container.read(sourcesProvider).valueOrNull ?? const <PhotoSource>[];
+      final sources = container.read(sourcesProvider).value ?? const <PhotoSource>[];
       expect(sources.any((s) => s.id == 'src-smb-2'), isFalse);
       expect(backing.containsKey('source_cred_src-smb-2_password'), isFalse);
 

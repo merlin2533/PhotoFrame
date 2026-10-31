@@ -28,7 +28,7 @@ class SourceListScreen extends ConsumerWidget {
         // Deliberately disabled while sourcesProvider isn't in a Data state
         // (still loading, or - critically - failed to load): SourcesController
         // persists the *entire* source list on every add()/removeById(), read
-        // from `state.valueOrNull ?? []`. Reaching "Quelle hinzufügen" while
+        // from `state.value ?? []`. Reaching "Quelle hinzufügen" while
         // the provider is in AsyncLoading/AsyncError would make add() treat
         // the not-yet-loaded (or unrecoverably failed) list as empty and
         // overwrite every previously configured source's persisted

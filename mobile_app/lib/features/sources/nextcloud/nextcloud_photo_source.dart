@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart' show DioException, DioExceptionType;
+import 'package:dio/io.dart' show IOHttpClientAdapter;
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 import '../../../core/errors/failure.dart';
@@ -167,11 +168,17 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   int get unsupportedCount => _unsupportedCount;
 
   webdav.Client _buildClient(NextcloudSourceConfig config) {
-    return webdav.newClient(
+    final client = webdav.newClient(
       config.davBaseUrl,
       user: config.authUsername,
       password: config.authPassword,
     );
+    // Self-hosted Nextcloud instances often use self-signed or otherwise
+    // invalid certificates; the user explicitly chose to accept those.
+    client.c.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () => HttpClient()..badCertificateCallback = (cert, host, port) => true,
+    );
+    return client;
   }
 
   void _checkNotDisposed() {
@@ -215,7 +222,13 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
       if (status == 507 || status == 413) {
         return QuotaExceeded('$context: quota/size limit exceeded (HTTP $status)', cause: e);
       }
-      return NetworkError('$context failed (HTTP ${status ?? '?'})', cause: e);
+      if (e.type == DioExceptionType.connectionError) {
+        return NetworkError('$context: server unreachable (${e.error ?? 'connection error'})', cause: e);
+      }
+      if (e.type == DioExceptionType.badCertificate) {
+        return NetworkError('$context: invalid TLS certificate', cause: e);
+      }
+      return NetworkError('$context failed (HTTP ${status ?? '?'}${e.message != null ? ', ${e.message}' : ''})', cause: e);
     }
     if (e is TimeoutException) {
       return Timeout('$context timed out', cause: e);

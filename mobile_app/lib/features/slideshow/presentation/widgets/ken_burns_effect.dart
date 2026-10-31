@@ -46,10 +46,12 @@ class _KenBurnsEffectState extends State<KenBurnsEffect>
     super.initState();
     // Guard against a pathologically short/zero interval making the zoom
     // imperceptible or the controller misbehave.
-    final effectiveDuration =
-        widget.duration < const Duration(seconds: 2) ? const Duration(seconds: 8) : widget.duration;
+    final effectiveDuration = widget.duration < const Duration(seconds: 2)
+        ? const Duration(seconds: 8)
+        : widget.duration;
 
-    _controller = AnimationController(vsync: this, duration: effectiveDuration)..forward();
+    _controller = AnimationController(vsync: this, duration: effectiveDuration)
+      ..forward();
 
     _scale = Tween<double>(begin: _minZoom, end: _maxZoom).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),

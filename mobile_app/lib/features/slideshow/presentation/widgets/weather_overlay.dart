@@ -62,7 +62,8 @@ class WeatherOverlayContent extends ConsumerStatefulWidget {
   const WeatherOverlayContent({super.key});
 
   @override
-  ConsumerState<WeatherOverlayContent> createState() => _WeatherOverlayContentState();
+  ConsumerState<WeatherOverlayContent> createState() =>
+      _WeatherOverlayContentState();
 }
 
 class _WeatherOverlayContentState extends ConsumerState<WeatherOverlayContent> {
@@ -75,7 +76,8 @@ class _WeatherOverlayContentState extends ConsumerState<WeatherOverlayContent> {
   @override
   void initState() {
     super.initState();
-    _refreshTimer = Timer.periodic(const Duration(minutes: 30), (_) => _fetch());
+    _refreshTimer =
+        Timer.periodic(const Duration(minutes: 30), (_) => _fetch());
   }
 
   @override
@@ -85,7 +87,7 @@ class _WeatherOverlayContentState extends ConsumerState<WeatherOverlayContent> {
   }
 
   Future<void> _fetch() async {
-    final settings = ref.read(settingsProvider).valueOrNull;
+    final settings = ref.read(settingsProvider).value;
     final lat = settings?.weatherLatitude;
     final lon = settings?.weatherLongitude;
     if (lat == null || lon == null) return;
@@ -102,7 +104,7 @@ class _WeatherOverlayContentState extends ConsumerState<WeatherOverlayContent> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider).valueOrNull;
+    final settings = ref.watch(settingsProvider).value;
     final lat = settings?.weatherLatitude;
     final lon = settings?.weatherLongitude;
 
@@ -121,7 +123,8 @@ class _WeatherOverlayContentState extends ConsumerState<WeatherOverlayContent> {
     final weather = _weather;
     if (weather == null) {
       if (_error != null) {
-        return const Icon(Icons.cloud_off_rounded, color: Colors.white70, size: 18);
+        return const Icon(Icons.cloud_off_rounded,
+            color: Colors.white70, size: 18);
       }
       return const SizedBox(
         width: 14,

@@ -31,7 +31,7 @@ final Provider<KeyFingerprintStore> keyFingerprintStoreProvider =
 /// clear "set up a relay server first" hint instead of the app crashing on
 /// an unconfigured feature.
 final Provider<RelayApiClient?> relayApiClientProvider = Provider<RelayApiClient?>((ref) {
-  final relayServerUrl = ref.watch(settingsProvider.select((s) => s.valueOrNull?.relayServerUrl));
+  final relayServerUrl = ref.watch(settingsProvider.select((s) => s.value?.relayServerUrl));
   if (relayServerUrl == null || relayServerUrl.isEmpty) return null;
   final tokenStorage = ref.watch(relayTokenStorageProvider);
   return RelayApiClient(baseUrl: relayServerUrl, tokenStorage: tokenStorage);
@@ -139,7 +139,7 @@ class _ConfigPushListenerState extends ConsumerState<ConfigPushListener> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<RelaySocketClient?>>(relaySocketClientProvider, (previous, next) {
-      final client = next.valueOrNull;
+      final client = next.value;
       if (identical(client, _attachedClient)) return;
       _subscription?.cancel();
       _attachedClient = client;

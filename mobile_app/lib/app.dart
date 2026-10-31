@@ -90,7 +90,7 @@ class _RoutedAppState extends ConsumerState<_RoutedApp> {
 
   @override
   Widget build(BuildContext context) {
-    final languageCode = ref.watch(settingsProvider.select((s) => s.valueOrNull?.languageCode));
+    final languageCode = ref.watch(settingsProvider.select((s) => s.value?.languageCode));
 
     return MaterialApp.router(
       title: 'PhotoFrame',
