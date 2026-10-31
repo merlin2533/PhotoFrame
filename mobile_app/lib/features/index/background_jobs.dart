@@ -73,14 +73,7 @@ class BackgroundJobs extends Notifier<bool> {
   Future<void> _refreshSource(PhotoSource source, PhotoIndexStore store) async {
     try {
       final items = await crawlSource(source);
-      final snapshot = await store.load();
-      await store.save(
-        [
-          ...snapshot.items.where((i) => i.sourceId != source.id),
-          ...items,
-        ],
-        savedAt: snapshot.items.isEmpty ? DateTime.now() : snapshot.savedAt,
-      );
+      await store.merge(items, replacing: {source.id});
     } catch (_) {
       // A failing source keeps its saved photos.
     }

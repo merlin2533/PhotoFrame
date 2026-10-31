@@ -69,6 +69,34 @@ class PhotoIndexStore {
     }
   }
 
+  /// Every read-modify-write of the index goes through this queue. Without it,
+  /// two jobs (for example a single-source build and the background refresh)
+  /// load the same snapshot and the later save drops the other's photos.
+  static Future<void> _queue = Future<void>.value();
+
+  /// Replaces the saved photos of the sources in [replacing] with [fresh] and
+  /// keeps everything else. The saved date is kept, so the refresh schedule is
+  /// unchanged, unless the index was empty before.
+  Future<void> merge(
+    List<PhotoItem> fresh, {
+    required Set<String> replacing,
+  }) {
+    final run = _queue.then((_) async {
+      final snapshot = await load();
+      final kept = snapshot.items.where((i) => !replacing.contains(i.sourceId));
+      final merged = <String, PhotoItem>{
+        for (final i in kept) '${i.sourceId}::${i.id}': i,
+        for (final i in fresh) '${i.sourceId}::${i.id}': i,
+      };
+      await save(
+        merged.values.toList(),
+        savedAt: snapshot.items.isEmpty ? DateTime.now() : snapshot.savedAt,
+      );
+    });
+    _queue = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
+  }
+
   /// Forgets the saved index, so the next load triggers a full crawl.
   Future<void> clear() =>
       save(const [], savedAt: DateTime.fromMillisecondsSinceEpoch(0));

@@ -239,10 +239,14 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         !(failedSourceIds?.contains(source.id) ?? false),
         List.of(allItems),
       );
-      ref.read(sourceStatsProvider.notifier).record(
-            source.id,
-            allItems.where((item) => item.sourceId == source.id).length,
-          );
+      // The screen may already be gone while a background crawl runs; `ref` must
+      // not be used then.
+      if (mounted) {
+        ref.read(sourceStatsProvider.notifier).record(
+              source.id,
+              allItems.where((item) => item.sourceId == source.id).length,
+            );
+      }
     }
     if (errors.isNotEmpty) {
       debugPrint('Slideshow crawl problems: ${errors.toSet().join(' | ')}');
@@ -332,14 +336,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         // Sources that succeeded in this crawl; everything else keeps its saved
         // photos.
         final succeeded = <String>{};
-        Future<void> persist(List<PhotoItem> soFar) async {
-          final merged = <String, PhotoItem>{
-            for (final i in snapshot.items)
-              if (!succeeded.contains(i.sourceId)) '${i.sourceId}::${i.id}': i,
-            for (final i in soFar) '${i.sourceId}::${i.id}': i,
-          };
-          await store.save(merged.values.toList());
-        }
+        Future<void> persist(List<PhotoItem> soFar) =>
+            store.merge(soFar, replacing: succeeded);
 
         // No timeout here: large network shares can take minutes.
         final crawled = await _crawlEligible(
