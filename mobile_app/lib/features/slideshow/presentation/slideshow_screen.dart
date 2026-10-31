@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
+import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -193,7 +194,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
               '${source.displayName}: ${folderResult.failureOrNull?.message}');
         }
       }
-      folders.shuffle(Random());
+      folders.shuffle(math.Random());
       for (final folder in folders) {
         if (full()) break;
         await for (final itemResult in source.listImages(folder)) {
@@ -504,6 +505,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     setState(() => _paused = !_paused);
   }
 
+  /// The photos for a 2x2 grid: the current one plus three more from the
+  /// pool, chosen deterministically from the current photo so the grid does
+  /// not flicker while it is shown.
+  List<PhotoItem> _gridItems(PhotoItem first) {
+    final others = _itemsByKey.values
+        .where((i) => i.stableId != first.stableId)
+        .toList()
+      ..shuffle(math.Random(first.stableId.hashCode));
+    if (others.length < 3) return [first];
+    return [first, ...others.take(3)];
+  }
+
   void _previous() {
     final engine = _engine;
     if (engine != null) unawaited(engine.showPrevious());
@@ -731,12 +744,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                 item == null ? null : _sourcesById[item.sourceId];
             Widget slide = (item == null || itemSource == null)
                 ? const SizedBox.shrink(key: ValueKey('empty'))
-                : SlideRenderer(
-                    item: item,
-                    source: itemSource,
-                    displayMode: settings.displayMode,
-                    onUnavailable: () => _skipUnavailable(item),
-                  );
+                : settings.slideLayout == SlideLayout.grid2x2
+                    ? _GridSlide(
+                        items: _gridItems(item),
+                        sourcesById: _sourcesById,
+                        displayMode: settings.displayMode,
+                      )
+                    : SlideRenderer(
+                        item: item,
+                        source: itemSource,
+                        displayMode: settings.displayMode,
+                        onUnavailable: () => _skipUnavailable(item),
+                      );
             if (item != null && effective.kenBurnsEnabled) {
               slide = KenBurnsEffect(
                 key: ValueKey(item.id),
@@ -778,6 +797,38 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                             parent: animation,
                             curve: Curves.easeOutCubic,
                           )),
+                          child: child,
+                        );
+                      case SlideshowTransition.blurFade:
+                        // Fades in while sharpening from a blurred start.
+                        return FadeTransition(
+                          opacity: animation,
+                          child: AnimatedBuilder(
+                            animation: animation,
+                            builder: (context, child) => ImageFiltered(
+                              imageFilter: ImageFilter.blur(
+                                sigmaX: (1 - animation.value) * 18,
+                                sigmaY: (1 - animation.value) * 18,
+                              ),
+                              child: child,
+                            ),
+                            child: child,
+                          ),
+                        );
+                      case SlideshowTransition.flip:
+                        // Turns around the vertical axis, like a card.
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) {
+                            final angle = (1 - animation.value) * math.pi / 2;
+                            return Transform(
+                              alignment: Alignment.center,
+                              transform: Matrix4.identity()
+                                ..setEntry(3, 2, 0.001)
+                                ..rotateY(angle),
+                              child: child,
+                            );
+                          },
                           child: child,
                         );
                       case SlideshowTransition.zoom:
@@ -877,5 +928,64 @@ class _InfoBarDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(width: 1, height: 16, color: Colors.white38);
+  }
+}
+
+/// Four photos in a 2x2 grid, each cropped to fill its cell.
+class _GridSlide extends StatelessWidget {
+  const _GridSlide({
+    required this.items,
+    required this.sourcesById,
+    required this.displayMode,
+  });
+
+  final List<PhotoItem> items;
+  final Map<String, PhotoSource> sourcesById;
+  final DisplayMode displayMode;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.length < 4) {
+      final only = items.first;
+      final source = sourcesById[only.sourceId];
+      if (source == null) return const SizedBox.shrink();
+      return SlideRenderer(
+          item: only, source: source, displayMode: displayMode);
+    }
+    Widget cell(PhotoItem item) {
+      final source = sourcesById[item.sourceId];
+      if (source == null) return const ColoredBox(color: Colors.black);
+      return ClipRect(
+        child: SlideRenderer(
+          key: ValueKey('grid-${item.stableId}'),
+          item: item,
+          source: source,
+          displayMode: DisplayMode.cover,
+        ),
+      );
+    }
+
+    return ColoredBox(
+      color: Colors.black,
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(children: [
+              Expanded(child: cell(items[0])),
+              const SizedBox(width: 4),
+              Expanded(child: cell(items[1])),
+            ]),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Row(children: [
+              Expanded(child: cell(items[2])),
+              const SizedBox(width: 4),
+              Expanded(child: cell(items[3])),
+            ]),
+          ),
+        ],
+      ),
+    );
   }
 }
