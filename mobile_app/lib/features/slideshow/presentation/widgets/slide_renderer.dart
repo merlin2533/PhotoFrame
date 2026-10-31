@@ -3,6 +3,11 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../cache/small_photo_cache.dart';
+import '../../../../core/utils/result.dart';
+import '../../../sources/domain/media_type.dart';
 
 import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
@@ -20,7 +25,7 @@ import '../../domain/slideshow_config.dart';
 /// `MockPhotoSource`'s test bytes, a corrupt file, or a HEIC/format Flutter's
 /// codec can't decode) falls back to the same placeholder box via
 /// `Image.file`'s `errorBuilder`, instead of that being the *only* code path.
-class SlideRenderer extends StatefulWidget {
+class SlideRenderer extends ConsumerStatefulWidget {
   const SlideRenderer({
     super.key,
     required this.item,
@@ -37,10 +42,10 @@ class SlideRenderer extends StatefulWidget {
   final DisplayMode displayMode;
 
   @override
-  State<SlideRenderer> createState() => _SlideRendererState();
+  ConsumerState<SlideRenderer> createState() => _SlideRendererState();
 }
 
-class _SlideRendererState extends State<SlideRenderer> {
+class _SlideRendererState extends ConsumerState<SlideRenderer> {
   Future<File?>? _fileFuture;
   String? _fetchError;
 
@@ -65,7 +70,7 @@ class _SlideRendererState extends State<SlideRenderer> {
     // directly, once per displayed item, which is enough to actually show
     // real photos and matches the app's current "resolve on demand" state
     // elsewhere in the engine.
-    _fileFuture = widget.source.fetchToCache(widget.item).then((result) {
+    _fileFuture = _resolve().then((result) {
       if (result.valueOrNull == null) {
         _fetchError = result.failureOrNull?.message;
         widget.onUnavailable?.call();
@@ -82,6 +87,13 @@ class _SlideRendererState extends State<SlideRenderer> {
     _fileFuture!.whenComplete(() {
       if (mounted) setState(() {});
     });
+  }
+
+  /// A prepared small file wins over a fresh download (see SmallPhotoCache).
+  Future<Result<File>> _resolve() async {
+    final small = await ref.read(smallPhotoCacheProvider).existing(widget.item);
+    if (small != null) return Result.ok(small);
+    return widget.source.fetchToCache(widget.item);
   }
 
   @override

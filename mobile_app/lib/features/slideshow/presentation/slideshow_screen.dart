@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
+import '../../cache/small_photo_cache.dart';
 import '../../index/photo_index_store.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';
@@ -365,6 +366,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         );
       }
       if (!mounted || _engine != engine || eligible.isEmpty) return;
+
+      // Prepare a small, screen-sized copy of every photo in batches of 100.
+      unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
+        eligible,
+        {for (final s in sources) s.id: s},
+      ));
 
       final fresh = await _todaysSelection(eligible, settings.selectionCount);
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
@@ -771,6 +778,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           if (item != null) _showInfo(item);
         },
         onOpenSettings: () => _openSettings(settings.settingsPin),
+        onHome: () => context.go('/'),
         isFavorite: engine.currentItem != null &&
             favorites.isFavorite(engine.currentItem!.stableId),
         onToggleFavorite: engine.currentItem == null

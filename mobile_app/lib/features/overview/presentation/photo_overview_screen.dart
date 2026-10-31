@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../cache/small_photo_cache.dart';
 import '../../index/photo_index_store.dart';
 import '../../sources/domain/photo_item.dart';
 import '../../sources/domain/photo_source.dart';
@@ -165,14 +166,14 @@ File? _localFile(PhotoSource? source, PhotoItem item) {
   return File('$root${Platform.pathSeparator}${item.id}');
 }
 
-class _Thumb extends StatelessWidget {
+class _Thumb extends ConsumerWidget {
   const _Thumb({required this.item, required this.source});
 
   final PhotoItem item;
   final PhotoSource? source;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final file = _localFile(source, item);
     if (file != null) {
       return Image.file(
@@ -182,7 +183,20 @@ class _Thumb extends StatelessWidget {
         errorBuilder: (_, __, ___) => _Placeholder(name: item.name),
       );
     }
-    return _Placeholder(name: item.name);
+    // Network photos: show the prepared small file once it exists.
+    return FutureBuilder<File?>(
+      future: ref.read(smallPhotoCacheProvider).existing(item),
+      builder: (context, snapshot) {
+        final small = snapshot.data;
+        if (small == null) return _Placeholder(name: item.name);
+        return Image.file(
+          small,
+          fit: BoxFit.cover,
+          cacheWidth: 240,
+          errorBuilder: (_, __, ___) => _Placeholder(name: item.name),
+        );
+      },
+    );
   }
 }
 
