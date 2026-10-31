@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
+import 'package:mobile_app/features/index/photo_index_store.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/slide_renderer.dart';
@@ -80,6 +81,10 @@ void main() {
           kioskModeControllerProvider
               .overrideWithValue(_FakeKioskModeController()),
           networkCacheCleanerProvider.overrideWithValue(() async {}),
+          photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
+            read: () async => null,
+            write: (_) async {},
+          )),
         ],
       ),
     );
@@ -123,6 +128,10 @@ void main() {
           ),
           kioskModeControllerProvider.overrideWithValue(kiosk),
           networkCacheCleanerProvider.overrideWithValue(() async {}),
+          photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
+            read: () async => null,
+            write: (_) async {},
+          )),
         ],
         child: MaterialApp(
           home: ValueListenableBuilder<bool>(
