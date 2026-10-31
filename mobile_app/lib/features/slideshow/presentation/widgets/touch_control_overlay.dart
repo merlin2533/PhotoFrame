@@ -25,6 +25,7 @@ class TouchControlOverlay extends StatefulWidget {
     required this.onNext,
     required this.onShowInfo,
     required this.onOpenSettings,
+    this.onHome,
     this.onPrevious,
     this.isFavorite = false,
     this.onToggleFavorite,
@@ -36,6 +37,9 @@ class TouchControlOverlay extends StatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onShowInfo;
   final VoidCallback onOpenSettings;
+
+  /// Back to the start screen.
+  final VoidCallback? onHome;
 
   /// Swipe right: back to the previous photo.
   final VoidCallback? onPrevious;
@@ -127,6 +131,7 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
                 isFavorite: widget.isFavorite,
                 onToggleFavorite: () => _toggleFavorite(context),
                 onOpenSettings: widget.onOpenSettings,
+                onHome: widget.onHome,
               ),
             ),
         ],
@@ -144,9 +149,11 @@ class _ControlBar extends StatelessWidget {
     required this.isFavorite,
     required this.onToggleFavorite,
     required this.onOpenSettings,
+    this.onHome,
   });
 
   final VoidCallback onOpenSettings;
+  final VoidCallback? onHome;
   final bool isPaused;
   final VoidCallback onTogglePause;
   final VoidCallback onNext;
@@ -190,6 +197,11 @@ class _ControlBar extends StatelessWidget {
                 icon: const Icon(Icons.info_outline, color: Colors.white),
                 onPressed: onShowInfo,
                 tooltip: 'Info',
+              ),
+              IconButton(
+                icon: const Icon(Icons.home_outlined, color: Colors.white),
+                onPressed: onHome,
+                tooltip: 'Startseite',
               ),
               IconButton(
                 icon: const Icon(Icons.settings, color: Colors.white),

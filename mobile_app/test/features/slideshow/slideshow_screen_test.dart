@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/index/photo_index_store.dart';
+import 'package:mobile_app/features/sources/domain/photo_item.dart';
+import 'dart:io';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
@@ -81,6 +84,7 @@ void main() {
           kioskModeControllerProvider
               .overrideWithValue(_FakeKioskModeController()),
           networkCacheCleanerProvider.overrideWithValue(() async {}),
+          smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
           photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
             read: () async => null,
             write: (_) async {},
@@ -163,4 +167,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(kiosk.stopCalls, 1);
   });
+}
+
+/// Test stand-in: no prepared small files, no file-system access.
+class _NoSmallPhotoCache extends SmallPhotoCache {
+  _NoSmallPhotoCache() : super(directory: () async => Directory.systemTemp);
+
+  @override
+  Future<File?> existing(PhotoItem item) async => null;
 }

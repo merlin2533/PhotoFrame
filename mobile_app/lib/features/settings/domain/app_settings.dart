@@ -19,7 +19,7 @@ enum SlideLayout { single, grid2x2 }
 class AppSettings {
   const AppSettings({
     // Slideshow
-    this.intervalSeconds = 10,
+    this.intervalSeconds = 20,
     this.showSourceLabel = false,
     this.showImageDetails = true,
     this.slideLayout = SlideLayout.single,
