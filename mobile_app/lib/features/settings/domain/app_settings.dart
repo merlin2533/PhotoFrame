@@ -46,6 +46,8 @@ class AppSettings {
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
     this.disabledSourceIds = const [],
+    this.textScale = 1.0,
+    this.highContrast = false,
     this.preferOnThisDayEnabled = false,
     this.onThisDayQuota = 0.1,
     // Sharing/Relay (URL only - pairing logic lives elsewhere)
@@ -123,6 +125,12 @@ class AppSettings {
   /// Ids of sources the user switched off: they stay configured but are
   /// skipped by the slideshow.
   final List<String> disabledSourceIds;
+
+  /// Multiplier for all text (accessibility), 1.0 = system size.
+  final double textScale;
+
+  /// Stronger contrast for text and overlays.
+  final bool highContrast;
 
   /// "Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen" -
   /// whether items matching `filterOnThisDay` (same month+day as today, any
@@ -229,6 +237,8 @@ class AppSettings {
     double? poolNewImageQuota,
     bool? favoritesOnlyMode,
     List<String>? disabledSourceIds,
+    double? textScale,
+    bool? highContrast,
     bool? preferOnThisDayEnabled,
     double? onThisDayQuota,
     String? relayServerUrl,
@@ -268,6 +278,8 @@ class AppSettings {
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
       disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
+      textScale: textScale ?? this.textScale,
+      highContrast: highContrast ?? this.highContrast,
       preferOnThisDayEnabled:
           preferOnThisDayEnabled ?? this.preferOnThisDayEnabled,
       onThisDayQuota: onThisDayQuota ?? this.onThisDayQuota,
@@ -312,6 +324,8 @@ class AppSettings {
         'poolNewImageQuota': poolNewImageQuota,
         'favoritesOnlyMode': favoritesOnlyMode,
         'disabledSourceIds': disabledSourceIds,
+        'textScale': textScale,
+        'highContrast': highContrast,
         'preferOnThisDayEnabled': preferOnThisDayEnabled,
         'onThisDayQuota': onThisDayQuota,
         'relayServerUrl': relayServerUrl,
@@ -362,6 +376,8 @@ class AppSettings {
       selectionCount: json['selectionCount'] as int? ?? 1000,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+      highContrast: json['highContrast'] as bool? ?? false,
       disabledSourceIds:
           (json['disabledSourceIds'] as List?)?.whereType<String>().toList() ??
               const [],
