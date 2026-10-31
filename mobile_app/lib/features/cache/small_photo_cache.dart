@@ -48,9 +48,11 @@ class SmallPhotoCache {
       final result = await FlutterImageCompress.compressAndGetFile(
         full.path,
         target.path,
-        minWidth: 1920,
-        minHeight: 1080,
-        quality: 85,
+        // Sized for a full-screen tablet (about 2K); larger originals are
+        // scaled down, smaller ones stay as they are. Keeps storage small.
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 90,
       );
       // Downloads of network sources sit in the temp directory; local sources
       // return the original file, which must never be deleted.
