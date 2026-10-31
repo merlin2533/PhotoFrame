@@ -53,9 +53,14 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
   bool _controlsVisible = false;
   Timer? _hideTimer;
 
-  void _showControlsTemporarily() {
-    setState(() => _controlsVisible = true);
+  /// One tap shows the bar, a second tap (or 4 s without input) hides it.
+  void _toggleControls() {
     _hideTimer?.cancel();
+    if (_controlsVisible) {
+      setState(() => _controlsVisible = false);
+      return;
+    }
+    setState(() => _controlsVisible = true);
     _hideTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _controlsVisible = false);
     });
@@ -89,7 +94,7 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _showControlsTemporarily,
+      onTap: _toggleControls,
       onDoubleTap: () => _toggleFavorite(context),
       onLongPress: widget.onOpenSettings,
       child: Stack(

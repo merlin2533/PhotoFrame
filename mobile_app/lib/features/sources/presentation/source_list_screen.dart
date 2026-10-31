@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../domain/photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
 import '../../settings/state/settings_providers.dart';
+import '../state/source_stats.dart';
 import '../state/sources_providers.dart';
 
 /// Lists configured [PhotoSource]s with a connection-status indicator and a
@@ -100,6 +101,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
     final canUpload = widget.source is UploadablePhotoSource &&
         (widget.source as UploadablePhotoSource).canUpload;
 
+    final stats = ref.watch(sourceStatsProvider)[widget.source.id];
     final disabled = ref.watch(settingsProvider.select(
             (s) => s.value?.disabledSourceIds.contains(widget.source.id))) ??
         false;
@@ -147,6 +149,13 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         ],
       ),
     );
+  }
+
+  String _statsLine(SourceStats stats) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final t = stats.updatedAt;
+    return '${stats.imageCount} Bilder · Stand ${two(t.day)}.${two(t.month)}. '
+        '${two(t.hour)}:${two(t.minute)}';
   }
 
   String _subtitle() {
