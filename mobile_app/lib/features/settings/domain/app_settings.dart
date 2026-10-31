@@ -25,6 +25,7 @@ class AppSettings {
     this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
     this.showClock = true,
+    this.clockAtTop = false,
     this.displayMode = DisplayMode.blurredBackdrop,
     this.transition = SlideshowTransition.fade,
     this.kenBurnsEnabled = false,
@@ -78,6 +79,9 @@ class AppSettings {
   /// Single photo, or four photos in a 2x2 grid.
   final SlideLayout slideLayout;
   final bool showClock;
+
+  /// Clock in the top-left corner instead of the bottom-left one.
+  final bool clockAtTop;
   final DisplayMode displayMode;
   final SlideshowTransition transition;
   final bool kenBurnsEnabled;
@@ -222,6 +226,7 @@ class AppSettings {
     bool? imageDetailsOnRight,
     SlideLayout? slideLayout,
     bool? showClock,
+    bool? clockAtTop,
     DisplayMode? displayMode,
     SlideshowTransition? transition,
     bool? kenBurnsEnabled,
@@ -261,6 +266,7 @@ class AppSettings {
       imageDetailsOnRight: imageDetailsOnRight ?? this.imageDetailsOnRight,
       slideLayout: slideLayout ?? this.slideLayout,
       showClock: showClock ?? this.showClock,
+      clockAtTop: clockAtTop ?? this.clockAtTop,
       displayMode: displayMode ?? this.displayMode,
       transition: transition ?? this.transition,
       kenBurnsEnabled: kenBurnsEnabled ?? this.kenBurnsEnabled,
@@ -309,6 +315,7 @@ class AppSettings {
         'imageDetailsOnRight': imageDetailsOnRight,
         'slideLayout': slideLayout.name,
         'showClock': showClock,
+        'clockAtTop': clockAtTop,
         'displayMode': displayMode.name,
         'transition': transition.name,
         'kenBurnsEnabled': kenBurnsEnabled,
@@ -349,6 +356,7 @@ class AppSettings {
         orElse: () => SlideLayout.single,
       ),
       showClock: json['showClock'] as bool? ?? true,
+      clockAtTop: json['clockAtTop'] as bool? ?? false,
       displayMode: DisplayMode.values.firstWhere(
         (m) => m.name == json['displayMode'],
         orElse: () => DisplayMode.contain,

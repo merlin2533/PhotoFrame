@@ -70,14 +70,18 @@ class _ClockTextState extends State<ClockText> {
 /// Used as-is when only the clock (not the weather overlay) is enabled; see
 /// `slideshow_screen.dart` for the combined-bar case.
 class ClockOverlay extends StatelessWidget {
-  const ClockOverlay({super.key});
+  const ClockOverlay({super.key, this.atTop = false});
+
+  /// Top-left corner instead of bottom-left.
+  final bool atTop;
 
   @override
   Widget build(BuildContext context) {
-    return const Positioned(
+    return Positioned(
       left: 16,
-      bottom: 16,
-      child: InfoBarPill(child: ClockText()),
+      top: atTop ? 16 : null,
+      bottom: atTop ? null : 16,
+      child: const InfoBarPill(child: ClockText()),
     );
   }
 }

@@ -954,10 +954,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                 // WeatherOverlayContent's doc comment for the full
                 // positioning rationale.
                 if (settings.showClock && settings.weatherEnabled)
-                  const Positioned(
+                  Positioned(
                     left: 16,
-                    bottom: 16,
-                    child: InfoBarPill(
+                    top: settings.clockAtTop ? 16 : null,
+                    bottom: settings.clockAtTop ? null : 16,
+                    child: const InfoBarPill(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -971,7 +972,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                     ),
                   )
                 else if (settings.showClock)
-                  const ClockOverlay()
+                  ClockOverlay(atTop: settings.clockAtTop)
                 else if (settings.weatherEnabled)
                   const WeatherOverlay(),
                 if (isNight)
