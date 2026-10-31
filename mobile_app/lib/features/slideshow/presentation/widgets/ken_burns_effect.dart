@@ -53,24 +53,36 @@ class _KenBurnsEffectState extends State<KenBurnsEffect>
     _controller = AnimationController(vsync: this, duration: effectiveDuration)
       ..forward();
 
-    // Zoom direction is random too: half the photos zoom in, half zoom out.
+    // Each slide gets one of three motions, picked at random:
+    // zoom in, zoom out, or a pure pan across the photo at a fixed zoom.
     final random = Random();
-    final zoomIn = random.nextBool();
-    _scale = Tween<double>(
-      begin: zoomIn ? _minZoom : _maxZoom,
-      end: zoomIn ? _maxZoom : _minZoom,
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-
-    // Randomize the pan direction per instance (i.e. per slide, given this
-    // widget is recreated per `key`) so consecutive images don't all zoom
-    // toward the exact same corner.
-    _alignment = AlignmentTween(
-      begin: _randomAlignment(random),
-      end: _randomAlignment(random),
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    final style = random.nextInt(3);
+    final curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    if (style == 2) {
+      _scale = Tween<double>(begin: _panZoom, end: _panZoom).animate(curve);
+      final y = random.nextDouble() * 2 - 1;
+      final fromLeft = random.nextBool();
+      _alignment = AlignmentTween(
+        begin: Alignment(fromLeft ? -1 : 1, y),
+        end: Alignment(fromLeft ? 1 : -1, y),
+      ).animate(curve);
+    } else {
+      final zoomIn = style == 0;
+      _scale = Tween<double>(
+        begin: zoomIn ? _minZoom : _maxZoom,
+        end: zoomIn ? _maxZoom : _minZoom,
+      ).animate(curve);
+      // Randomize the pan direction per instance (per slide, since the widget
+      // is recreated per key) so consecutive images don't all zoom toward the
+      // same corner.
+      _alignment = AlignmentTween(
+        begin: _randomAlignment(random),
+        end: _randomAlignment(random),
+      ).animate(curve);
+    }
   }
+
+  static const double _panZoom = 1.12;
 
   static Alignment _randomAlignment(Random random) {
     // Bias toward the edges/corners (rather than dead-center, which would
