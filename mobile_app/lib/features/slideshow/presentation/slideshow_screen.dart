@@ -84,6 +84,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Object? _loadError;
   Timer? _nightTick;
   Timer? _refreshTimer;
+  StreamSubscription<PhotoItem?>? _prefetchSub;
+  final math.Random _prefetchRandom = math.Random();
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
@@ -132,6 +134,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   @override
   void dispose() {
     _nightTick?.cancel();
+    _prefetchSub?.cancel();
     _refreshTimer?.cancel();
     final engine = _engine;
     if (engine != null) {
@@ -382,6 +385,25 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
+  /// Downloads one more photo from a network source while the current one is
+  /// on screen, so the next network photo is already in the cache when it is
+  /// due. Local photos need no download and are skipped.
+  void _prefetchNext() {
+    final candidates = _itemsByKey.values.where((item) {
+      final source = _sourcesById[item.sourceId];
+      return source != null &&
+          (source.type == SourceType.smb ||
+              source.type == SourceType.nextcloud);
+    }).toList();
+    if (candidates.isEmpty) return;
+    final item = candidates[_prefetchRandom.nextInt(candidates.length)];
+    final source = _sourcesById[item.sourceId];
+    if (source == null) return;
+    // Failures are ignored: the photo is fetched again when it is shown.
+    unawaited(
+        source.fetchToCache(item).then<void>((_) {}, onError: (Object _) {}));
+  }
+
   /// A photo that cannot be fetched (file removed, share offline) is taken out
   /// of the pool and the slideshow moves on to the next one.
   void _skipUnavailable(PhotoItem item) {
@@ -480,6 +502,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       setState(() {
         _engine = engine;
+        _prefetchSub?.cancel();
+        _prefetchSub = engine.currentItemChanges.listen((_) => _prefetchNext());
         _sourcesById = sourcesById;
         _loading = false;
       });
