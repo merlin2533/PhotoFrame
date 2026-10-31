@@ -106,6 +106,13 @@ class SmbPhotoSource implements PhotoSource {
   final Directory? _cacheDirectory;
 
   SmbConnect? _connect;
+
+  /// When the current connection was opened. Connections are renewed every
+  /// [_connectionMaxAge]: the SMB library keeps writing to a socket the server
+  /// may already have closed, which surfaces as unhandled "StreamSink is closed"
+  /// errors on the device.
+  DateTime _connectedAt = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _connectionMaxAge = Duration(seconds: 60);
   bool _disposed = false;
   int _unsupportedCount = 0;
 
@@ -187,7 +194,9 @@ class SmbPhotoSource implements PhotoSource {
 
   Future<Result<SmbConnect>> _ensureConnected(Duration timeout) async {
     final existing = _connect;
-    if (existing != null) return Result.ok(existing);
+    final fresh = DateTime.now().difference(_connectedAt) < _connectionMaxAge;
+    if (existing != null && fresh) return Result.ok(existing);
+    _connect = null;
     try {
       final connect = await SmbConnect.connectAuth(
         host: _config.host,
@@ -196,6 +205,7 @@ class SmbPhotoSource implements PhotoSource {
         domain: _config.domain,
       ).timeout(timeout);
       _connect = connect;
+      _connectedAt = DateTime.now();
       return Result.ok(connect);
     } on TimeoutException {
       return Result.err(Timeout(
