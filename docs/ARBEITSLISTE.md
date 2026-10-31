@@ -4,14 +4,14 @@ Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 
 ## Offen
 - [x] 1 – Ruhigere Uhr/Datum-Anzeige (größer, dezenter)
-- [ ] 2 – Ortsname aus EXIF-GPS in der Bildinfo
+- [ ] 2 – Ortsname aus EXIF-GPS in der Bildinfo (offen: Ortsnamen brauchen einen Online-Dienst, Koordinaten würden dorthin gesendet – Entscheidung nötig)
 - [x] 3 – Schriftgröße und hoher Kontrast als Einstellung
 - [x] 4 – Fehlerzustände mit Aktionsbutton (Erneut versuchen / Quelle prüfen)
-- [ ] 5 – Status-Badges in der Quellenliste (Bilder, Stand, Verbindung)
+- [x] 5 – Status in der Quellenliste (Bilder und Stand stehen im Untertitel, Verbindung als Farbe des Symbols; kein eigenes Badge)
 - [x] 6 – Suche in den Einstellungen (Dunkel-Design folgt dem System; nicht einzeln geprüft)
 - [x] 7 – Nächstes Bild im Hintergrund vorladen (Netzwerkquellen)
-- [ ] 8 – Miniaturen-Cache für die Übersicht
-- [ ] 9 – Index in SQLite statt JSON (ab mehreren tausend Fotos)
+- [ ] 8 – Miniaturen-Cache für die Übersicht (zurückgestellt: Netzwerkfotos würden beim Scrollen jedes Mal neu geladen; braucht eigenen Thumbnail-Speicher)
+- [ ] 9 – Index in SQLite statt JSON (zurückgestellt: JSON bleibt bei ~20.000 Fotos im Bereich von Millisekunden)
 - [x] 12 – Ken-Burns-Varianten (Schwenk, sanftes Heranzoomen, ohne Bewegung)
 - [x] 13 – Kombinierte Übergänge (Ken Burns liegt schon unter jedem Übergang) (Weichzeichnen mit Ken Burns)
 - [ ] Tablet-Layout – Screenshot vom Nutzer abwarten
