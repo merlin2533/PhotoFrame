@@ -48,6 +48,14 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               onChanged: (v) =>
                   notifier.updateSettings((s) => s.copyWith(showClock: v)),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Uhr oben links'),
+              subtitle: const Text('Aus: unten links'),
+              value: settings.clockAtTop,
+              onChanged: (v) =>
+                  notifier.updateSettings((s) => s.copyWith(clockAtTop: v)),
+            ),
             const Divider(height: 32),
             Text('Anzeige-Modus',
                 style: Theme.of(context).textTheme.titleMedium),
