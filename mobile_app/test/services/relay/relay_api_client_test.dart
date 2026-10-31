@@ -17,7 +17,8 @@ import 'package:test/test.dart';
 class _FakeAdapter implements HttpClientAdapter {
   final Map<String, _CannedResponse> responses = {};
 
-  void when(String method, String path, {required int statusCode, Object? body}) {
+  void when(String method, String path,
+      {required int statusCode, Object? body}) {
     responses['$method $path'] = _CannedResponse(statusCode, body);
   }
 
@@ -62,11 +63,14 @@ void main() {
 
     setUp(() {
       final mockStorage = _MockSecureStorage();
-      final backing = <String, String>{'relay_device_token': 'device-token-123'};
+      final backing = <String, String>{
+        'relay_device_token': 'device-token-123'
+      };
       when(() => mockStorage.read(key: any(named: 'key'))).thenAnswer(
         (i) async => backing[i.namedArguments[#key] as String],
       );
-      when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+      when(() => mockStorage.write(
+          key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
         (i) async {
           final key = i.namedArguments[#key] as String;
           final value = i.namedArguments[#value] as String?;
@@ -77,17 +81,20 @@ void main() {
           }
         },
       );
-      when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((i) async {
+      when(() => mockStorage.delete(key: any(named: 'key')))
+          .thenAnswer((i) async {
         backing.remove(i.namedArguments[#key] as String);
       });
 
       tokenStorage = RelayTokenStorage(storage: mockStorage);
       adapter = _FakeAdapter();
-      client = RelayApiClient(baseUrl: 'https://relay.example.com', tokenStorage: tokenStorage);
+      client = RelayApiClient(
+          baseUrl: 'https://relay.example.com', tokenStorage: tokenStorage);
       client.dioClient.httpClientAdapter = adapter;
     });
 
-    test('createPairingCode maps a successful response including fp/fpReason', () async {
+    test('createPairingCode maps a successful response including fp/fpReason',
+        () async {
       adapter.when('POST', '/pairing/create-code', statusCode: 201, body: {
         'pairingId': 'pairing-1',
         'code': 'ABCD1234',
@@ -136,33 +143,40 @@ void main() {
     });
 
     test('a 403 response maps to a PermissionDenied failure', () async {
-      adapter.when('DELETE', '/pairing/pairing-1/members/frame-b', statusCode: 403, body: {
-        'error': 'only the pairing owner can remove members',
-      });
+      adapter.when('DELETE', '/pairing/pairing-1/members/frame-b',
+          statusCode: 403,
+          body: {
+            'error': 'only the pairing owner can remove members',
+          });
 
       final result = await client.removeMember('pairing-1', 'frame-b');
       expect(result.isErr, isTrue);
       expect(result.failureOrNull.runtimeType.toString(), 'PermissionDenied');
-      expect(result.failureOrNull!.message, 'only the pairing owner can remove members');
+      expect(result.failureOrNull!.message,
+          'only the pairing owner can remove members');
     });
 
     test('a 404 response maps to a NotFound failure', () async {
-      adapter.when('DELETE', '/pairing/pairing-1/members/frame-x', statusCode: 404, body: {
-        'error': 'that frame is not a member of this pairing',
-      });
+      adapter.when('DELETE', '/pairing/pairing-1/members/frame-x',
+          statusCode: 404,
+          body: {
+            'error': 'that frame is not a member of this pairing',
+          });
 
       final result = await client.removeMember('pairing-1', 'frame-x');
       expect(result.isErr, isTrue);
       expect(result.failureOrNull.runtimeType.toString(), 'NotFound');
     });
 
-    test('recoverFrame tolerates a missing fp field without throwing', () async {
+    test('recoverFrame tolerates a missing fp field without throwing',
+        () async {
       adapter.when('POST', '/frames/frame-1/recover', statusCode: 200, body: {
         'frameId': 'frame-1',
         'deviceToken': 'new-device-token',
       });
 
-      final result = await client.recoverFrame(frameId: 'frame-1', newPublicKey: 'x' * 32);
+      final result =
+          await client.recoverFrame(frameId: 'frame-1', newPublicKey: 'x' * 32);
       expect(result.isOk, isTrue);
       expect(result.valueOrNull!.fingerprint, isNull);
     });
@@ -174,7 +188,8 @@ void main() {
         'fp': 'ZZZZ9999',
       });
 
-      final result = await client.recoverFrame(frameId: 'frame-1', newPublicKey: 'x' * 32);
+      final result =
+          await client.recoverFrame(frameId: 'frame-1', newPublicKey: 'x' * 32);
       expect(result.isOk, isTrue);
       expect(result.valueOrNull!.fingerprint, 'ZZZZ9999');
     });

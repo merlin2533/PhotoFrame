@@ -31,20 +31,35 @@ Widget _buildTestApp() {
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
         routes: [
-          GoRoute(path: 'slideshow', builder: (c, s) => const _StubScreen('slideshow')),
-          GoRoute(path: 'always-on', builder: (c, s) => const _StubScreen('always-on')),
-          GoRoute(path: 'night-mode', builder: (c, s) => const _StubScreen('night-mode')),
-          GoRoute(path: 'weather', builder: (c, s) => const _StubScreen('weather')),
-          GoRoute(path: 'sources', builder: (c, s) => const _StubScreen('sources')),
+          GoRoute(
+              path: 'slideshow',
+              builder: (c, s) => const _StubScreen('slideshow')),
+          GoRoute(
+              path: 'always-on',
+              builder: (c, s) => const _StubScreen('always-on')),
+          GoRoute(
+              path: 'night-mode',
+              builder: (c, s) => const _StubScreen('night-mode')),
+          GoRoute(
+              path: 'weather', builder: (c, s) => const _StubScreen('weather')),
+          GoRoute(
+              path: 'sources', builder: (c, s) => const _StubScreen('sources')),
           GoRoute(path: 'cache', builder: (c, s) => const _StubScreen('cache')),
           GoRoute(path: 'pool', builder: (c, s) => const _StubScreen('pool')),
-          GoRoute(path: 'sharing', builder: (c, s) => const _StubScreen('sharing')),
-          GoRoute(path: 'accessibility', builder: (c, s) => const _StubScreen('accessibility')),
-          GoRoute(path: 'autostart-help', builder: (c, s) => const _StubScreen('autostart-help')),
+          GoRoute(
+              path: 'sharing', builder: (c, s) => const _StubScreen('sharing')),
+          GoRoute(
+              path: 'accessibility',
+              builder: (c, s) => const _StubScreen('accessibility')),
+          GoRoute(
+              path: 'autostart-help',
+              builder: (c, s) => const _StubScreen('autostart-help')),
           GoRoute(path: 'kiosk', builder: (c, s) => const _StubScreen('kiosk')),
         ],
       ),
-      GoRoute(path: '/onboarding', builder: (c, s) => const _StubScreen('onboarding')),
+      GoRoute(
+          path: '/onboarding',
+          builder: (c, s) => const _StubScreen('onboarding')),
     ],
   );
 
@@ -108,7 +123,8 @@ void main() {
     expect(find.text('Fotorahmen-Startbildschirm'), findsOneWidget);
   });
 
-  testWidgets('tapping the kiosk entry navigates to the kiosk settings route', (tester) async {
+  testWidgets('tapping the kiosk entry navigates to the kiosk settings route',
+      (tester) async {
     await setTallSurface(tester);
     await tester.pumpWidget(_buildTestApp());
     await tester.pumpAndSettle();
@@ -120,7 +136,8 @@ void main() {
     expect(find.byType(SettingsScreen), findsNothing);
   });
 
-  testWidgets('tapping the slideshow entry navigates to the slideshow settings route',
+  testWidgets(
+      'tapping the slideshow entry navigates to the slideshow settings route',
       (tester) async {
     await setTallSurface(tester);
     await tester.pumpWidget(_buildTestApp());

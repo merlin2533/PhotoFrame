@@ -14,7 +14,8 @@ class _FakeAdapter implements HttpClientAdapter {
   final Map<String, _CannedResponse> responses = {};
   int callCount = 0;
 
-  void when(String method, String path, {required int statusCode, required Object body}) {
+  void when(String method, String path,
+      {required int statusCode, required Object body}) {
     responses['$method $path'] = _CannedResponse(statusCode, body);
   }
 
@@ -49,7 +50,9 @@ class _CannedResponse {
   final Object body;
 }
 
-Map<String, dynamic> _forecastBody({double temperature = 21.3, int weatherCode = 3}) => {
+Map<String, dynamic> _forecastBody(
+        {double temperature = 21.3, int weatherCode = 3}) =>
+    {
       'latitude': 52.5,
       'longitude': 13.4,
       'current_weather': {
@@ -108,7 +111,8 @@ void main() {
 
     test('throws FormatException when current_weather is missing', () {
       expect(
-        () => CurrentWeather.fromForecastResponseJson({}, fetchedAt: DateTime.now()),
+        () => CurrentWeather.fromForecastResponseJson({},
+            fetchedAt: DateTime.now()),
         throwsFormatException,
       );
     });
@@ -117,7 +121,8 @@ void main() {
       final fetchedAt = DateTime(2026, 1, 1);
       final json = _forecastBody()['current_weather'] as Map<String, dynamic>;
       json['time'] = 'not-a-date';
-      final weather = CurrentWeather.fromCurrentWeatherJson(json, fetchedAt: fetchedAt);
+      final weather =
+          CurrentWeather.fromCurrentWeatherJson(json, fetchedAt: fetchedAt);
       expect(weather.observedAt, fetchedAt);
     });
   });
@@ -158,23 +163,29 @@ void main() {
     });
 
     test('fetchCurrentWeather parses a successful response', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
-      final weather = await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
+      final weather =
+          await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
       expect(weather.temperatureC, 21.3);
       expect(weather.icon, WeatherIconKind.cloudy);
       expect(adapter.callCount, 1);
     });
 
-    test('caches within cacheDuration - does not refetch on the second call', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
+    test('caches within cacheDuration - does not refetch on the second call',
+        () async {
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
       fakeNow = fakeNow.add(const Duration(minutes: 10));
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
-      expect(adapter.callCount, 1, reason: 'second call within cacheDuration should hit the cache');
+      expect(adapter.callCount, 1,
+          reason: 'second call within cacheDuration should hit the cache');
     });
 
     test('refetches once the cache has expired', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
       fakeNow = fakeNow.add(const Duration(minutes: 46));
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
@@ -182,20 +193,25 @@ void main() {
     });
 
     test('forceRefresh bypasses a still-fresh cache', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
-      await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4, forceRefresh: true);
+      await client.fetchCurrentWeather(
+          latitude: 52.5, longitude: 13.4, forceRefresh: true);
       expect(adapter.callCount, 2);
     });
 
     test('caches independently per rounded coordinate', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
       await client.fetchCurrentWeather(latitude: 40.0, longitude: -74.0);
       expect(adapter.callCount, 2);
     });
 
-    test('searchLocations returns an empty list for a blank query without hitting the network', () async {
+    test(
+        'searchLocations returns an empty list for a blank query without hitting the network',
+        () async {
       final results = await client.searchLocations('   ');
       expect(results, isEmpty);
       expect(adapter.callCount, 0);
@@ -232,7 +248,8 @@ void main() {
     });
 
     test('clearCache forces the next fetch to hit the network again', () async {
-      adapter.when('GET', WeatherClient.forecastBaseUrl, statusCode: 200, body: _forecastBody());
+      adapter.when('GET', WeatherClient.forecastBaseUrl,
+          statusCode: 200, body: _forecastBody());
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);
       client.clearCache();
       await client.fetchCurrentWeather(latitude: 52.5, longitude: 13.4);

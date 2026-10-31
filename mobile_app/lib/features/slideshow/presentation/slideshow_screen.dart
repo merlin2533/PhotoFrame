@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +19,7 @@ import '../../sources/state/source_stats.dart';
 import '../../sources/domain/photo_source.dart';
 import '../../sources/state/sources_providers.dart';
 import '../domain/always_on_controller.dart';
+import '../domain/daily_selection.dart';
 import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
@@ -29,6 +32,30 @@ import 'widgets/path_overlay.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
 import 'widgets/weather_overlay.dart';
+
+/// Empties the network photo cache. Overridden in widget tests, where real
+/// file-system calls never complete under the fake clock.
+final Provider<Future<void> Function()> networkCacheCleanerProvider =
+    Provider<Future<void> Function()>((ref) => clearNetworkCache);
+
+/// Downloaded photos of network sources live in the temp directory (see
+/// `fetchToCache` of the Nextcloud and SMB sources). Cleared on every
+/// (re)load so the cache never grows across sessions.
+Future<void> clearNetworkCache() async {
+  try {
+    final dir = Directory.systemTemp;
+    if (!await dir.exists()) return;
+    await for (final entity in dir.list(followLinks: false)) {
+      final name = entity.path.split(Platform.pathSeparator).last;
+      if (entity is File &&
+          (name.startsWith('nextcloud_') || name.startsWith('smb_'))) {
+        await entity.delete();
+      }
+    }
+  } catch (e) {
+    debugPrint('Cache cleanup failed: $e');
+  }
+}
 
 /// Hosts the existing [SlideshowEngine], rendering [SlideshowEngine.currentItem]
 /// with the configured [DisplayMode]/transition and the clock/source-label
@@ -57,6 +84,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
+
+  static const _dailyKey = 'daily_selection_v1';
 
   /// Photos needed before the slideshow starts; the rest loads in the background.
   static const _initialPhotoCount = 12;
@@ -203,6 +232,42 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     ).toList();
   }
 
+  /// The photos for today: kept for the whole day, redrawn on a new day (see
+  /// [DailySelection]). Persisted in shared preferences.
+  Future<List<PhotoItem>> _todaysSelection(
+      List<PhotoItem> eligible, int count) async {
+    final prefs = await ref.read(sharedPreferencesProvider);
+    final today = DailySelection.dayKey(DateTime.now());
+    String? savedDay;
+    var savedKeys = const <String>[];
+    final raw = prefs.getString(_dailyKey);
+    if (raw != null) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        savedDay = map['day'] as String?;
+        savedKeys = (map['keys'] as List).cast<String>();
+      } catch (_) {
+        // Corrupt value: treat as no saved selection.
+      }
+    }
+    final chosen = DailySelection.pick<PhotoItem>(
+      eligible: eligible,
+      keyOf: (item) => '${item.sourceId}::${item.id}',
+      count: count,
+      today: today,
+      savedDay: savedDay,
+      savedKeys: savedKeys,
+    );
+    await prefs.setString(
+      _dailyKey,
+      jsonEncode({
+        'day': today,
+        'keys': [for (final item in chosen) '${item.sourceId}::${item.id}'],
+      }),
+    );
+    return chosen;
+  }
+
   /// Re-crawls the sources in the background and merges the result into the
   /// running engine's pool (new photos added, vanished ones dropped) without
   /// interrupting the slideshow. A crawl that finds nothing (e.g. network
@@ -218,14 +283,15 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // No timeout here: large network shares (SMB, Nextcloud) can take
       // minutes. Sources that fail keep their current photos.
       final failed = <String>{};
-      final fresh = await _crawlEligible(
+      final eligible = await _crawlEligible(
         sources,
         settings,
         ref.read(favoritesStoreProvider),
         [],
         failedSourceIds: failed,
       );
-      if (!mounted || _engine != engine || fresh.isEmpty) return;
+      if (!mounted || _engine != engine || eligible.isEmpty) return;
+      final fresh = await _todaysSelection(eligible, settings.poolTargetSize);
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       bool kept(String sourceId, String itemId) =>
           failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
@@ -249,6 +315,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   }
 
   Future<void> _buildEngine() async {
+    // Awaited: the cache must be empty before the first photo is downloaded.
+    await ref.read(networkCacheCleanerProvider)();
     try {
       // `sourcesProvider` now loads its descriptor list (and re-attaches
       // credentials) from storage asynchronously - see

@@ -25,7 +25,8 @@ _MockSecureStorage _fakeSecureStorage([Map<String, String>? backing]) {
   when(() => storage.read(key: any(named: 'key'))).thenAnswer(
     (invocation) async => store[invocation.namedArguments[#key] as String],
   );
-  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer(
     (invocation) async {
       final key = invocation.namedArguments[#key] as String;
       final value = invocation.namedArguments[#value] as String?;
@@ -41,7 +42,8 @@ _MockSecureStorage _fakeSecureStorage([Map<String, String>? backing]) {
       store.remove(invocation.namedArguments[#key] as String);
     },
   );
-  when(() => storage.readAll()).thenAnswer((_) async => Map<String, String>.from(store));
+  when(() => storage.readAll())
+      .thenAnswer((_) async => Map<String, String>.from(store));
   return storage;
 }
 
@@ -63,11 +65,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SourcesController', () {
-    test('first run (no persisted key) seeds a single MockPhotoSource and persists it', () async {
+    test(
+        'first run (no persisted key) seeds a single MockPhotoSource and persists it',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = SharedPreferences.getInstance();
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage());
-      final container = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage());
+      final container =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       final sources = await container.read(sourcesProvider.future);
 
@@ -82,7 +88,9 @@ void main() {
       expect((decoded.single as Map)['type'], 'mock');
     });
 
-    test('build() loads a persisted SMB descriptor and re-attaches its password', () async {
+    test(
+        'build() loads a persisted SMB descriptor and re-attaches its password',
+        () async {
       SharedPreferences.setMockInitialValues({
         _prefsKey: jsonEncode([
           {
@@ -100,9 +108,13 @@ void main() {
         ]),
       });
       final prefs = SharedPreferences.getInstance();
-      final backing = <String, String>{'source_cred_src-smb-1_password': 'hunter2'};
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage(backing));
-      final container = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final backing = <String, String>{
+        'source_cred_src-smb-1_password': 'hunter2'
+      };
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage(backing));
+      final container =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       final sources = await container.read(sourcesProvider.future);
 
@@ -114,7 +126,8 @@ void main() {
       expect(source.config.password, 'hunter2');
     });
 
-    test('build() prunes orphaned credentials using the actually-restored ids', () async {
+    test('build() prunes orphaned credentials using the actually-restored ids',
+        () async {
       SharedPreferences.setMockInitialValues({
         _prefsKey: jsonEncode([
           {
@@ -130,8 +143,10 @@ void main() {
         'source_cred_src-keep_password': 'irrelevant-for-local-but-present',
         'source_cred_src-orphan_password': 'should-be-pruned',
       };
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage(backing));
-      final container = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage(backing));
+      final container =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       await container.read(sourcesProvider.future);
       // pruneOrphans is fire-and-forget (unawaited) inside build() - flush
@@ -144,37 +159,48 @@ void main() {
       expect(backing.containsKey('source_cred_src-keep_password'), isTrue);
     });
 
-    test('add() persists the new descriptor so a fresh controller instance restores it', () async {
+    test(
+        'add() persists the new descriptor so a fresh controller instance restores it',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = SharedPreferences.getInstance();
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage());
-      final container1 = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage());
+      final container1 =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       // Drain the first-run mock seed before adding a real source, so the
       // persisted list ends up with exactly the two expected entries.
       await container1.read(sourcesProvider.future);
 
-      final localSource = LocalFolderSource(id: 'src-local-1', rootPath: '/mnt/frame');
+      final localSource =
+          LocalFolderSource(id: 'src-local-1', rootPath: '/mnt/frame');
       await container1.read(sourcesProvider.notifier).add(localSource);
 
-      final container2 = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final container2 =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
       final sources2 = await container2.read(sourcesProvider.future);
 
       expect(sources2.map((s) => s.id), containsAll(<String>['src-local-1']));
-      final restoredLocal = sources2.firstWhere((s) => s.id == 'src-local-1') as LocalFolderSource;
+      final restoredLocal = sources2.firstWhere((s) => s.id == 'src-local-1')
+          as LocalFolderSource;
       expect(restoredLocal.rootPath, '/mnt/frame');
     });
 
-    test('removeById() drops the descriptor and deletes stored credentials', () async {
+    test('removeById() drops the descriptor and deletes stored credentials',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = SharedPreferences.getInstance();
       final backing = <String, String>{};
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage(backing));
-      final container = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage(backing));
+      final container =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       await container.read(sourcesProvider.future);
 
-      const config = SmbSourceConfig(host: 'nas.local', share: 'Photos', password: 'hunter2');
+      const config = SmbSourceConfig(
+          host: 'nas.local', share: 'Photos', password: 'hunter2');
       final smbSource = SmbPhotoSource(id: 'src-smb-2', config: config);
       await credentialStore.write('src-smb-2', 'password', 'hunter2');
       await container.read(sourcesProvider.notifier).add(smbSource);
@@ -187,7 +213,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      final sources = container.read(sourcesProvider).value ?? const <PhotoSource>[];
+      final sources =
+          container.read(sourcesProvider).value ?? const <PhotoSource>[];
       expect(sources.any((s) => s.id == 'src-smb-2'), isFalse);
       expect(backing.containsKey('source_cred_src-smb-2_password'), isFalse);
 
@@ -197,17 +224,22 @@ void main() {
       expect(decoded.any((d) => (d as Map)['id'] == 'src-smb-2'), isFalse);
     });
 
-    test('an explicitly-emptied source list stays empty on the next build (no re-seeding)', () async {
+    test(
+        'an explicitly-emptied source list stays empty on the next build (no re-seeding)',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = SharedPreferences.getInstance();
-      final credentialStore = SecureCredentialStore(storage: _fakeSecureStorage());
-      final container1 = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final credentialStore =
+          SecureCredentialStore(storage: _fakeSecureStorage());
+      final container1 =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
 
       final seeded = await container1.read(sourcesProvider.future);
       final seededId = seeded.single.id;
       await container1.read(sourcesProvider.notifier).removeById(seededId);
 
-      final container2 = _makeContainer(prefs: prefs, credentialStore: credentialStore);
+      final container2 =
+          _makeContainer(prefs: prefs, credentialStore: credentialStore);
       final sources2 = await container2.read(sourcesProvider.future);
 
       expect(sources2, isEmpty);

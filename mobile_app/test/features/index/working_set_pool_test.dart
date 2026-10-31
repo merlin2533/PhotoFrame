@@ -46,7 +46,8 @@ void main() {
       expect(pool.needsRefill, isFalse);
     });
 
-    test('reserves at least newImageQuota of newly-filled slots for new candidates '
+    test(
+        'reserves at least newImageQuota of newly-filled slots for new candidates '
         '(integer-rounding tolerance)', () {
       final pool = InMemoryWorkingSetPool(targetSize: 100, newImageQuota: 0.2);
       final candidates = [..._newCandidates(50), ..._oldCandidates(200)];
@@ -59,7 +60,8 @@ void main() {
       expect(newCount, greaterThanOrEqualTo(20));
     });
 
-    test('does not crash and simply stays smaller when too few candidates '
+    test(
+        'does not crash and simply stays smaller when too few candidates '
         'of any kind are available', () {
       final pool = InMemoryWorkingSetPool(targetSize: 1000, newImageQuota: 0.2);
       final candidates = _newCandidates(3);
@@ -71,8 +73,10 @@ void main() {
       expect(pool.needsRefill, isTrue);
     });
 
-    test('stays smaller than target when only new candidates are scarce, '
-        'even though old candidates are plentiful (quota unmet is not fatal)', () {
+    test(
+        'stays smaller than target when only new candidates are scarce, '
+        'even though old candidates are plentiful (quota unmet is not fatal)',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 50, newImageQuota: 0.5);
       // Only 2 new candidates available, but plenty of old ones - the pool
       // should still fill up using old candidates for the non-reserved
@@ -98,7 +102,9 @@ void main() {
       expect(pool.entries.length, 10);
     });
 
-    test('a zero/negative slotsToFill (pool already at or above target) adds nothing', () {
+    test(
+        'a zero/negative slotsToFill (pool already at or above target) adds nothing',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 5, newImageQuota: 0.2);
       pool.refill(_oldCandidates(5));
       expect(pool.entries.length, 5);
@@ -110,7 +116,9 @@ void main() {
   });
 
   group('InMemoryWorkingSetPool.replaceExhausted', () {
-    test('replaces entries shown at least once with fresh candidates when available', () {
+    test(
+        'replaces entries shown at least once with fresh candidates when available',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 10, newImageQuota: 0.2);
       pool.refill(_oldCandidates(10, prefix: 'initial'));
       expect(pool.entries.length, 10);
@@ -135,7 +143,9 @@ void main() {
       expect(pool.entries.every((e) => e.shownCount == 0), isTrue);
     });
 
-    test('leaves the pool smaller (not an error) when no replacement candidates exist', () {
+    test(
+        'leaves the pool smaller (not an error) when no replacement candidates exist',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 10, newImageQuota: 0.2);
       pool.refill(_oldCandidates(10));
       for (final e in pool.entries.toList()) {
@@ -161,7 +171,8 @@ void main() {
   });
 
   group('InMemoryWorkingSetPool.needsUrgentRefill', () {
-    test('triggers when the pool is nearly exhausted and the interval is short', () {
+    test('triggers when the pool is nearly exhausted and the interval is short',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 10, newImageQuota: 0.2);
       pool.refill(_oldCandidates(10));
       for (final e in pool.entries.take(10).toList()) {
@@ -175,7 +186,9 @@ void main() {
       expect(urgent, isTrue);
     });
 
-    test('does not trigger when the interval is long even if the pool is exhausted', () {
+    test(
+        'does not trigger when the interval is long even if the pool is exhausted',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 10, newImageQuota: 0.2);
       pool.refill(_oldCandidates(10));
       for (final e in pool.entries.toList()) {
@@ -189,7 +202,8 @@ void main() {
       expect(urgent, isFalse);
     });
 
-    test('does not trigger when the pool has plenty of unshown entries left', () {
+    test('does not trigger when the pool has plenty of unshown entries left',
+        () {
       final pool = InMemoryWorkingSetPool(targetSize: 10, newImageQuota: 0.2);
       pool.refill(_oldCandidates(10));
       // Only show one entry - far below the exhaustion threshold.

@@ -67,7 +67,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('shows the empty state when no photo source is configured', (tester) async {
+  testWidgets('shows the empty state when no photo source is configured',
+      (tester) async {
     await tester.pumpWidget(
       _wrap(
         const SlideshowScreen(),
@@ -76,7 +77,9 @@ void main() {
           alwaysOnControllerProvider.overrideWithValue(
             AlwaysOnController(wakelock: _FakeWakelock()),
           ),
-          kioskModeControllerProvider.overrideWithValue(_FakeKioskModeController()),
+          kioskModeControllerProvider
+              .overrideWithValue(_FakeKioskModeController()),
+          networkCacheCleanerProvider.overrideWithValue(() async {}),
         ],
       ),
     );
@@ -92,7 +95,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('renders the current item once a MockPhotoSource is registered', (tester) async {
+  testWidgets('renders the current item once a MockPhotoSource is registered',
+      (tester) async {
     final source = MockPhotoSource(
       id: 'mock-1',
       folderCount: 1,
@@ -118,6 +122,7 @@ void main() {
             AlwaysOnController(wakelock: _FakeWakelock()),
           ),
           kioskModeControllerProvider.overrideWithValue(kiosk),
+          networkCacheCleanerProvider.overrideWithValue(() async {}),
         ],
         child: MaterialApp(
           home: ValueListenableBuilder<bool>(

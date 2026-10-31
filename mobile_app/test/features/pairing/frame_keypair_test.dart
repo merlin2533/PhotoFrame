@@ -20,9 +20,12 @@ void main() {
       backing = {};
 
       when(() => storage.read(key: any(named: 'key'))).thenAnswer(
-        (invocation) async => backing[invocation.namedArguments[#key] as String],
+        (invocation) async =>
+            backing[invocation.namedArguments[#key] as String],
       );
-      when(() => storage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+      when(() =>
+              storage.write(key: any(named: 'key'), value: any(named: 'value')))
+          .thenAnswer(
         (invocation) async {
           final key = invocation.namedArguments[#key] as String;
           final value = invocation.namedArguments[#value] as String?;
@@ -47,7 +50,8 @@ void main() {
       expect(await store.hasKeypair(), isTrue);
     });
 
-    test('ensurePublicKeyBase64 generates real, non-empty key material', () async {
+    test('ensurePublicKeyBase64 generates real, non-empty key material',
+        () async {
       final store = newStore();
       final publicKeyBase64 = await store.ensurePublicKeyBase64();
       expect(publicKeyBase64, isNotEmpty);
@@ -55,14 +59,17 @@ void main() {
       expect(base64Decode(publicKeyBase64), hasLength(32));
     });
 
-    test('ensurePublicKeyBase64 is stable across calls once generated', () async {
+    test('ensurePublicKeyBase64 is stable across calls once generated',
+        () async {
       final store = newStore();
       final first = await store.ensurePublicKeyBase64();
       final second = await store.ensurePublicKeyBase64();
       expect(second, first);
     });
 
-    test('loadOrCreateKeyPair reconstructs the same keypair from persisted storage', () async {
+    test(
+        'loadOrCreateKeyPair reconstructs the same keypair from persisted storage',
+        () async {
       final store = newStore();
       final publicKeyBase64 = await store.ensurePublicKeyBase64();
 
@@ -73,7 +80,9 @@ void main() {
       expect(reloadedPublicKey, publicKeyBase64);
     });
 
-    test('generateCandidateKeypair produces a different public key, uncommitted', () async {
+    test(
+        'generateCandidateKeypair produces a different public key, uncommitted',
+        () async {
       final store = newStore();
       final before = await store.ensurePublicKeyBase64();
       final candidate = await store.generateCandidateKeypair();
@@ -91,14 +100,17 @@ void main() {
       expect(candidate.publicKeyBase64, isNot(equals(before)));
     });
 
-    test('a discarded (never committed) candidate leaves the existing key untouched', () async {
+    test(
+        'a discarded (never committed) candidate leaves the existing key untouched',
+        () async {
       final store = newStore();
       final before = await store.ensurePublicKeyBase64();
       await store.generateCandidateKeypair(); // generated, never committed
       expect(await store.ensurePublicKeyBase64(), before);
     });
 
-    test('committing an expired candidate throws and does not persist', () async {
+    test('committing an expired candidate throws and does not persist',
+        () async {
       final store = newStore();
       final candidate = await store.generateCandidateKeypair();
       // Simulate the 60-minute validity window having elapsed by comparing
@@ -110,7 +122,9 @@ void main() {
       expect(CandidateFrameKeypair.maxAge, const Duration(minutes: 60));
     });
 
-    test('a fixed seedGenerator makes key generation deterministic (for tests only)', () async {
+    test(
+        'a fixed seedGenerator makes key generation deterministic (for tests only)',
+        () async {
       List<int> fixedSeed() => List<int>.filled(32, 7);
 
       final storeA = newStore(seedGenerator: fixedSeed);
@@ -120,15 +134,18 @@ void main() {
       final otherBacking = <String, String>{};
       final storageB = _MockSecureStorage();
       when(() => storageB.read(key: any(named: 'key'))).thenAnswer(
-        (invocation) async => otherBacking[invocation.namedArguments[#key] as String],
+        (invocation) async =>
+            otherBacking[invocation.namedArguments[#key] as String],
       );
-      when(() => storageB.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+      when(() => storageB.write(
+          key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
         (invocation) async {
           otherBacking[invocation.namedArguments[#key] as String] =
               invocation.namedArguments[#value] as String;
         },
       );
-      final storeB = FrameKeypairStore(storage: storageB, seedGenerator: fixedSeed);
+      final storeB =
+          FrameKeypairStore(storage: storageB, seedGenerator: fixedSeed);
       final publicKeyB = await storeB.ensurePublicKeyBase64();
 
       expect(publicKeyB, publicKeyA);

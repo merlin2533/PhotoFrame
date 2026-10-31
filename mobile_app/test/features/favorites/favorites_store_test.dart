@@ -17,7 +17,8 @@ void main() {
       expect(store.isFavorite('a'), isFalse);
     });
 
-    test('load() marks the store as loaded even with nothing persisted', () async {
+    test('load() marks the store as loaded even with nothing persisted',
+        () async {
       final store = FavoritesStore();
       await store.load();
       expect(store.isLoaded, isTrue);
@@ -45,7 +46,8 @@ void main() {
       expect(store.favoriteIds, isEmpty);
     });
 
-    test('setFavorite(id, true/false) sets an explicit state idempotently', () async {
+    test('setFavorite(id, true/false) sets an explicit state idempotently',
+        () async {
       final store = FavoritesStore();
       await store.load();
 
@@ -70,7 +72,8 @@ void main() {
       expect(notifications, 1);
     });
 
-    test('changes stream emits the current favorite set after each mutation', () async {
+    test('changes stream emits the current favorite set after each mutation',
+        () async {
       final store = FavoritesStore();
       final emissions = <Set<String>>[];
       final sub = store.changes.listen(emissions.add);
@@ -89,7 +92,8 @@ void main() {
       expect(emissions.last, {'id-1', 'id-2'});
     });
 
-    test('persists across separate FavoritesStore instances sharing prefs', () async {
+    test('persists across separate FavoritesStore instances sharing prefs',
+        () async {
       final prefs = await SharedPreferences.getInstance();
 
       final store1 = FavoritesStore(prefs: prefs);

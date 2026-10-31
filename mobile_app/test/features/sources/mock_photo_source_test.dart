@@ -13,7 +13,8 @@ void main() {
     late MockPhotoSource source;
 
     setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('mock_photo_source_test_');
+      tempDir =
+          await Directory.systemTemp.createTemp('mock_photo_source_test_');
       source = MockPhotoSource(
         id: 'test-source',
         displayName: 'Test Source',
@@ -49,7 +50,8 @@ void main() {
     });
 
     test('listImages yields the expected items for a folder', () async {
-      const folder = PhotoFolder(id: 'folder-0', name: 'Mock Folder 0', path: '/mock/folder-0');
+      const folder = PhotoFolder(
+          id: 'folder-0', name: 'Mock Folder 0', path: '/mock/folder-0');
 
       final items = <String>[];
       await for (final result in source.listImages(folder)) {
@@ -61,18 +63,23 @@ void main() {
         items.add(item.id);
       }
       expect(items, hasLength(3));
-      expect(items, containsAll(['folder-0-item-0', 'folder-0-item-1', 'folder-0-item-2']));
+      expect(
+          items,
+          containsAll(
+              ['folder-0-item-0', 'folder-0-item-1', 'folder-0-item-2']));
     });
 
     test('listImages on an unknown folder yields a NotFound failure', () async {
-      const unknownFolder = PhotoFolder(id: 'nope', name: 'Nope', path: '/nope');
+      const unknownFolder =
+          PhotoFolder(id: 'nope', name: 'Nope', path: '/nope');
       final results = await source.listImages(unknownFolder).toList();
       expect(results, hasLength(1));
       expect(results.single.isErr, isTrue);
     });
 
     test('fetchToCache returns a readable file for a known item', () async {
-      const folder = PhotoFolder(id: 'folder-0', name: 'Mock Folder 0', path: '/mock/folder-0');
+      const folder = PhotoFolder(
+          id: 'folder-0', name: 'Mock Folder 0', path: '/mock/folder-0');
       final firstItemResult = await source.listImages(folder).first;
       final item = firstItemResult.valueOrNull!;
 

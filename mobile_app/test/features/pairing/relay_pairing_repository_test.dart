@@ -49,7 +49,8 @@ void main() {
       when(() => mockStorage.read(key: any(named: 'key'))).thenAnswer(
         (i) async => backing[i.namedArguments[#key] as String],
       );
-      when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+      when(() => mockStorage.write(
+          key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
         (i) async {
           final key = i.namedArguments[#key] as String;
           final value = i.namedArguments[#value] as String?;
@@ -60,16 +61,21 @@ void main() {
           }
         },
       );
-      when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((i) async {
+      when(() => mockStorage.delete(key: any(named: 'key')))
+          .thenAnswer((i) async {
         backing.remove(i.namedArguments[#key] as String);
       });
       fingerprintStore = KeyFingerprintStore(storage: mockStorage);
-      repository = RelayPairingRepository(apiClient: api, fingerprintStore: fingerprintStore);
+      repository = RelayPairingRepository(
+          apiClient: api, fingerprintStore: fingerprintStore);
 
-      when(() => api.redeemPairingCode(any())).thenAnswer((_) async => Result.ok(pairingId));
+      when(() => api.redeemPairingCode(any()))
+          .thenAnswer((_) async => Result.ok(pairingId));
     });
 
-    test('no fingerprint in the link yields noFingerprintInLink without calling getPairing', () async {
+    test(
+        'no fingerprint in the link yields noFingerprintInLink without calling getPairing',
+        () async {
       final result = await repository.redeemInvite(
         code: 'CODE1',
         linkFingerprint: null,
@@ -81,8 +87,11 @@ void main() {
       verifyNever(() => api.getPairing(any()));
     });
 
-    test('a fingerprint matching exactly one member on first contact yields verifiedNewTrust', () async {
-      when(() => api.getPairing(pairingId)).thenAnswer((_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
+    test(
+        'a fingerprint matching exactly one member on first contact yields verifiedNewTrust',
+        () async {
+      when(() => api.getPairing(pairingId)).thenAnswer(
+          (_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
 
       final result = await repository.redeemInvite(
         code: 'CODE1',
@@ -92,12 +101,16 @@ void main() {
 
       expect(result.valueOrNull!.outcome, RedeemOutcome.verifiedNewTrust);
       expect(result.valueOrNull!.matchedFrameId, inviterFrameId);
-      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId), 'FP001');
+      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId),
+          'FP001');
     });
 
-    test('a fingerprint matching an already-trusted value yields verifiedMatchesExistingTrust', () async {
+    test(
+        'a fingerprint matching an already-trusted value yields verifiedMatchesExistingTrust',
+        () async {
       await fingerprintStore.checkOrTrust(inviterFrameId, 'FP001');
-      when(() => api.getPairing(pairingId)).thenAnswer((_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
+      when(() => api.getPairing(pairingId)).thenAnswer(
+          (_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
 
       final result = await repository.redeemInvite(
         code: 'CODE1',
@@ -105,12 +118,16 @@ void main() {
         localFrameId: localFrameId,
       );
 
-      expect(result.valueOrNull!.outcome, RedeemOutcome.verifiedMatchesExistingTrust);
+      expect(result.valueOrNull!.outcome,
+          RedeemOutcome.verifiedMatchesExistingTrust);
     });
 
-    test('a fingerprint conflicting with a previously trusted value requires confirmation', () async {
+    test(
+        'a fingerprint conflicting with a previously trusted value requires confirmation',
+        () async {
       await fingerprintStore.checkOrTrust(inviterFrameId, 'OLDFP');
-      when(() => api.getPairing(pairingId)).thenAnswer((_) async => Result.ok(detailsWithInviterFingerprint('NEWFP')));
+      when(() => api.getPairing(pairingId)).thenAnswer(
+          (_) async => Result.ok(detailsWithInviterFingerprint('NEWFP')));
 
       final result = await repository.redeemInvite(
         code: 'CODE1',
@@ -123,14 +140,19 @@ void main() {
       expect(redeemResult.requiresUserConfirmation, isTrue);
 
       // Must NOT have silently overwritten the trusted value.
-      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId), 'OLDFP');
+      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId),
+          'OLDFP');
 
       await repository.confirmRedeemTrust(redeemResult);
-      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId), 'NEWFP');
+      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId),
+          'NEWFP');
     });
 
-    test('a link fingerprint matching no member yields noMatchingMember and requires confirmation', () async {
-      when(() => api.getPairing(pairingId)).thenAnswer((_) async => Result.ok(detailsWithInviterFingerprint('SERVERFP')));
+    test(
+        'a link fingerprint matching no member yields noMatchingMember and requires confirmation',
+        () async {
+      when(() => api.getPairing(pairingId)).thenAnswer(
+          (_) async => Result.ok(detailsWithInviterFingerprint('SERVERFP')));
 
       final result = await repository.redeemInvite(
         code: 'CODE1',
@@ -141,11 +163,15 @@ void main() {
       final redeemResult = result.valueOrNull!;
       expect(redeemResult.outcome, RedeemOutcome.noMatchingMember);
       expect(redeemResult.requiresUserConfirmation, isTrue);
-      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId), isNull);
+      expect(
+          await fingerprintStore.trustedFingerprintFor(inviterFrameId), isNull);
     });
 
-    test('confirmRedeemTrust is a no-op for outcomes that do not require confirmation', () async {
-      when(() => api.getPairing(pairingId)).thenAnswer((_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
+    test(
+        'confirmRedeemTrust is a no-op for outcomes that do not require confirmation',
+        () async {
+      when(() => api.getPairing(pairingId)).thenAnswer(
+          (_) async => Result.ok(detailsWithInviterFingerprint('FP001')));
       final result = await repository.redeemInvite(
         code: 'CODE1',
         linkFingerprint: 'FP001',
@@ -156,11 +182,14 @@ void main() {
 
       // Should not throw or store anything odd.
       await repository.confirmRedeemTrust(redeemResult);
-      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId), 'FP001');
+      expect(await fingerprintStore.trustedFingerprintFor(inviterFrameId),
+          'FP001');
     });
   });
 
-  group('RelayPairingRepository.sendEncryptedConfigPush (client-side TOFU, sending side)', () {
+  group(
+      'RelayPairingRepository.sendEncryptedConfigPush (client-side TOFU, sending side)',
+      () {
     late _MockRelayApiClient api;
     late KeyFingerprintStore fingerprintStore;
     late RelayPairingRepository repository;
@@ -176,9 +205,11 @@ void main() {
     // in config_push_crypto_test.dart. `encryptForRecipient` only validates
     // the key's *shape* (32 bytes), so this is enough to exercise the
     // success path without throwing on decode.
-    const targetPublicKeyBase64 = 'MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MGE=';
+    const targetPublicKeyBase64 =
+        'MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MGE=';
 
-    PairingDetails detailsWithTarget({required String? fingerprint, String? publicKey}) {
+    PairingDetails detailsWithTarget(
+        {required String? fingerprint, String? publicKey}) {
       return PairingDetails(
         pairingId: pairingId,
         name: 'Test Pairing',
@@ -207,7 +238,8 @@ void main() {
       when(() => mockStorage.read(key: any(named: 'key'))).thenAnswer(
         (i) async => backing[i.namedArguments[#key] as String],
       );
-      when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+      when(() => mockStorage.write(
+          key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
         (i) async {
           final key = i.namedArguments[#key] as String;
           final value = i.namedArguments[#value] as String?;
@@ -218,19 +250,26 @@ void main() {
           }
         },
       );
-      when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((i) async {
+      when(() => mockStorage.delete(key: any(named: 'key')))
+          .thenAnswer((i) async {
         backing.remove(i.namedArguments[#key] as String);
       });
       fingerprintStore = KeyFingerprintStore(storage: mockStorage);
-      repository = RelayPairingRepository(apiClient: api, fingerprintStore: fingerprintStore);
+      repository = RelayPairingRepository(
+          apiClient: api, fingerprintStore: fingerprintStore);
 
-      when(() => api.sendConfigPush(targetFrameId: any(named: 'targetFrameId'), ciphertext: any(named: 'ciphertext')))
+      when(() => api.sendConfigPush(
+              targetFrameId: any(named: 'targetFrameId'),
+              ciphertext: any(named: 'ciphertext')))
           .thenAnswer((_) async => Result.ok('push-id-1'));
     });
 
-    test('first contact (trusted) resolves as safe to send and encrypts normally', () async {
+    test(
+        'first contact (trusted) resolves as safe to send and encrypts normally',
+        () async {
       when(() => api.getPairing(pairingId)).thenAnswer(
-        (_) async => Result.ok(detailsWithTarget(fingerprint: 'FPNEW', publicKey: targetPublicKeyBase64)),
+        (_) async => Result.ok(detailsWithTarget(
+            fingerprint: 'FPNEW', publicKey: targetPublicKeyBase64)),
       );
 
       final recipientResult = await repository.resolveConfigPushRecipient(
@@ -240,7 +279,8 @@ void main() {
       final recipient = recipientResult.valueOrNull!;
       expect(recipient.trust, FingerprintTrust.trusted);
       expect(recipient.isSafeToSend, isTrue);
-      expect(await fingerprintStore.trustedFingerprintFor(targetFrameId), 'FPNEW');
+      expect(
+          await fingerprintStore.trustedFingerprintFor(targetFrameId), 'FPNEW');
 
       final sendResult = await repository.sendEncryptedConfigPush(
         pairingId: pairingId,
@@ -249,13 +289,18 @@ void main() {
       );
 
       expect(sendResult.isOk, isTrue);
-      verify(() => api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: any(named: 'ciphertext'))).called(1);
+      verify(() => api.sendConfigPush(
+          targetFrameId: targetFrameId,
+          ciphertext: any(named: 'ciphertext'))).called(1);
     });
 
-    test('fingerprint matching existing trust (match) resolves as safe to send and encrypts normally', () async {
+    test(
+        'fingerprint matching existing trust (match) resolves as safe to send and encrypts normally',
+        () async {
       await fingerprintStore.checkOrTrust(targetFrameId, 'FPKNOWN');
       when(() => api.getPairing(pairingId)).thenAnswer(
-        (_) async => Result.ok(detailsWithTarget(fingerprint: 'FPKNOWN', publicKey: targetPublicKeyBase64)),
+        (_) async => Result.ok(detailsWithTarget(
+            fingerprint: 'FPKNOWN', publicKey: targetPublicKeyBase64)),
       );
 
       final recipientResult = await repository.resolveConfigPushRecipient(
@@ -272,13 +317,18 @@ void main() {
       );
 
       expect(sendResult.isOk, isTrue);
-      verify(() => api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: any(named: 'ciphertext'))).called(1);
+      verify(() => api.sendConfigPush(
+          targetFrameId: targetFrameId,
+          ciphertext: any(named: 'ciphertext'))).called(1);
     });
 
-    test('a changed fingerprint (mismatch) is NOT sent/encrypted without explicit confirmation', () async {
+    test(
+        'a changed fingerprint (mismatch) is NOT sent/encrypted without explicit confirmation',
+        () async {
       await fingerprintStore.checkOrTrust(targetFrameId, 'OLDFP');
       when(() => api.getPairing(pairingId)).thenAnswer(
-        (_) async => Result.ok(detailsWithTarget(fingerprint: 'NEWFP', publicKey: targetPublicKeyBase64)),
+        (_) async => Result.ok(detailsWithTarget(
+            fingerprint: 'NEWFP', publicKey: targetPublicKeyBase64)),
       );
 
       final recipientResult = await repository.resolveConfigPushRecipient(
@@ -291,7 +341,8 @@ void main() {
 
       // The old value must still be what's trusted - resolving must not
       // silently overwrite it.
-      expect(await fingerprintStore.trustedFingerprintFor(targetFrameId), 'OLDFP');
+      expect(
+          await fingerprintStore.trustedFingerprintFor(targetFrameId), 'OLDFP');
 
       // Attempting to send anyway (as if the UI's confirmation gate were
       // skipped/buggy) must refuse without encrypting/sending anything.
@@ -302,13 +353,18 @@ void main() {
       );
 
       expect(sendResult.isErr, isTrue);
-      verifyNever(() => api.sendConfigPush(targetFrameId: any(named: 'targetFrameId'), ciphertext: any(named: 'ciphertext')));
+      verifyNever(() => api.sendConfigPush(
+          targetFrameId: any(named: 'targetFrameId'),
+          ciphertext: any(named: 'ciphertext')));
     });
 
-    test('after explicit confirmation of a mismatch, the new fingerprint is trusted and sending proceeds', () async {
+    test(
+        'after explicit confirmation of a mismatch, the new fingerprint is trusted and sending proceeds',
+        () async {
       await fingerprintStore.checkOrTrust(targetFrameId, 'OLDFP');
       when(() => api.getPairing(pairingId)).thenAnswer(
-        (_) async => Result.ok(detailsWithTarget(fingerprint: 'NEWFP', publicKey: targetPublicKeyBase64)),
+        (_) async => Result.ok(detailsWithTarget(
+            fingerprint: 'NEWFP', publicKey: targetPublicKeyBase64)),
       );
 
       final recipientResult = await repository.resolveConfigPushRecipient(
@@ -320,8 +376,10 @@ void main() {
 
       // User explicitly confirms the mismatch warning - mirrors what
       // `send_config_push_screen.dart`'s `_confirmMismatchAndSend` does.
-      await repository.confirmSenderTrust(frameId: targetFrameId, fingerprint: 'NEWFP');
-      expect(await fingerprintStore.trustedFingerprintFor(targetFrameId), 'NEWFP');
+      await repository.confirmSenderTrust(
+          frameId: targetFrameId, fingerprint: 'NEWFP');
+      expect(
+          await fingerprintStore.trustedFingerprintFor(targetFrameId), 'NEWFP');
 
       final sendResult = await repository.sendEncryptedConfigPush(
         pairingId: pairingId,
@@ -330,12 +388,16 @@ void main() {
       );
 
       expect(sendResult.isOk, isTrue);
-      verify(() => api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: any(named: 'ciphertext'))).called(1);
+      verify(() => api.sendConfigPush(
+          targetFrameId: targetFrameId,
+          ciphertext: any(named: 'ciphertext'))).called(1);
     });
 
-    test('no public key on file refuses to send regardless of fingerprint', () async {
+    test('no public key on file refuses to send regardless of fingerprint',
+        () async {
       when(() => api.getPairing(pairingId)).thenAnswer(
-        (_) async => Result.ok(detailsWithTarget(fingerprint: 'FPNEW', publicKey: null)),
+        (_) async =>
+            Result.ok(detailsWithTarget(fingerprint: 'FPNEW', publicKey: null)),
       );
 
       final sendResult = await repository.sendEncryptedConfigPush(
@@ -345,7 +407,9 @@ void main() {
       );
 
       expect(sendResult.isErr, isTrue);
-      verifyNever(() => api.sendConfigPush(targetFrameId: any(named: 'targetFrameId'), ciphertext: any(named: 'ciphertext')));
+      verifyNever(() => api.sendConfigPush(
+          targetFrameId: any(named: 'targetFrameId'),
+          ciphertext: any(named: 'ciphertext')));
     });
   });
 }

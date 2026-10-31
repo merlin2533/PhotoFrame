@@ -21,7 +21,8 @@ void main() {
   });
 
   group('AlwaysOnMode.always', () {
-    test('enables wakelock as soon as applied, even without a slideshow', () async {
+    test('enables wakelock as soon as applied, even without a slideshow',
+        () async {
       final controller = AlwaysOnController(
         wakelock: wakelock,
         mode: AlwaysOnMode.always,
@@ -78,7 +79,8 @@ void main() {
       expect(controller.isWakelockActive, isTrue);
     });
 
-    test('allows screen to sleep during the night window while slideshow runs', () async {
+    test('allows screen to sleep during the night window while slideshow runs',
+        () async {
       final controller = AlwaysOnController(
         wakelock: wakelock,
         mode: AlwaysOnMode.scheduled,
@@ -92,7 +94,8 @@ void main() {
       expect(controller.isWakelockActive, isFalse);
     });
 
-    test('transitions from day to night on tick without other state changes', () async {
+    test('transitions from day to night on tick without other state changes',
+        () async {
       final controller = AlwaysOnController(
         wakelock: wakelock,
         mode: AlwaysOnMode.scheduled,
@@ -109,7 +112,8 @@ void main() {
       expect(controller.isWakelockActive, isFalse);
     });
 
-    test('never wakes the screen at night if slideshow is not running', () async {
+    test('never wakes the screen at night if slideshow is not running',
+        () async {
       final controller = AlwaysOnController(
         wakelock: wakelock,
         mode: AlwaysOnMode.scheduled,
@@ -124,7 +128,8 @@ void main() {
   });
 
   group('updateMode', () {
-    test('switching from duringSlideshowOnly to always enables immediately', () async {
+    test('switching from duringSlideshowOnly to always enables immediately',
+        () async {
       final controller = AlwaysOnController(wakelock: wakelock);
       await controller.applyInitialState();
       verifyNever(() => wakelock.enable());

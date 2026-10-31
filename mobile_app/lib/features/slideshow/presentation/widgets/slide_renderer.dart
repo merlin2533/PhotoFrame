@@ -156,9 +156,14 @@ class _PhotoImage extends StatelessWidget {
     if (file == null) {
       return _PlaceholderBox(item: item, reason: error);
     }
+    // Decode at screen resolution instead of full camera size: a 12 MP photo
+    // otherwise takes ~48 MB of memory on the frame.
+    final screenWidth = MediaQuery.sizeOf(context).width *
+        MediaQuery.devicePixelRatioOf(context);
     return Image.file(
       file!,
       fit: fit,
+      cacheWidth: screenWidth.round(),
       errorBuilder: (context, err, stackTrace) =>
           _PlaceholderBox(item: item, reason: 'Nicht dekodierbar: $err'),
     );

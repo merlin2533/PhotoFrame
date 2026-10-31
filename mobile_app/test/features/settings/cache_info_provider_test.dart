@@ -20,7 +20,8 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    tempDir = await Directory.systemTemp.createTemp('cache_info_provider_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('cache_info_provider_test_');
   });
 
   tearDown(() async {
@@ -29,7 +30,8 @@ void main() {
     }
   });
 
-  test('cacheInfoProvider starts at 0 used bytes with the configured limit', () async {
+  test('cacheInfoProvider starts at 0 used bytes with the configured limit',
+      () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
@@ -42,7 +44,8 @@ void main() {
     expect(info.limitBytes, const AppSettings().cacheLimitBytes);
   });
 
-  test('cacheInfoProvider reflects bytes actually stored in ImageCacheManager', () async {
+  test('cacheInfoProvider reflects bytes actually stored in ImageCacheManager',
+      () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     await container.read(settingsProvider.future);
@@ -60,7 +63,9 @@ void main() {
     expect(info.usedBytes, 1000);
   });
 
-  test('imageCacheManagerProvider re-enforces a lowered limit on settings change', () async {
+  test(
+      'imageCacheManagerProvider re-enforces a lowered limit on settings change',
+      () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     await container.read(settingsProvider.future);
@@ -86,7 +91,8 @@ void main() {
     // disk space before evicting - poll with a generous deadline instead of
     // guessing a fixed microtask/delay count.
     final deadline = DateTime.now().add(const Duration(seconds: 5));
-    while (manager.currentSizeBytes(CacheTier.full) >= 200 && DateTime.now().isBefore(deadline)) {
+    while (manager.currentSizeBytes(CacheTier.full) >= 200 &&
+        DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
 

@@ -21,7 +21,8 @@ _MockSecureStorage _fakeSecureStorage() {
   when(() => storage.read(key: any(named: 'key'))).thenAnswer(
     (invocation) async => store[invocation.namedArguments[#key] as String],
   );
-  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer(
     (invocation) async {
       final key = invocation.namedArguments[#key] as String;
       final value = invocation.namedArguments[#value] as String?;
@@ -33,7 +34,8 @@ _MockSecureStorage _fakeSecureStorage() {
     },
   );
   when(() => storage.delete(key: any(named: 'key'))).thenAnswer(
-    (invocation) async => store.remove(invocation.namedArguments[#key] as String),
+    (invocation) async =>
+        store.remove(invocation.namedArguments[#key] as String),
   );
   return storage;
 }
@@ -41,8 +43,10 @@ _MockSecureStorage _fakeSecureStorage() {
 ProviderContainer _makeContainer() {
   final container = ProviderContainer(
     overrides: [
-      sharedPreferencesProvider.overrideWithValue(SharedPreferences.getInstance()),
-      relayTokenStorageProvider.overrideWithValue(RelayTokenStorage(storage: _fakeSecureStorage())),
+      sharedPreferencesProvider
+          .overrideWithValue(SharedPreferences.getInstance()),
+      relayTokenStorageProvider
+          .overrideWithValue(RelayTokenStorage(storage: _fakeSecureStorage())),
     ],
   );
   addTearDown(container.dispose);
@@ -61,7 +65,8 @@ void main() {
       expect(container.read(relayApiClientProvider), isNull);
     });
 
-    test('builds a RelayApiClient once a relay server URL is configured', () async {
+    test('builds a RelayApiClient once a relay server URL is configured',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final container = _makeContainer();
       await container.read(settingsProvider.future);
@@ -85,7 +90,9 @@ void main() {
       expect(container.read(pairingRepositoryProvider), isNull);
     });
 
-    test('builds a RelayPairingRepository once a relay server URL is configured', () async {
+    test(
+        'builds a RelayPairingRepository once a relay server URL is configured',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final container = _makeContainer();
       await container.read(settingsProvider.future);
@@ -94,7 +101,8 @@ void main() {
             (s) => s.copyWith(relayServerUrl: 'https://relay.example.com'),
           );
 
-      expect(container.read(pairingRepositoryProvider), isA<RelayPairingRepository>());
+      expect(container.read(pairingRepositoryProvider),
+          isA<RelayPairingRepository>());
     });
   });
 
@@ -104,11 +112,13 @@ void main() {
       final container = _makeContainer();
       await container.read(settingsProvider.future);
 
-      final socketClient = await container.read(relaySocketClientProvider.future);
+      final socketClient =
+          await container.read(relaySocketClientProvider.future);
       expect(socketClient, isNull);
     });
 
-    test('resolves to null when a relay URL is set but no device token exists', () async {
+    test('resolves to null when a relay URL is set but no device token exists',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final container = _makeContainer();
       await container.read(settingsProvider.future);
@@ -119,7 +129,8 @@ void main() {
       // No frame has ever been registered on this fresh device (secure
       // storage starts empty), so there is no device token to authenticate
       // a socket connection with.
-      final socketClient = await container.read(relaySocketClientProvider.future);
+      final socketClient =
+          await container.read(relaySocketClientProvider.future);
       expect(socketClient, isNull);
     });
   });

@@ -23,7 +23,8 @@ void main() {
     });
 
     test('host with embedded path is rejected', () {
-      const model = SmbConfigFormModel(host: '192.168.1.20/share', share: 'Photos');
+      const model =
+          SmbConfigFormModel(host: '192.168.1.20/share', share: 'Photos');
       expect(model.validate(), containsPair('host', isNotEmpty));
     });
 

@@ -11,8 +11,11 @@ import 'package:test/test.dart';
 /// generates, plus an [ItemResolver] that looks items up by key - the same
 /// shape `slideshow_screen.dart` wires up in production, just without the
 /// UI/Riverpod layer.
-({InMemoryWorkingSetPool pool, Map<String, PhotoItem> itemsByKey, PhotoSource source})
-    _buildFixture({int folderCount = 1, int itemsPerFolder = 8}) {
+({
+  InMemoryWorkingSetPool pool,
+  Map<String, PhotoItem> itemsByKey,
+  PhotoSource source
+}) _buildFixture({int folderCount = 1, int itemsPerFolder = 8}) {
   final source = MockPhotoSource(
     id: 'src-1',
     folderCount: folderCount,
@@ -91,7 +94,8 @@ void main() {
       });
     });
 
-    test('advances to a new item after the configured interval elapses', () async {
+    test('advances to a new item after the configured interval elapses',
+        () async {
       final fixture = _buildFixture();
       await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
 
@@ -102,7 +106,8 @@ void main() {
           resolveItem: (entry) async => fixture.itemsByKey[entry.key],
           // noRepeatWindow guarantees the very next draw differs from the
           // current one as long as more than one candidate exists.
-          config: const SlideshowConfig(interval: Duration(seconds: 5), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 5), noRepeatWindow: 1),
         );
 
         engine.start();
@@ -131,7 +136,8 @@ void main() {
           pool: fixture.pool,
           sources: {fixture.source.id: fixture.source},
           resolveItem: (entry) async => fixture.itemsByKey[entry.key],
-          config: const SlideshowConfig(interval: Duration(seconds: 3), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 3), noRepeatWindow: 1),
         );
 
         final seen = <PhotoItem?>[];
@@ -149,7 +155,8 @@ void main() {
       });
     });
 
-    test('does not prefetch beyond the current item (documented current scope)', () async {
+    test('does not prefetch beyond the current item (documented current scope)',
+        () async {
       // SlideshowEngine's own doc comment states prefetching upcoming items
       // is intentionally not implemented here (left to a future
       // UI/controller layer). This test locks in that current behaviour:
@@ -167,7 +174,8 @@ void main() {
             resolveCalls++;
             return fixture.itemsByKey[entry.key];
           },
-          config: const SlideshowConfig(interval: Duration(seconds: 10), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 10), noRepeatWindow: 1),
         );
 
         engine.start();
@@ -193,7 +201,8 @@ void main() {
           pool: fixture.pool,
           sources: {fixture.source.id: fixture.source},
           resolveItem: (entry) async => fixture.itemsByKey[entry.key],
-          config: const SlideshowConfig(interval: Duration(seconds: 5), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 5), noRepeatWindow: 1),
         );
 
         engine.start();
@@ -219,7 +228,8 @@ void main() {
       });
     });
 
-    test('dispose() cancels the timer and leaves no further advances', () async {
+    test('dispose() cancels the timer and leaves no further advances',
+        () async {
       final fixture = _buildFixture();
       await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
 
@@ -228,7 +238,8 @@ void main() {
           pool: fixture.pool,
           sources: {fixture.source.id: fixture.source},
           resolveItem: (entry) async => fixture.itemsByKey[entry.key],
-          config: const SlideshowConfig(interval: Duration(seconds: 5), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 5), noRepeatWindow: 1),
         );
 
         engine.start();
@@ -248,7 +259,8 @@ void main() {
       });
     });
 
-    test('skipToNext() advances immediately without waiting for the timer', () async {
+    test('skipToNext() advances immediately without waiting for the timer',
+        () async {
       final fixture = _buildFixture();
       await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
 
@@ -257,7 +269,8 @@ void main() {
           pool: fixture.pool,
           sources: {fixture.source.id: fixture.source},
           resolveItem: (entry) async => fixture.itemsByKey[entry.key],
-          config: const SlideshowConfig(interval: Duration(seconds: 30), noRepeatWindow: 1),
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 30), noRepeatWindow: 1),
         );
 
         engine.start();
