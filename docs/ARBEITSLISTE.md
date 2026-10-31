@@ -20,6 +20,7 @@ Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 - [ ] Tagesauswahl: 2 Bilder pro Ordner im Wechsel (Round-Robin), Zahl 100–5000
 
 ## Erledigt
+- [x] Übersicht: Neu mischen, Sortierung nach Ordner oder Reihenfolge der Quellen
 - [x] Verkleinerte Fotos auf dem Gerät (Batches à 100, fortlaufend), Diashow und Übersicht nutzen sie
 - [x] Startseite mit Hintergrundfoto und Status; Haus-Symbol in der Diashow
 - [x] Diashow-Intervall Standard 20 s
