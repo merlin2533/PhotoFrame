@@ -247,14 +247,29 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// Default batch size; the real value comes from the settings.
   static const defaultBatchSize = 5;
 
+  /// A photo that could not be prepared is left alone for this long before it
+  /// is tried again.
+  static const retryAfter = Duration(hours: 1);
+
   bool _running = false;
   int _done = 0;
   int _total = 0;
   final Map<String, PhotoItem> _queued = {};
   final Map<String, PhotoSource> _sources = {};
 
+  /// stableIds of photos whose small copy exists (prepared in this session).
+  final Set<String> _doneKeys = {};
+
+  /// When each photo last failed to prepare.
+  final Map<String, DateTime> _failedAt = {};
+
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
+
+  bool _failedRecently(PhotoItem item) {
+    final failed = _failedAt[item.stableId];
+    return failed != null && DateTime.now().difference(failed) < retryAfter;
+  }
 
   /// Queues [items] (in random order) and runs the queue if it is not running.
   /// Returns when the queue is empty.
@@ -264,10 +279,33 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   ) async {
     _sources.addAll(sourcesById);
     for (final item in List<PhotoItem>.of(items)..shuffle()) {
-      if (_queued.putIfAbsent(item.stableId, () => item) == item) {
-        _total++;
-      }
+      if (_queued.containsKey(item.stableId)) continue;
+      if (_doneKeys.contains(item.stableId) || _failedRecently(item)) continue;
+      _queued[item.stableId] = item;
+      _total++;
     }
+    await _run();
+  }
+
+  /// Puts [item] at the front of the queue and runs the queue if it is not
+  /// running, so a photo about to be shown is prepared before the others.
+  /// Photos that are already prepared or failed recently are left alone.
+  Future<void> prioritize(PhotoItem item, PhotoSource source) async {
+    _sources[source.id] = source;
+    if (_doneKeys.contains(item.stableId) || _failedRecently(item)) return;
+    final wasQueued = _queued.containsKey(item.stableId);
+    final rest = Map<String, PhotoItem>.of(_queued)..remove(item.stableId);
+    _queued
+      ..clear()
+      ..[item.stableId] = item
+      ..addAll(rest);
+    if (!wasQueued) _total++;
+    await _run();
+  }
+
+  /// Works through the queue batch by batch until it is empty. Does nothing
+  /// when a run is already going: that run picks up what was queued meanwhile.
+  Future<void> _run() async {
     if (_running || _queued.isEmpty) return;
     _running = true;
     final cache = ref.read(smallPhotoCacheProvider);
@@ -286,9 +324,15 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           // A stalled network read must not stop the whole preparation: after a
           // minute the photo is skipped and the next one starts.
           if (source != null) {
-            await cache
+            final file = await cache
                 .ensure(source, item)
                 .timeout(const Duration(seconds: 60), onTimeout: () => null);
+            if (file != null) {
+              _doneKeys.add(item.stableId);
+              _failedAt.remove(item.stableId);
+            } else {
+              _failedAt[item.stableId] = DateTime.now();
+            }
           }
           _done++;
           state = SmallPhotoStatus(

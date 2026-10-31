@@ -410,9 +410,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     final item = candidates[_prefetchRandom.nextInt(candidates.length)];
     final source = _sourcesById[item.sourceId];
     if (source == null) return;
-    // Failures are ignored: the photo is fetched again when it is shown.
-    unawaited(
-        source.fetchToCache(item).then<void>((_) {}, onError: (Object _) {}));
+    // Goes through the worker's queue (at the front), so it never runs in
+    // parallel with the worker's own scaling. Failures are ignored: the photo
+    // is fetched again when it is shown.
+    unawaited(ref
+        .read(smallPhotoWorkerProvider.notifier)
+        .prioritize(item, source)
+        .then<void>((_) {}, onError: (Object _) {}));
   }
 
   /// Photos that already have a screen-sized copy come first: while copies are
