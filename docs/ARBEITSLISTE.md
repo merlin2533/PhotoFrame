@@ -12,8 +12,8 @@ Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 - [x] 7 – Nächstes Bild im Hintergrund vorladen (Netzwerkquellen)
 - [ ] 8 – Miniaturen-Cache für die Übersicht
 - [ ] 9 – Index in SQLite statt JSON (ab mehreren tausend Fotos)
-- [ ] 12 – Ken-Burns-Varianten (Schwenk, sanftes Heranzoomen, ohne Bewegung)
-- [ ] 13 – Kombinierte Übergänge (Weichzeichnen mit Ken Burns)
+- [x] 12 – Ken-Burns-Varianten (Schwenk, sanftes Heranzoomen, ohne Bewegung)
+- [x] 13 – Kombinierte Übergänge (Ken Burns liegt schon unter jedem Übergang) (Weichzeichnen mit Ken Burns)
 - [ ] Tablet-Layout – Screenshot vom Nutzer abwarten
 
 ## In Arbeit
