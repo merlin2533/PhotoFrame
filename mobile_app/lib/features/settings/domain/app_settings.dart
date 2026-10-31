@@ -30,7 +30,7 @@ class AppSettings {
     this.kenBurnsEnabled = false,
     this.portraitPairLayoutEnabled = false,
     // Always-on / Dauer-Modus
-    this.alwaysOnMode = AlwaysOnMode.duringSlideshowOnly,
+    this.alwaysOnMode = AlwaysOnMode.always,
     // Kiosk/Autostart (ADR-004)
     this.kioskModeEnabled = false,
     // Night mode
