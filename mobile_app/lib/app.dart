@@ -93,6 +93,10 @@ class _RoutedAppState extends ConsumerState<_RoutedApp> {
   Widget build(BuildContext context) {
     final languageCode =
         ref.watch(settingsProvider.select((s) => s.value?.languageCode));
+    final textScale =
+        ref.watch(settingsProvider.select((s) => s.value?.textScale ?? 1.0));
+    final highContrast = ref
+        .watch(settingsProvider.select((s) => s.value?.highContrast ?? false));
 
     return MaterialApp.router(
       title: 'PhotoFrame',
@@ -117,8 +121,37 @@ class _RoutedAppState extends ConsumerState<_RoutedApp> {
       // comment) - placed in `builder` rather than deeper in the tree so it
       // sits above `go_router`'s own navigator and can push a route from an
       // event that isn't tied to whatever screen happens to be showing.
-      builder: (context, child) =>
-          ConfigPushListener(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => _AccessibilityScope(
+        textScale: textScale,
+        highContrast: highContrast,
+        child: ConfigPushListener(child: child ?? const SizedBox.shrink()),
+      ),
+    );
+  }
+}
+
+/// Applies the accessibility settings (text size, high contrast) to the whole
+/// app through [MediaQuery], so every screen follows them.
+class _AccessibilityScope extends StatelessWidget {
+  const _AccessibilityScope({
+    required this.textScale,
+    required this.highContrast,
+    required this.child,
+  });
+
+  final double textScale;
+  final bool highContrast;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        textScaler: TextScaler.linear(textScale),
+        highContrast: highContrast || media.highContrast,
+      ),
+      child: child,
     );
   }
 }
