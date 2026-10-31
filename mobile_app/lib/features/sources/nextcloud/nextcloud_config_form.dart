@@ -93,9 +93,32 @@ class _NextcloudConfigFormScreenState
     });
   }
 
+  /// Splits a pasted share link into the server and token fields and drops
+  /// everything that doesn't belong (query, `/download`, trailing slashes).
+  void _onLinkFieldChanged(String text) {
+    final parsed = NextcloudConfigFormModel.parseShareLink(text);
+    if (parsed == null) return;
+    setState(() {
+      _serverUrlController.text = parsed.serverUrl;
+      _shareTokenController.text = parsed.token;
+    });
+  }
+
+  /// Cuts app paths and query off a pasted Nextcloud URL (account mode).
+  void _onAccountServerChanged(String text) {
+    final cleaned = NextcloudConfigFormModel.cleanServerUrl(text);
+    if (cleaned != text.trim() && text.length - cleaned.length > 1) {
+      _serverUrlController.value = TextEditingValue(
+        text: cleaned,
+        selection: TextSelection.collapsed(offset: cleaned.length),
+      );
+    }
+  }
+
   Future<void> _pickFolders() async {
     if (!_model.isValid) return;
-    final config = NextcloudSourceConfig.fromForm(_model.copyWith(folderPath: ''));
+    final config =
+        NextcloudSourceConfig.fromForm(_model.copyWith(folderPath: ''));
     final probe = NextcloudPhotoSource(id: 'browse', config: config);
     final picked = await showNextcloudFolderPicker(
       context,
@@ -184,6 +207,7 @@ class _NextcloudConfigFormScreenState
           if (_authKind == NextcloudAuthKind.account) ...[
             TextField(
               controller: _serverUrlController,
+              onChanged: _onAccountServerChanged,
               decoration: InputDecoration(
                 labelText: 'Server-URL',
                 hintText: 'https://cloud.example.com',
@@ -220,15 +244,26 @@ class _NextcloudConfigFormScreenState
             ),
           ] else ...[
             TextField(
-              controller: _shareTokenController,
+              controller: _serverUrlController,
+              onChanged: _onLinkFieldChanged,
               decoration: InputDecoration(
-                labelText: 'Öffentlicher Link',
-                hintText: 'https://cloud.example.com/s/AbCdEf',
+                labelText: 'Server-URL',
+                hintText: 'https://cloud.example.com',
                 helperText:
-                    'Den kompletten Freigabe-Link einfügen - Server und Token werden automatisch erkannt.',
-                errorText: errors['shareToken'],
+                    'Den kompletten Freigabe-Link hier oder unten einfügen - er wird automatisch in Server und Token zerlegt.',
+                errorText: errors['serverUrl'],
               ),
               keyboardType: TextInputType.url,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _shareTokenController,
+              onChanged: _onLinkFieldChanged,
+              decoration: InputDecoration(
+                labelText: 'Freigabe-Token',
+                hintText: 'AbCdEf',
+                errorText: errors['shareToken'],
+              ),
             ),
             const SizedBox(height: 16),
             TextField(

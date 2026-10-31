@@ -80,15 +80,28 @@ void main() {
     });
 
     test('a bare token with no server URL embedded is rejected', () {
-      // Share-link mode has no separate server-URL field (see
-      // `nextcloud_config_form.dart`) - the full link must be pasted so both
-      // pieces can be derived from it; a bare token alone has nowhere to
-      // get the server from.
+      // A bare token alone has nowhere to get the server from.
       const model = NextcloudConfigFormModel(
         authKind: NextcloudAuthKind.shareLink,
         shareToken: 'AbCdEf',
       );
-      expect(model.validate(), containsPair('shareToken', isNotEmpty));
+      expect(model.validate(), containsPair('serverUrl', isNotEmpty));
+    });
+
+    test('a bare token plus separate server URL is valid', () {
+      const model = NextcloudConfigFormModel(
+        authKind: NextcloudAuthKind.shareLink,
+        serverUrl: 'https://cloud.example.com',
+        shareToken: 'AbCdEf',
+      );
+      expect(model.validate(), isEmpty);
+    });
+
+    test('parseShareLink drops query, download suffix and index.php', () {
+      final parsed = NextcloudConfigFormModel.parseShareLink(
+          ' https://cloud.example.com/index.php/s/AbCdEf/download?path=%2F ');
+      expect(parsed?.serverUrl, 'https://cloud.example.com');
+      expect(parsed?.token, 'AbCdEf');
     });
 
     test('a full share link is valid and requires no separate server URL', () {
@@ -122,7 +135,7 @@ void main() {
         authKind: NextcloudAuthKind.shareLink,
         shareToken: 'http://cloud.example.com/s/AbCdEf',
       );
-      expect(model.validate(), containsPair('shareToken', isNotEmpty));
+      expect(model.validate(), containsPair('serverUrl', isNotEmpty));
     });
   });
 
