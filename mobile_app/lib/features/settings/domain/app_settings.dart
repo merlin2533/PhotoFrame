@@ -3,7 +3,10 @@ import '../../slideshow/domain/night_schedule.dart';
 import '../../slideshow/domain/slideshow_config.dart';
 
 /// Visual transition played between slideshow items.
-enum SlideshowTransition { fade, slide, zoom, slideUp, none }
+enum SlideshowTransition { fade, slide, zoom, slideUp, blurFade, flip, none }
+
+/// How many photos are shown on screen at once.
+enum SlideLayout { single, grid2x2 }
 
 /// All persisted, user-configurable app settings, gathered in one immutable
 /// value object so it can be loaded/saved as a single JSON blob in
@@ -19,6 +22,7 @@ class AppSettings {
     this.intervalSeconds = 10,
     this.showSourceLabel = false,
     this.showImageDetails = true,
+    this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
     this.showClock = true,
     this.displayMode = DisplayMode.contain,
@@ -67,6 +71,9 @@ class AppSettings {
 
   /// `false` = bottom left (default), `true` = bottom right.
   final bool imageDetailsOnRight;
+
+  /// Single photo, or four photos in a 2x2 grid.
+  final SlideLayout slideLayout;
   final bool showClock;
   final DisplayMode displayMode;
   final SlideshowTransition transition;
@@ -201,6 +208,7 @@ class AppSettings {
     bool? showSourceLabel,
     bool? showImageDetails,
     bool? imageDetailsOnRight,
+    SlideLayout? slideLayout,
     bool? showClock,
     DisplayMode? displayMode,
     SlideshowTransition? transition,
@@ -236,6 +244,7 @@ class AppSettings {
       showSourceLabel: showSourceLabel ?? this.showSourceLabel,
       showImageDetails: showImageDetails ?? this.showImageDetails,
       imageDetailsOnRight: imageDetailsOnRight ?? this.imageDetailsOnRight,
+      slideLayout: slideLayout ?? this.slideLayout,
       showClock: showClock ?? this.showClock,
       displayMode: displayMode ?? this.displayMode,
       transition: transition ?? this.transition,
@@ -280,6 +289,7 @@ class AppSettings {
         'showSourceLabel': showSourceLabel,
         'showImageDetails': showImageDetails,
         'imageDetailsOnRight': imageDetailsOnRight,
+        'slideLayout': slideLayout.name,
         'showClock': showClock,
         'displayMode': displayMode.name,
         'transition': transition.name,
@@ -313,6 +323,10 @@ class AppSettings {
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
       showImageDetails: json['showImageDetails'] as bool? ?? true,
       imageDetailsOnRight: json['imageDetailsOnRight'] as bool? ?? false,
+      slideLayout: SlideLayout.values.firstWhere(
+        (l) => l.name == json['slideLayout'],
+        orElse: () => SlideLayout.single,
+      ),
       showClock: json['showClock'] as bool? ?? true,
       displayMode: DisplayMode.values.firstWhere(
         (m) => m.name == json['displayMode'],

@@ -198,8 +198,8 @@ class SmbPhotoSource implements PhotoSource {
       _connect = connect;
       return Result.ok(connect);
     } on TimeoutException {
-      return Result.err(
-          Timeout('Connecting to SMB host "${_config.host}" timed out'));
+      return Result.err(Timeout(
+          'Verbindung zu "${_config.host}" dauert zu lange – Netzwerk oder Host prüfen'));
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('logon') ||
@@ -239,7 +239,7 @@ class SmbPhotoSource implements PhotoSource {
       ).timeout(timeout);
       if (!reachable) {
         return Result.err(
-            NetworkError('SMB host "${_config.host}" is not reachable'));
+            NetworkError('SMB-Host "${_config.host}" ist nicht erreichbar'));
       }
 
       final connectResult = await _ensureConnected(timeout);
@@ -264,11 +264,12 @@ class SmbPhotoSource implements PhotoSource {
         ),
       );
     } on TimeoutException {
-      return Result.err(
-          Timeout('SMB connection test to "${_config.host}" timed out'));
+      return Result.err(Timeout(
+          'Verbindungstest zu "${_config.host}" hat zu lange gedauert'));
     } catch (e) {
-      return Result.err(
-          NetworkError('Unexpected error testing SMB connection', cause: e));
+      return Result.err(NetworkError(
+          'Unerwarteter Fehler beim SMB-Verbindungstest',
+          cause: e));
     }
   }
 
@@ -291,8 +292,9 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } catch (e) {
-      yield Result.err(
-          NetworkError('Unexpected error listing SMB folders', cause: e));
+      yield Result.err(NetworkError(
+          'Unerwarteter Fehler beim Lesen der SMB-Ordner',
+          cause: e));
     }
   }
 
@@ -307,8 +309,9 @@ class SmbPhotoSource implements PhotoSource {
       final folder = await connect.file(_fullPath(relPath));
       children = await connect.listFiles(folder);
     } catch (e) {
-      yield Result.err(
-          NetworkError('Failed to list SMB folder "$relPath"', cause: e));
+      yield Result.err(NetworkError(
+          'SMB-Ordner "$relPath" konnte nicht gelesen werden',
+          cause: e));
       return;
     }
 
@@ -356,8 +359,9 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } catch (e) {
-      yield Result.err(
-          NetworkError('Unexpected error listing SMB images', cause: e));
+      yield Result.err(NetworkError(
+          'Unerwarteter Fehler beim Lesen der SMB-Bilder',
+          cause: e));
     }
   }
 
@@ -373,8 +377,9 @@ class SmbPhotoSource implements PhotoSource {
       final folder = await connect.file(_fullPath(relPath));
       children = await connect.listFiles(folder);
     } catch (e) {
-      yield Result.err(
-          NetworkError('Failed to list SMB folder "$relPath"', cause: e));
+      yield Result.err(NetworkError(
+          'SMB-Ordner "$relPath" konnte nicht gelesen werden',
+          cause: e));
       return;
     }
 
@@ -457,10 +462,12 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } on TimeoutException {
-      return Result.err(Timeout('Fetching SMB file "${item.id}" timed out'));
-    } catch (e) {
       return Result.err(
-          NetworkError('Failed to fetch SMB file "${item.id}"', cause: e));
+          Timeout('Foto "${item.id}" konnte nicht rechtzeitig geladen werden'));
+    } catch (e) {
+      return Result.err(NetworkError(
+          'Foto "${item.id}" konnte nicht geladen werden',
+          cause: e));
     }
   }
 

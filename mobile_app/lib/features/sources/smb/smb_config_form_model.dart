@@ -66,21 +66,21 @@ class SmbConfigFormModel {
 
     final trimmedHost = host.trim();
     if (trimmedHost.isEmpty) {
-      errors['host'] = 'Host/IP is required';
+      errors['host'] = 'Host oder IP fehlt';
     } else if (trimmedHost.contains(' ') ||
         trimmedHost.contains('/') ||
         trimmedHost.contains('\\')) {
       errors['host'] =
-          'Enter just the host/IP, without a path (e.g. 192.168.1.20)';
+          'Nur Host oder IP eingeben, ohne Pfad (z. B. 192.168.1.20)';
     } else if (!_hostPattern.hasMatch(trimmedHost)) {
-      errors['host'] = 'Enter a valid hostname or IP address';
+      errors['host'] = 'Bitte einen gültigen Host oder eine gültige IP-Adresse eingeben';
     }
 
     final trimmedShare = share.trim();
     if (trimmedShare.isEmpty) {
-      errors['share'] = 'Share name is required';
+      errors['share'] = 'Freigabename fehlt';
     } else if (trimmedShare.contains('/') || trimmedShare.contains('\\')) {
-      errors['share'] = 'Enter just the share name, without a path';
+      errors['share'] = 'Nur den Freigabenamen eingeben, ohne Pfad';
     }
 
     return errors;

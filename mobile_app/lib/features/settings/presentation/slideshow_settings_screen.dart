@@ -106,6 +106,16 @@ class SlideshowSettingsScreen extends ConsumerWidget {
                   ),
                   RadioListTile<SlideshowTransition>(
                     contentPadding: EdgeInsets.zero,
+                    title: Text('Weichzeichnen (blur)'),
+                    value: SlideshowTransition.blurFade,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Umklappen (flip)'),
+                    value: SlideshowTransition.flip,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
                     title: Text('Kein Übergang'),
                     value: SlideshowTransition.none,
                   ),
@@ -129,6 +139,19 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               value: settings.portraitPairLayoutEnabled,
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(portraitPairLayoutEnabled: v)),
+            ),
+            const Divider(height: 32),
+            Text('Anzeige', style: Theme.of(context).textTheme.titleMedium),
+            SegmentedButton<SlideLayout>(
+              segments: const [
+                ButtonSegment(
+                    value: SlideLayout.single, label: Text('Einzelbild')),
+                ButtonSegment(
+                    value: SlideLayout.grid2x2, label: Text('2×2 Raster')),
+              ],
+              selected: {settings.slideLayout},
+              onSelectionChanged: (sel) => notifier
+                  .updateSettings((s) => s.copyWith(slideLayout: sel.first)),
             ),
             const Divider(height: 32),
             Text('Bilddetails', style: Theme.of(context).textTheme.titleMedium),

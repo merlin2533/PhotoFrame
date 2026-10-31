@@ -88,27 +88,27 @@ class NextcloudConfigFormModel {
         // link itself, see the case below.
         final trimmedUrl = serverUrl.trim();
         if (trimmedUrl.isEmpty) {
-          errors['serverUrl'] = 'Server URL is required';
+          errors['serverUrl'] = 'Server-URL fehlt';
         } else {
           final uri = Uri.tryParse(trimmedUrl);
           if (uri == null ||
               !uri.hasScheme ||
               (uri.scheme != 'https' && uri.scheme != 'http')) {
-            errors['serverUrl'] = 'Enter a valid http(s) URL';
+            errors['serverUrl'] = 'Bitte eine gültige http(s)-URL eingeben';
           } else if (uri.scheme == 'http' && !_isPrivateHost(uri.host)) {
             // Per docs/PLAN.md P0 decisions: HTTPS is enforced except for
             // explicit LAN opt-out (private IP ranges) - a public hostname
             // over plain HTTP is rejected here rather than silently sending
             // credentials in the clear.
             errors['serverUrl'] =
-                'Plain HTTP is only allowed for private/LAN addresses; use HTTPS for public servers';
+                'Ohne HTTPS nur für Adressen im lokalen Netz erlaubt – öffentliche Server bitte mit https://';
           }
         }
         if (username.trim().isEmpty) {
-          errors['username'] = 'Username is required';
+          errors['username'] = 'Benutzername fehlt';
         }
         if (appPassword.isEmpty) {
-          errors['appPassword'] = 'App password is required';
+          errors['appPassword'] = 'App-Passwort fehlt';
         }
       case NextcloudAuthKind.shareLink:
         // Either a full share link pasted into [shareToken] (legacy / paste
@@ -118,17 +118,17 @@ class NextcloudConfigFormModel {
         final token = parsed?.token ?? shareToken.trim();
         final uri = Uri.tryParse(server);
         if (server.isEmpty) {
-          errors['serverUrl'] = 'Server URL is required';
+          errors['serverUrl'] = 'Server-URL fehlt';
         } else if (uri == null ||
             (uri.scheme != 'https' && uri.scheme != 'http') ||
             uri.host.isEmpty) {
-          errors['serverUrl'] = 'Enter a valid http(s) URL';
+          errors['serverUrl'] = 'Bitte eine gültige http(s)-URL eingeben';
         } else if (uri.scheme == 'http' && !_isPrivateHost(uri.host)) {
           errors['serverUrl'] =
-              'Plain HTTP is only allowed for private/LAN addresses; use HTTPS for public servers';
+              'Ohne HTTPS nur für Adressen im lokalen Netz erlaubt – öffentliche Server bitte mit https://';
         }
         if (token.isEmpty) {
-          errors['shareToken'] = 'Share link is required';
+          errors['shareToken'] = 'Freigabe-Link fehlt';
         }
     }
 
