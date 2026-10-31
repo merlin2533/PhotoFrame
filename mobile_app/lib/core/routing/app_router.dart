@@ -16,6 +16,7 @@ import '../../features/settings/presentation/sharing_settings_screen.dart';
 import '../../features/settings/presentation/slideshow_settings_screen.dart';
 import '../../features/settings/presentation/weather_settings_screen.dart';
 import '../../features/slideshow/presentation/slideshow_screen.dart';
+import '../../features/sources/domain/photo_source.dart';
 import '../../features/sources/nextcloud/nextcloud_config_form.dart';
 import '../../features/sources/presentation/add_source_screen.dart';
 import '../../features/sources/presentation/source_list_screen.dart';
@@ -159,13 +160,14 @@ GoRouter buildAppRouter({required String initialLocation}) {
                   GoRoute(
                     path: 'smb',
                     name: 'settings-sources-add-smb',
-                    builder: (context, state) => const SmbConfigFormScreen(),
+                    builder: (context, state) => SmbConfigFormScreen(
+                        editing: state.extra as PhotoSource?),
                   ),
                   GoRoute(
                     path: 'nextcloud',
                     name: 'settings-sources-add-nextcloud',
-                    builder: (context, state) =>
-                        const NextcloudConfigFormScreen(),
+                    builder: (context, state) => NextcloudConfigFormScreen(
+                        editing: state.extra as PhotoSource?),
                   ),
                 ],
               ),

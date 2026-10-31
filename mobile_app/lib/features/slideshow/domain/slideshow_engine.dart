@@ -57,6 +57,8 @@ class SlideshowEngine {
   late ShuffleBag<PoolEntry> _shuffleBag;
 
   Timer? _timer;
+  final List<_Shown> _history = [];
+  static const _maxHistory = 50;
   PhotoItem? _currentItem;
   PoolEntry? _currentEntry;
 
@@ -139,6 +141,24 @@ class SlideshowEngine {
     }
   }
 
+  /// Steps back to the photo shown before the current one. Does nothing at
+  /// the start of the history.
+  Future<void> showPrevious() async {
+    if (_history.isEmpty) return;
+    final wasRunning = isRunning;
+    if (wasRunning) {
+      _timer?.cancel();
+      _timer = null;
+    }
+    final previous = _history.removeLast();
+    _currentEntry = previous.entry;
+    _currentItem = previous.item;
+    _currentItemController.add(previous.item);
+    if (wasRunning) {
+      _timer = Timer.periodic(_config.interval, (_) => _advance());
+    }
+  }
+
   Future<void> _advance() async {
     final entry = _shuffleBag.next();
     final item = await _resolveItem(entry);
@@ -157,6 +177,12 @@ class SlideshowEngine {
     }
 
     _pool.registerShown(entry.sourceId, entry.itemId);
+    final shownEntry = _currentEntry;
+    final shownItem = _currentItem;
+    if (shownEntry != null && shownItem != null) {
+      _history.add(_Shown(shownEntry, shownItem));
+      if (_history.length > _maxHistory) _history.removeAt(0);
+    }
     _currentEntry = entry;
     _currentItem = item;
     _currentItemController.add(item);
@@ -168,4 +194,11 @@ class SlideshowEngine {
     stop();
     await _currentItemController.close();
   }
+}
+
+class _Shown {
+  const _Shown(this.entry, this.item);
+
+  final PoolEntry entry;
+  final PhotoItem item;
 }
