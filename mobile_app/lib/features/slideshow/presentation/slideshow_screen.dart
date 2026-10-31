@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -125,6 +126,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
     unawaited(_buildEngine());
+    // Fullscreen: hide status and navigation bar while the slideshow runs.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _refreshTimer = Timer.periodic(
         _refreshInterval, (_) => unawaited(_backgroundRefresh()));
     _nightTick =
@@ -134,6 +137,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   @override
   void dispose() {
     _nightTick?.cancel();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
     _refreshTimer?.cancel();
     final engine = _engine;

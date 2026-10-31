@@ -425,8 +425,22 @@ class SmbPhotoSource implements PhotoSource {
     }
   }
 
+  /// Downloads in progress, by item id. A second request for the same photo
+  /// (prefetch and display can ask at the same time) waits for the first
+  /// download instead of writing the same file twice.
+  final Map<String, Future<Result<File>>> _inFlight = {};
+
   @override
   Future<Result<File>> fetchToCache(PhotoItem item,
+      {CancellationToken? token}) {
+    final running = _inFlight[item.id];
+    if (running != null) return running;
+    final download = _fetchOnce(item, token: token);
+    _inFlight[item.id] = download;
+    return download.whenComplete(() => _inFlight.remove(item.id));
+  }
+
+  Future<Result<File>> _fetchOnce(PhotoItem item,
       {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
