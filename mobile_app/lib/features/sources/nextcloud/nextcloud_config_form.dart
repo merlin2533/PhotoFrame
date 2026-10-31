@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/photo_source.dart';
 import '../state/sources_providers.dart';
 import 'nextcloud_config_form_model.dart';
+import 'nextcloud_folder_picker.dart';
 import 'nextcloud_photo_source.dart';
 
 /// Configuration screen for a Nextcloud source, supporting both auth modes
@@ -34,6 +35,7 @@ class _NextcloudConfigFormScreenState
   bool _obscureSharePassword = true;
   bool _testing = false;
   bool _submitted = false;
+  List<String> _selectedFolders = [];
   ConnectionStatus? _lastStatus;
   bool? _lastCanUpload;
   String? _lastError;
@@ -64,7 +66,6 @@ class _NextcloudConfigFormScreenState
     // Validate the raw input: `normalized()` already reduced a pasted share
     // link to its bare token, which the share-link validation rejects.
     if (!_model.isValid) return;
-    final normalized = _model.normalized();
 
     setState(() {
       _testing = true;
@@ -73,7 +74,7 @@ class _NextcloudConfigFormScreenState
       _lastError = null;
     });
 
-    final config = NextcloudSourceConfig.fromForm(normalized);
+    final config = NextcloudSourceConfig.fromForm(_model);
     final probe = NextcloudPhotoSource(id: 'probe', config: config);
     final result = await probe.testConnection();
     final canUpload = probe.canUpload;
@@ -92,30 +93,50 @@ class _NextcloudConfigFormScreenState
     });
   }
 
+  Future<void> _pickFolders() async {
+    if (!_model.isValid) return;
+    final config = NextcloudSourceConfig.fromForm(_model.copyWith(folderPath: ''));
+    final probe = NextcloudPhotoSource(id: 'browse', config: config);
+    final picked = await showNextcloudFolderPicker(
+      context,
+      source: probe,
+      initiallySelected: _selectedFolders,
+    );
+    await probe.dispose();
+    if (picked != null && mounted) setState(() => _selectedFolders = picked);
+  }
+
   Future<void> _save() async {
     setState(() => _submitted = true);
     if (!_model.isValid) {
       setState(() {});
       return;
     }
-    final normalized = _model.normalized();
+    // `fromForm` normalizes itself - pass the raw model (normalizing twice
+    // loses the server URL of a pasted share link).
+    final folders = _selectedFolders.isNotEmpty
+        ? _selectedFolders
+        : [_model.normalized().folderPath];
+    final store = ref.read(secureCredentialStoreProvider);
 
-    final id = ref.read(sourceIdGeneratorProvider).v4();
-    final config = NextcloudSourceConfig.fromForm(normalized);
-    final source = NextcloudPhotoSource(id: id, config: config);
-
-    // Persist the secret (app password or share-link password) in the
-    // secure keychain - see SecureCredentialStore's doc comment. Awaited so
-    // the write has landed before `add()` triggers `SourcesController`'s own
-    // descriptor persistence; the password itself is read back separately
-    // from `SecureCredentialStore` on the next app start.
     try {
-      if (config.authPassword.isNotEmpty) {
-        await ref
-            .read(secureCredentialStoreProvider)
-            .write(id, 'password', config.authPassword);
+      for (final folder in folders) {
+        final id = ref.read(sourceIdGeneratorProvider).v4();
+        final config =
+            NextcloudSourceConfig.fromForm(_model.copyWith(folderPath: folder));
+        final source = NextcloudPhotoSource(
+          id: id,
+          config: config,
+          displayName: folder.isEmpty ? 'Nextcloud' : 'Nextcloud: $folder',
+        );
+        // Persist the secret in the secure keychain first (see
+        // SecureCredentialStore); awaited so it has landed before `add()`
+        // persists the descriptor.
+        if (config.authPassword.isNotEmpty) {
+          await store.write(id, 'password', config.authPassword);
+        }
+        await ref.read(sourcesProvider.notifier).add(source);
       }
-      await ref.read(sourcesProvider.notifier).add(source);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -233,6 +254,25 @@ class _NextcloudConfigFormScreenState
               hintText: 'z. B. Fotos/Rahmen',
             ),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _pickFolders,
+            icon: const Icon(Icons.folder_open_outlined),
+            label: Text(_selectedFolders.isEmpty
+                ? 'Ordner auswählen'
+                : '${_selectedFolders.length} Ordner ausgewählt'),
+          ),
+          if (_selectedFolders.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final f in _selectedFolders)
+                  Chip(
+                    label: Text(f),
+                    onDeleted: () => setState(() => _selectedFolders.remove(f)),
+                  ),
+              ],
+            ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: _testing ? null : _testConnection,
