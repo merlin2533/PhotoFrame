@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,24 +47,120 @@ class SmallPhotoCache {
       final full = (await source.fetchToCache(item)).valueOrNull;
       if (full == null) return null;
       final target = await _fileFor(item);
-      final result = await FlutterImageCompress.compressAndGetFile(
-        full.path,
-        target.path,
-        // Sized for a full-screen tablet (about 2K); larger originals are
-        // scaled down, smaller ones stay as they are. Keeps storage small.
-        minWidth: 2048,
-        minHeight: 2048,
-        quality: 90,
-      );
-      // Downloads of network sources sit in the temp directory; local sources
-      // return the original file, which must never be deleted.
-      if (full.parent.path == Directory.systemTemp.path &&
-          await full.exists()) {
-        await full.delete();
+      // Written to a temporary name first: a half-written or broken file must
+      // never be picked up by [existing] and shown in the slideshow.
+      final temp = File('${target.path}.tmp.jpg');
+      if (await temp.exists()) await temp.delete();
+      File? small;
+      try {
+        final result = await FlutterImageCompress.compressAndGetFile(
+          full.path,
+          temp.path,
+          // Sized for a full-screen tablet (about 2K); larger originals are
+          // scaled down, smaller ones stay as they are. Keeps storage small.
+          minWidth: 2048,
+          minHeight: 2048,
+          quality: 90,
+        );
+        if (result != null) {
+          final out = File(result.path);
+          // The native scaler mishandles some files (CMYK, odd colour
+          // profiles) and produces a purple/colour-cast picture. Compare the
+          // average colour with the original and reject such results.
+          if (await looksLikeOriginal(full, out)) small = out;
+        }
+        small ??= await _scaleWithFlutter(full, temp);
+        if (small == null) return null;
+        if (await target.exists()) await target.delete();
+        await small.rename(target.path);
+      } finally {
+        if (await temp.exists()) await temp.delete();
+        // Downloads of network sources sit in the temp directory; local
+        // sources return the original file, which must never be deleted.
+        if (full.parent.path == Directory.systemTemp.path &&
+            await full.exists()) {
+          await full.delete();
+        }
       }
-      return result == null ? null : File(result.path);
+      return target;
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Average colour (r, g, b) of [file] decoded at a tiny size by Flutter's own
+  /// codec, or `null` when it cannot be decoded.
+  static Future<List<double>?> averageColor(File file) async {
+    ui.Codec? codec;
+    try {
+      codec = await ui.instantiateImageCodec(
+        await file.readAsBytes(),
+        targetWidth: 16,
+      );
+      final image = (await codec.getNextFrame()).image;
+      final data = await image.toByteData();
+      image.dispose();
+      if (data == null) return null;
+      final sum = [0.0, 0.0, 0.0];
+      final pixels = data.lengthInBytes ~/ 4;
+      if (pixels == 0) return null;
+      for (var i = 0; i < pixels; i++) {
+        for (var c = 0; c < 3; c++) {
+          sum[c] += data.getUint8(i * 4 + c);
+        }
+      }
+      return [for (final v in sum) v / pixels];
+    } catch (_) {
+      return null;
+    } finally {
+      codec?.dispose();
+    }
+  }
+
+  /// `true` when [scaled] decodes and its average colour is close to that of
+  /// [original]. If the original itself cannot be decoded by Flutter there is
+  /// nothing to compare against, so the scaled file is accepted when it
+  /// decodes.
+  static Future<bool> looksLikeOriginal(File original, File scaled) async {
+    final b = await averageColor(scaled);
+    if (b == null) return false;
+    final a = await averageColor(original);
+    if (a == null) return true;
+    for (var c = 0; c < 3; c++) {
+      if ((a[c] - b[c]).abs() > 30) return false;
+    }
+    return true;
+  }
+
+  /// Fallback scaler using Flutter's own decoder (correct colours for every
+  /// format it can read). Stored as PNG data: larger, but always right.
+  Future<File?> _scaleWithFlutter(File source, File temp) async {
+    ui.Codec? codec;
+    try {
+      final bytes = await source.readAsBytes();
+      final probe = await ui.instantiateImageCodec(bytes);
+      final frame = (await probe.getNextFrame()).image;
+      final w = frame.width, h = frame.height;
+      frame.dispose();
+      probe.dispose();
+      final longest = w > h ? w : h;
+      codec = longest > 2048
+          ? await ui.instantiateImageCodec(bytes,
+              targetWidth: w >= h ? 2048 : null,
+              targetHeight: h > w ? 2048 : null)
+          : await ui.instantiateImageCodec(bytes);
+      final image = (await codec.getNextFrame()).image;
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) return null;
+      final out = await temp.writeAsBytes(
+          Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
+          flush: true);
+      return out;
+    } catch (_) {
+      return null;
+    } finally {
+      codec?.dispose();
     }
   }
 }
@@ -91,7 +189,7 @@ class SmallPhotoStatus {
 /// while a run is going are queued and handled by the same run, so the
 /// preparation never stops between two refreshes.
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
-  static const batchSize = 100;
+  static const batchSize = 20;
 
   bool _running = false;
   int _done = 0;
