@@ -20,6 +20,8 @@ Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 - [ ] Tagesauswahl: 2 Bilder pro Ordner im Wechsel (Round-Robin), Zahl 100–5000
 
 ## Erledigt
+- [x] Index direkt pro Quelle starten, mit Status (läuft / Anzahl / Fehler) in der Quellenliste
+- [x] Dauer-Modus Standard "immer an", Vollbild im Diashow-Modus, SMB-Download-Race behoben
 - [x] Index, Tagesauswahl, Cache, Hintergrund-Refresh, Wischen, Übergänge, 2×2-Raster
 - [x] Quellen bearbeiten, Ordnerauswahl SMB/Nextcloud, mehrere SMB-Freigaben
 - [x] SMB-Ordner-Browser lädt nur eine Ebene
