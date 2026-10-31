@@ -58,4 +58,21 @@ void main() {
   test('dayKey is zero-padded', () {
     expect(DailySelection.dayKey(DateTime(2026, 3, 4)), '2026-03-04');
   });
+
+  test('balanced sample takes 2 per folder round-robin', () {
+    final items = [
+      for (final f in ['a', 'b', 'c'])
+        for (var i = 0; i < 10; i++) '$f$i',
+    ];
+    final picked = DailySelection.balancedSample<String>(
+      eligible: items,
+      folderOf: (s) => s[0],
+      count: 6,
+      random: Random(3),
+    );
+    expect(picked.length, 6);
+    for (final f in ['a', 'b', 'c']) {
+      expect(picked.where((s) => s[0] == f).length, 2);
+    }
+  });
 }

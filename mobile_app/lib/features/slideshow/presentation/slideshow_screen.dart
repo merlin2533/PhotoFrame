@@ -284,6 +284,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       today: today,
       savedDay: savedDay,
       savedKeys: savedKeys,
+      folderOf: (item) => '${item.sourceId}::${item.folderId}',
     );
     await prefs.setString(
       _dailyKey,

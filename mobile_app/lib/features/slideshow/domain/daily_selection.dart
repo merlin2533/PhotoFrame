@@ -17,6 +17,8 @@ class DailySelection {
     required String today,
     String? savedDay,
     List<String> savedKeys = const [],
+    String Function(T item)? folderOf,
+    int perFolder = 2,
     Random? random,
   }) {
     if (eligible.length <= count) return List<T>.of(eligible);
@@ -30,8 +32,52 @@ class DailySelection {
       if (kept.isNotEmpty) return kept.take(count).toList(growable: false);
     }
 
+    if (folderOf != null) {
+      return balancedSample(
+        eligible: eligible,
+        folderOf: folderOf,
+        count: count,
+        perFolder: perFolder,
+        random: random,
+      );
+    }
     final shuffled = List<T>.of(eligible)..shuffle(random ?? Random());
     return shuffled.take(count).toList(growable: false);
+  }
+
+  /// Round-robin over folders: take up to [perFolder] photos from each folder,
+  /// then again from each folder, until [count] is reached. Each folder is
+  /// shuffled first, so the picks inside a folder are random too.
+  static List<T> balancedSample<T>({
+    required List<T> eligible,
+    required String Function(T item) folderOf,
+    required int count,
+    int perFolder = 2,
+    Random? random,
+  }) {
+    final rnd = random ?? Random();
+    final byFolder = <String, List<T>>{};
+    for (final item in eligible) {
+      byFolder.putIfAbsent(folderOf(item), () => []).add(item);
+    }
+    final folders = byFolder.values.toList()..shuffle(rnd);
+    for (final list in folders) {
+      list.shuffle(rnd);
+    }
+    final picked = <T>[];
+    var offset = 0;
+    while (picked.length < count && folders.any((f) => offset < f.length)) {
+      for (final folder in folders) {
+        for (var k = 0; k < perFolder; k++) {
+          final index = offset + k;
+          if (index < folder.length && picked.length < count) {
+            picked.add(folder[index]);
+          }
+        }
+      }
+      offset += perFolder;
+    }
+    return picked;
   }
 
   static String dayKey(DateTime date) {
