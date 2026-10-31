@@ -321,6 +321,8 @@ class SmbPhotoSource implements PhotoSource {
       if (child.name == '.' || child.name == '..') continue;
       final childRelPath =
           relPath.isEmpty ? child.name : '$relPath/${child.name}';
+      // Only the direct children: the folder picker navigates level by level,
+      // and the slideshow crawl reads each subtree through listImages.
       yield Result.ok(
         PhotoFolder(
           id: childRelPath,
@@ -329,7 +331,6 @@ class SmbPhotoSource implements PhotoSource {
           parentId: relPath.isEmpty ? null : relPath,
         ),
       );
-      yield* _walkFolders(connect, childRelPath, token);
     }
   }
 
