@@ -13,7 +13,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('image_cache_manager_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('image_cache_manager_test_');
   });
 
   tearDown(() async {
@@ -23,7 +24,8 @@ void main() {
   });
 
   group('size limit enforcement', () {
-    test('evicts least-recently-used entries once the tier limit is exceeded', () async {
+    test('evicts least-recently-used entries once the tier limit is exceeded',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 250, // room for ~2 files of 100 bytes
@@ -114,7 +116,9 @@ void main() {
       lease.release();
     });
 
-    test('acquire/release is symmetric: releasing drops the pin and allows eviction again', () async {
+    test(
+        'acquire/release is symmetric: releasing drops the pin and allows eviction again',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 250,
@@ -142,7 +146,9 @@ void main() {
       expect(manager.contains('a', tier: CacheTier.full), isFalse);
     });
 
-    test('multiple leases on the same key require multiple releases before eviction is allowed', () async {
+    test(
+        'multiple leases on the same key require multiple releases before eviction is allowed',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 250,
@@ -170,7 +176,9 @@ void main() {
   });
 
   group('offline reserve', () {
-    test('the last N successfully displayed images are never evicted even when unpinned', () async {
+    test(
+        'the last N successfully displayed images are never evicted even when unpinned',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 200,
@@ -193,7 +201,9 @@ void main() {
       expect(manager.contains('b', tier: CacheTier.full), isFalse);
     });
 
-    test('the reserve slides: marking a new image as displayed frees the previous reserve slot', () async {
+    test(
+        'the reserve slides: marking a new image as displayed frees the previous reserve slot',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 1000,
@@ -211,7 +221,8 @@ void main() {
       expect(manager.isOfflineReserve('b', tier: CacheTier.full), isTrue);
     });
 
-    test('reserve and pin protections are independent of one another', () async {
+    test('reserve and pin protections are independent of one another',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 1000,
@@ -236,7 +247,8 @@ void main() {
   });
 
   group('clear()', () {
-    test('clear ignores pins/reserves - it is an explicit user action', () async {
+    test('clear ignores pins/reserves - it is an explicit user action',
+        () async {
       final manager = ImageCacheManager(
         thumbnailLimitBytes: 1000,
         fullLimitBytes: 1000,

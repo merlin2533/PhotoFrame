@@ -21,10 +21,12 @@ void main() {
       expect(restored.type, SourceType.smb);
       expect(restored.id, 'src-1');
       expect(restored.displayName, 'My NAS');
-      expect(restored.config, {'host': 'nas.local', 'share': 'Photos', 'rootPath': ''});
+      expect(restored.config,
+          {'host': 'nas.local', 'share': 'Photos', 'rootPath': ''});
     });
 
-    test('fromJson falls back to SourceType.mock for an unknown type string', () {
+    test('fromJson falls back to SourceType.mock for an unknown type string',
+        () {
       final restored = SourceDescriptor.fromJson({
         'type': 'some_future_type',
         'id': 'x',
@@ -69,7 +71,9 @@ void main() {
       });
     });
 
-    test('fromJson rebuilds every non-secret field and re-attaches the given password', () {
+    test(
+        'fromJson rebuilds every non-secret field and re-attaches the given password',
+        () {
       const original = SmbSourceConfig(
         host: 'nas.local',
         share: 'Photos',
@@ -79,7 +83,8 @@ void main() {
         rootPath: 'Frame/2024',
       );
 
-      final restored = SmbSourceConfig.fromJson(original.toJson(), password: 'super-secret');
+      final restored =
+          SmbSourceConfig.fromJson(original.toJson(), password: 'super-secret');
 
       expect(restored.host, original.host);
       expect(restored.share, original.share);
@@ -120,7 +125,8 @@ void main() {
         isShareLink: true,
       );
 
-      final restored = NextcloudSourceConfig.fromJson(original.toJson(), password: 'link-password');
+      final restored = NextcloudSourceConfig.fromJson(original.toJson(),
+          password: 'link-password');
 
       expect(restored.davBaseUrl, original.davBaseUrl);
       expect(restored.authUsername, original.authUsername);
@@ -136,7 +142,13 @@ void main() {
         type: SourceType.smb,
         id: 'src-smb',
         displayName: 'NAS',
-        config: {'host': 'nas.local', 'share': 'Photos', 'domain': '', 'username': 'alice', 'rootPath': ''},
+        config: {
+          'host': 'nas.local',
+          'share': 'Photos',
+          'domain': '',
+          'username': 'alice',
+          'rootPath': ''
+        },
       );
 
       final source = fromDescriptor(descriptor, password: 'pw');
@@ -169,7 +181,9 @@ void main() {
       expect(source.config.authPassword, 'app-pw');
     });
 
-    test('builds a LocalFolderSource for SourceType.local, carrying the rootPath', () {
+    test(
+        'builds a LocalFolderSource for SourceType.local, carrying the rootPath',
+        () {
       const descriptor = SourceDescriptor(
         type: SourceType.local,
         id: 'src-local',
@@ -185,7 +199,8 @@ void main() {
     });
 
     test('builds a MockPhotoSource for SourceType.mock', () {
-      const descriptor = SourceDescriptor(type: SourceType.mock, id: 'src-mock', displayName: 'Mock');
+      const descriptor = SourceDescriptor(
+          type: SourceType.mock, id: 'src-mock', displayName: 'Mock');
 
       final source = fromDescriptor(descriptor, password: null);
 
@@ -193,8 +208,13 @@ void main() {
       expect(source.id, 'src-mock');
     });
 
-    test('falls back to MockPhotoSource for SourceType.sharedAlbum (not yet configurable)', () {
-      const descriptor = SourceDescriptor(type: SourceType.sharedAlbum, id: 'src-shared', displayName: 'Family');
+    test(
+        'falls back to MockPhotoSource for SourceType.sharedAlbum (not yet configurable)',
+        () {
+      const descriptor = SourceDescriptor(
+          type: SourceType.sharedAlbum,
+          id: 'src-shared',
+          displayName: 'Family');
 
       final source = fromDescriptor(descriptor, password: null);
 
@@ -204,7 +224,8 @@ void main() {
   });
 
   group('PhotoSourceDescriptorX.toDescriptor', () {
-    test('SmbPhotoSource round-trips through toDescriptor -> fromDescriptor', () {
+    test('SmbPhotoSource round-trips through toDescriptor -> fromDescriptor',
+        () {
       const config = SmbSourceConfig(
         host: 'nas.local',
         share: 'Photos',
@@ -213,7 +234,8 @@ void main() {
         password: 'secret',
         rootPath: 'Frame',
       );
-      final source = SmbPhotoSource(id: 'src-1', config: config, displayName: 'My NAS');
+      final source =
+          SmbPhotoSource(id: 'src-1', config: config, displayName: 'My NAS');
 
       final descriptor = source.toDescriptor();
 
@@ -222,13 +244,15 @@ void main() {
       expect(descriptor.displayName, 'My NAS');
       expect(descriptor.config.containsKey('password'), isFalse);
 
-      final rebuilt = fromDescriptor(descriptor, password: 'secret') as SmbPhotoSource;
+      final rebuilt =
+          fromDescriptor(descriptor, password: 'secret') as SmbPhotoSource;
       expect(rebuilt.config.host, 'nas.local');
       expect(rebuilt.config.password, 'secret');
     });
 
     test('LocalFolderSource toDescriptor carries the current rootPath', () {
-      final source = LocalFolderSource(id: 'src-local', rootPath: '/mnt/photos');
+      final source =
+          LocalFolderSource(id: 'src-local', rootPath: '/mnt/photos');
 
       final descriptor = source.toDescriptor();
 
@@ -236,7 +260,9 @@ void main() {
       expect(descriptor.config['rootPath'], '/mnt/photos');
     });
 
-    test('LocalFolderSource with no rootPath yet persists an empty string, not null', () {
+    test(
+        'LocalFolderSource with no rootPath yet persists an empty string, not null',
+        () {
       final source = LocalFolderSource(id: 'src-local');
 
       final descriptor = source.toDescriptor();

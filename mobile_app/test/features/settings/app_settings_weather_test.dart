@@ -57,7 +57,9 @@ void main() {
       expect(restored.weatherLocationLabel, 'München, Bayern, Deutschland');
     });
 
-    test('fromJson defaults weather fields when missing from an older persisted blob', () {
+    test(
+        'fromJson defaults weather fields when missing from an older persisted blob',
+        () {
       final restored = AppSettings.fromJson({'intervalSeconds': 15});
       expect(restored.weatherEnabled, isFalse);
       expect(restored.weatherLatitude, isNull);

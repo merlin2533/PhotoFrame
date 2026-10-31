@@ -17,7 +17,8 @@ _MockSecureStorage _fakeSecureStorage() {
   when(() => storage.read(key: any(named: 'key'))).thenAnswer(
     (invocation) async => backing[invocation.namedArguments[#key] as String],
   );
-  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer(
     (invocation) async {
       final key = invocation.namedArguments[#key] as String;
       final value = invocation.namedArguments[#value] as String?;
@@ -46,15 +47,19 @@ void main() {
       // Sender's own keypair store is irrelevant to encryptForRecipient (it
       // never decrypts), but ConfigPushCrypto's constructor still requires
       // one - use a throwaway store.
-      senderCrypto = ConfigPushCrypto(keypairStore: FrameKeypairStore(storage: _fakeSecureStorage()));
+      senderCrypto = ConfigPushCrypto(
+          keypairStore: FrameKeypairStore(storage: _fakeSecureStorage()));
 
       recipientKeypairStore = FrameKeypairStore(storage: _fakeSecureStorage());
       recipientCrypto = ConfigPushCrypto(keypairStore: recipientKeypairStore);
     });
 
-    test('round trip: recipient can decrypt what the sender encrypted for it', () async {
-      final recipientPublicKey = await recipientKeypairStore.ensurePublicKeyBase64();
-      const plaintext = '{"type":"smb","host":"nas.local","password":"hunter2"}';
+    test('round trip: recipient can decrypt what the sender encrypted for it',
+        () async {
+      final recipientPublicKey =
+          await recipientKeypairStore.ensurePublicKeyBase64();
+      const plaintext =
+          '{"type":"smb","host":"nas.local","password":"hunter2"}';
 
       final ciphertext = await senderCrypto.encryptForRecipient(
         recipientPublicKeyBase64: recipientPublicKey,
@@ -65,12 +70,14 @@ void main() {
       expect(ciphertext, isNot(contains('hunter2')));
       expect(ciphertext, isNot(contains('nas.local')));
 
-      final decrypted = await recipientCrypto.decryptFromSender(ciphertext: ciphertext);
+      final decrypted =
+          await recipientCrypto.decryptFromSender(ciphertext: ciphertext);
       expect(decrypted, plaintext);
     });
 
     test('envelope has the documented shape', () async {
-      final recipientPublicKey = await recipientKeypairStore.ensurePublicKeyBase64();
+      final recipientPublicKey =
+          await recipientKeypairStore.ensurePublicKeyBase64();
       final ciphertext = await senderCrypto.encryptForRecipient(
         recipientPublicKeyBase64: recipientPublicKey,
         plaintextJson: '{"a":1}',
@@ -88,8 +95,10 @@ void main() {
       }
     });
 
-    test('a different ephemeral keypair is used for every call (no key reuse)', () async {
-      final recipientPublicKey = await recipientKeypairStore.ensurePublicKeyBase64();
+    test('a different ephemeral keypair is used for every call (no key reuse)',
+        () async {
+      final recipientPublicKey =
+          await recipientKeypairStore.ensurePublicKeyBase64();
       final ciphertextA = await senderCrypto.encryptForRecipient(
         recipientPublicKeyBase64: recipientPublicKey,
         plaintextJson: '{"a":1}',
@@ -101,12 +110,14 @@ void main() {
 
       final envelopeA = jsonDecode(ciphertextA) as Map<String, dynamic>;
       final envelopeB = jsonDecode(ciphertextB) as Map<String, dynamic>;
-      expect(envelopeA['ephemeralPublicKey'], isNot(equals(envelopeB['ephemeralPublicKey'])));
+      expect(envelopeA['ephemeralPublicKey'],
+          isNot(equals(envelopeB['ephemeralPublicKey'])));
       expect(envelopeA['ciphertext'], isNot(equals(envelopeB['ciphertext'])));
     });
 
     test('the wrong recipient cannot decrypt the payload', () async {
-      final recipientPublicKey = await recipientKeypairStore.ensurePublicKeyBase64();
+      final recipientPublicKey =
+          await recipientKeypairStore.ensurePublicKeyBase64();
       final ciphertext = await senderCrypto.encryptForRecipient(
         recipientPublicKeyBase64: recipientPublicKey,
         plaintextJson: '{"secret":"only-for-recipient"}',
@@ -122,8 +133,10 @@ void main() {
       );
     });
 
-    test('a corrupted ciphertext throws ConfigPushDecryptionException', () async {
-      final recipientPublicKey = await recipientKeypairStore.ensurePublicKeyBase64();
+    test('a corrupted ciphertext throws ConfigPushDecryptionException',
+        () async {
+      final recipientPublicKey =
+          await recipientKeypairStore.ensurePublicKeyBase64();
       final ciphertext = await senderCrypto.encryptForRecipient(
         recipientPublicKeyBase64: recipientPublicKey,
         plaintextJson: '{"a":1}',
@@ -135,21 +148,25 @@ void main() {
       tampered['ciphertext'] = base64Encode(List<int>.filled(16, 0));
 
       expect(
-        () => recipientCrypto.decryptFromSender(ciphertext: jsonEncode(tampered)),
+        () =>
+            recipientCrypto.decryptFromSender(ciphertext: jsonEncode(tampered)),
         throwsA(isA<ConfigPushDecryptionException>()),
       );
     });
 
-    test('malformed (non-JSON) ciphertext throws ConfigPushDecryptionException', () async {
+    test('malformed (non-JSON) ciphertext throws ConfigPushDecryptionException',
+        () async {
       expect(
         () => recipientCrypto.decryptFromSender(ciphertext: 'not json at all'),
         throwsA(isA<ConfigPushDecryptionException>()),
       );
     });
 
-    test('JSON missing required fields throws ConfigPushDecryptionException', () async {
+    test('JSON missing required fields throws ConfigPushDecryptionException',
+        () async {
       expect(
-        () => recipientCrypto.decryptFromSender(ciphertext: jsonEncode({'v': 1})),
+        () =>
+            recipientCrypto.decryptFromSender(ciphertext: jsonEncode({'v': 1})),
         throwsA(isA<ConfigPushDecryptionException>()),
       );
     });

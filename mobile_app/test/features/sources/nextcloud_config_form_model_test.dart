@@ -4,7 +4,8 @@ import 'package:test/test.dart';
 void main() {
   group('NextcloudConfigFormModel.validate - server URL', () {
     test('empty server URL is invalid', () {
-      const model = NextcloudConfigFormModel(username: 'alice', appPassword: 'x');
+      const model =
+          NextcloudConfigFormModel(username: 'alice', appPassword: 'x');
       expect(model.validate(), containsPair('serverUrl', isNotEmpty));
     });
 
@@ -56,7 +57,8 @@ void main() {
 
   group('NextcloudConfigFormModel.validate - account mode', () {
     test('requires username and app password', () {
-      const model = NextcloudConfigFormModel(serverUrl: 'https://cloud.example.com');
+      const model =
+          NextcloudConfigFormModel(serverUrl: 'https://cloud.example.com');
       final errors = model.validate();
       expect(errors, containsPair('username', isNotEmpty));
       expect(errors, containsPair('appPassword', isNotEmpty));
@@ -75,7 +77,8 @@ void main() {
 
   group('NextcloudConfigFormModel.validate - share link mode', () {
     test('requires a share token', () {
-      const model = NextcloudConfigFormModel(authKind: NextcloudAuthKind.shareLink);
+      const model =
+          NextcloudConfigFormModel(authKind: NextcloudAuthKind.shareLink);
       expect(model.validate(), containsPair('shareToken', isNotEmpty));
     });
 
@@ -141,7 +144,8 @@ void main() {
 
   group('NextcloudConfigFormModel.normalized', () {
     test('strips trailing slashes from the server URL', () {
-      const model = NextcloudConfigFormModel(serverUrl: 'https://cloud.example.com///');
+      const model =
+          NextcloudConfigFormModel(serverUrl: 'https://cloud.example.com///');
       expect(model.normalized().serverUrl, 'https://cloud.example.com');
     });
 
@@ -157,7 +161,9 @@ void main() {
       expect(normalized.folderPath, 'Fotos/Rahmen');
     });
 
-    test('share link mode derives both server URL and token from the pasted link', () {
+    test(
+        'share link mode derives both server URL and token from the pasted link',
+        () {
       const model = NextcloudConfigFormModel(
         authKind: NextcloudAuthKind.shareLink,
         shareToken: '  https://cloud.example.com/s/AbCdEf/  ',

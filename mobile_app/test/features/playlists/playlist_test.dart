@@ -37,7 +37,9 @@ void main() {
       expect(a, isNot(b));
     });
 
-    test('MediaIndexEntry.stableId is stable across separate instances of the same entry', () {
+    test(
+        'MediaIndexEntry.stableId is stable across separate instances of the same entry',
+        () {
       final e1 = _entry('/a/b.jpg');
       final e2 = _entry('/a/b.jpg');
       expect(e1.stableId, e2.stableId);
@@ -65,7 +67,8 @@ void main() {
       expect(result, entries);
     });
 
-    test('favoritesOnly keeps only candidates the callback marks favorited', () {
+    test('favoritesOnly keeps only candidates the callback marks favorited',
+        () {
       final a = _entry('a');
       final b = _entry('b');
       final result = apply(
@@ -76,7 +79,8 @@ void main() {
       expect(result.toList(), [a]);
     });
 
-    test('dateRange keeps only candidates whose takenAt falls inside the range', () {
+    test('dateRange keeps only candidates whose takenAt falls inside the range',
+        () {
       final inRange = _entry('in', takenAt: DateTime(2023, 6, 15));
       final outOfRange = _entry('out', takenAt: DateTime(2022, 1, 1));
       final undated = _entry('undated');
@@ -84,7 +88,8 @@ void main() {
       final result = apply(
         [inRange, outOfRange, undated],
         PlaylistFilter(
-          dateRange: DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
+          dateRange: DateRange(
+              start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
         ),
       );
 
@@ -105,14 +110,17 @@ void main() {
 
     test('all three filter fields combine with AND semantics', () {
       final favoriteInRange = _entry('keep', takenAt: DateTime(2023, 6, 1));
-      final favoriteOutOfRange = _entry('drop-date', takenAt: DateTime(2020, 1, 1));
-      final nonFavoriteInRange = _entry('drop-fav', takenAt: DateTime(2023, 6, 2));
+      final favoriteOutOfRange =
+          _entry('drop-date', takenAt: DateTime(2020, 1, 1));
+      final nonFavoriteInRange =
+          _entry('drop-fav', takenAt: DateTime(2023, 6, 2));
 
       final result = apply(
         [favoriteInRange, favoriteOutOfRange, nonFavoriteInRange],
         PlaylistFilter(
           favoritesOnly: true,
-          dateRange: DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
+          dateRange: DateRange(
+              start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
         ),
         isFavorite: (id) =>
             id == favoriteInRange.stableId || id == favoriteOutOfRange.stableId,
@@ -126,7 +134,8 @@ void main() {
     test('round-trips favoritesOnly/dateRange/excludeIds', () {
       final filter = PlaylistFilter(
         favoritesOnly: true,
-        dateRange: DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
+        dateRange:
+            DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31)),
         excludeIds: {'id-1', 'id-2'},
       );
 

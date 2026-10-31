@@ -24,7 +24,8 @@ void main() {
         _entry('c', takenAt: DateTime(2023, 6, 30)),
         _entry('d', takenAt: DateTime(2023, 7, 1)),
       ];
-      final range = DateRange(start: DateTime(2023, 6, 1), end: DateTime(2023, 6, 30));
+      final range =
+          DateRange(start: DateTime(2023, 6, 1), end: DateTime(2023, 6, 30));
 
       final result = filterByDateRange(entries, range);
 
@@ -32,8 +33,12 @@ void main() {
     });
 
     test('excludes entries with a null takenAt', () {
-      final entries = [_entry('undated'), _entry('dated', takenAt: DateTime(2023, 6, 1))];
-      final range = DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31));
+      final entries = [
+        _entry('undated'),
+        _entry('dated', takenAt: DateTime(2023, 6, 1))
+      ];
+      final range =
+          DateRange(start: DateTime(2023, 1, 1), end: DateTime(2023, 12, 31));
 
       final result = filterByDateRange(entries, range);
 
@@ -46,7 +51,8 @@ void main() {
         _entry('jan2', takenAt: DateTime(2024, 1, 2)),
         _entry('feb1', takenAt: DateTime(2024, 2, 1)),
       ];
-      final range = DateRange(start: DateTime(2023, 12, 25), end: DateTime(2024, 1, 5));
+      final range =
+          DateRange(start: DateTime(2023, 12, 25), end: DateTime(2024, 1, 5));
 
       final result = filterByDateRange(entries, range);
 
@@ -72,7 +78,10 @@ void main() {
     });
 
     test('excludes entries with a null takenAt', () {
-      final entries = [_entry('undated'), _entry('dated', takenAt: DateTime(2020, 6, 15))];
+      final entries = [
+        _entry('undated'),
+        _entry('dated', takenAt: DateTime(2020, 6, 15))
+      ];
 
       final result = filterOnThisDay(entries, today: DateTime(2024, 6, 15));
 
@@ -96,7 +105,9 @@ void main() {
       expect(result.map((e) => e.name), ['feb28-photo']);
     });
 
-    test('a Feb 29 "today" still matches an exact Feb 29 photo from another leap year', () {
+    test(
+        'a Feb 29 "today" still matches an exact Feb 29 photo from another leap year',
+        () {
       final entries = [_entry('feb29-photo', takenAt: DateTime(2016, 2, 29))];
 
       final result = filterOnThisDay(entries, today: DateTime(2024, 2, 29));
@@ -104,7 +115,8 @@ void main() {
       expect(result.map((e) => e.name), ['feb29-photo']);
     });
 
-    test('Feb 28 "today" in a non-leap year does not match unrelated dates', () {
+    test('Feb 28 "today" in a non-leap year does not match unrelated dates',
+        () {
       final entries = [
         _entry('feb27', takenAt: DateTime(2019, 2, 27)),
         _entry('mar1', takenAt: DateTime(2019, 3, 1)),

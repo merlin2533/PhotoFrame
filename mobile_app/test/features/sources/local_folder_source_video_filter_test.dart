@@ -15,7 +15,8 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('photoframe_video_filter_test_');
+    tempDir =
+        await Directory.systemTemp.createTemp('photoframe_video_filter_test_');
   });
 
   tearDown(() async {
@@ -29,7 +30,9 @@ void main() {
     await file.writeAsBytes(const [0, 1, 2, 3]);
   }
 
-  test('video files are excluded from listImages and counted as unsupported, GIF is not', () async {
+  test(
+      'video files are excluded from listImages and counted as unsupported, GIF is not',
+      () async {
     await writeFile('photo.jpg');
     await writeFile('clip.mp4');
     await writeFile('clip.mov');
@@ -40,19 +43,23 @@ void main() {
 
     const root = PhotoFolder(id: '', name: 'root', path: '');
     final items = await source.listImages(root).toList();
-    final okItems = items.map((r) => r.valueOrNull).whereType<PhotoItem>().toList();
+    final okItems =
+        items.map((r) => r.valueOrNull).whereType<PhotoItem>().toList();
 
     // GIF is decodable by Flutter's built-in codec (see
     // local_folder_source.dart's doc comment), so it's a real image here,
     // not unsupported like the video files.
     expect(okItems.length, 2);
-    expect(okItems.map((i) => i.name), containsAll(['photo.jpg', 'animation.gif']));
+    expect(okItems.map((i) => i.name),
+        containsAll(['photo.jpg', 'animation.gif']));
     expect(okItems.every((i) => i.mediaType == MediaType.image), isTrue);
     // Only the 2 videos are unsupported.
     expect(source.unsupportedCount, 2);
   });
 
-  test('a mix of video extensions is all treated as unsupported, not as MediaType.video', () async {
+  test(
+      'a mix of video extensions is all treated as unsupported, not as MediaType.video',
+      () async {
     for (final ext in ['mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp']) {
       await writeFile('clip.$ext');
     }
@@ -62,7 +69,8 @@ void main() {
 
     const root = PhotoFolder(id: '', name: 'root', path: '');
     final items = await source.listImages(root).toList();
-    final okItems = items.map((r) => r.valueOrNull).whereType<PhotoItem>().toList();
+    final okItems =
+        items.map((r) => r.valueOrNull).whereType<PhotoItem>().toList();
 
     expect(okItems, isEmpty);
     expect(source.unsupportedCount, 7);

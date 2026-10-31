@@ -4,7 +4,8 @@ import 'package:test/test.dart';
 void main() {
   group('ShuffleBag', () {
     test('draws every item exactly once per cycle', () {
-      final bag = ShuffleBag<int>(List.generate(20, (i) => i), noRepeatWindow: 3);
+      final bag =
+          ShuffleBag<int>(List.generate(20, (i) => i), noRepeatWindow: 3);
 
       final drawnInCycle = <int>{};
       for (var i = 0; i < 20; i++) {
@@ -21,7 +22,8 @@ void main() {
 
     test('does not repeat the same item within the no-repeat window', () {
       const window = 5;
-      final bag = ShuffleBag<int>(List.generate(20, (i) => i), noRepeatWindow: window);
+      final bag =
+          ShuffleBag<int>(List.generate(20, (i) => i), noRepeatWindow: window);
 
       final history = <int>[];
       for (var i = 0; i < 200; i++) {

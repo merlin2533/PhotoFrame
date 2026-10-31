@@ -4,7 +4,9 @@ import 'package:mobile_app/features/slideshow/domain/effective_visual_settings.d
 
 void main() {
   group('EffectiveVisualSettings.resolve', () {
-    test('passes through the configured transition/Ken Burns when reduceMotion is false', () {
+    test(
+        'passes through the configured transition/Ken Burns when reduceMotion is false',
+        () {
       final effective = EffectiveVisualSettings.resolve(
         transition: SlideshowTransition.slide,
         kenBurnsEnabled: true,
@@ -14,7 +16,9 @@ void main() {
       expect(effective.kenBurnsEnabled, isTrue);
     });
 
-    test('forces transition=none and Ken Burns off when reduceMotion is true, even if both are configured on', () {
+    test(
+        'forces transition=none and Ken Burns off when reduceMotion is true, even if both are configured on',
+        () {
       final effective = EffectiveVisualSettings.resolve(
         transition: SlideshowTransition.slide,
         kenBurnsEnabled: true,
@@ -46,9 +50,12 @@ void main() {
     });
 
     test('equality/hashCode are value-based', () {
-      const a = EffectiveVisualSettings(transition: SlideshowTransition.fade, kenBurnsEnabled: true);
-      const b = EffectiveVisualSettings(transition: SlideshowTransition.fade, kenBurnsEnabled: true);
-      const c = EffectiveVisualSettings(transition: SlideshowTransition.none, kenBurnsEnabled: true);
+      const a = EffectiveVisualSettings(
+          transition: SlideshowTransition.fade, kenBurnsEnabled: true);
+      const b = EffectiveVisualSettings(
+          transition: SlideshowTransition.fade, kenBurnsEnabled: true);
+      const c = EffectiveVisualSettings(
+          transition: SlideshowTransition.none, kenBurnsEnabled: true);
       expect(a, b);
       expect(a.hashCode, b.hashCode);
       expect(a, isNot(c));

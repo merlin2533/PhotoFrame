@@ -23,7 +23,8 @@ _MockSecureStorage _fakeSecureStorage() {
   when(() => storage.read(key: any(named: 'key'))).thenAnswer(
     (invocation) async => store[invocation.namedArguments[#key] as String],
   );
-  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer(
+  when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer(
     (invocation) async {
       final key = invocation.namedArguments[#key] as String;
       final value = invocation.namedArguments[#value] as String?;
@@ -35,9 +36,11 @@ _MockSecureStorage _fakeSecureStorage() {
     },
   );
   when(() => storage.delete(key: any(named: 'key'))).thenAnswer(
-    (invocation) async => store.remove(invocation.namedArguments[#key] as String),
+    (invocation) async =>
+        store.remove(invocation.namedArguments[#key] as String),
   );
-  when(() => storage.readAll()).thenAnswer((_) async => Map<String, String>.from(store));
+  when(() => storage.readAll())
+      .thenAnswer((_) async => Map<String, String>.from(store));
   return storage;
 }
 
@@ -63,8 +66,10 @@ Future<_Fixture> _pumpFixture(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        sourcesSharedPreferencesProvider.overrideWithValue(SharedPreferences.getInstance()),
-        secureCredentialStoreProvider.overrideWithValue(SecureCredentialStore(storage: _fakeSecureStorage())),
+        sourcesSharedPreferencesProvider
+            .overrideWithValue(SharedPreferences.getInstance()),
+        secureCredentialStoreProvider.overrideWithValue(
+            SecureCredentialStore(storage: _fakeSecureStorage())),
       ],
       child: MaterialApp(
         home: Consumer(builder: (context, ref, _) {
@@ -107,7 +112,10 @@ void main() {
 
       final sources = fixture.container.read(sourcesProvider).value;
       expect(sources, isNotNull);
-      final added = sources!.where((s) => s.type == SourceType.smb).cast<SmbPhotoSource>().toList();
+      final added = sources!
+          .where((s) => s.type == SourceType.smb)
+          .cast<SmbPhotoSource>()
+          .toList();
       expect(added, hasLength(1));
       expect(added.single.config.host, 'nas.local');
       expect(added.single.config.share, 'Photos');
@@ -116,13 +124,17 @@ void main() {
       expect(added.single.displayName, contains('Handy XY'));
     });
 
-    testWidgets('unknown payload type returns Unsupported without registering anything', (tester) async {
+    testWidgets(
+        'unknown payload type returns Unsupported without registering anything',
+        (tester) async {
       final fixture = await _pumpFixture(tester);
       final before = fixture.container.read(sourcesProvider).value!.length;
 
-      final plaintext = jsonEncode({'type': 'nextcloud', 'host': 'example.com'});
+      final plaintext =
+          jsonEncode({'type': 'nextcloud', 'host': 'example.com'});
 
-      final result = await applyDecryptedConfigPush(plaintext, ref: fixture.ref);
+      final result =
+          await applyDecryptedConfigPush(plaintext, ref: fixture.ref);
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
@@ -131,33 +143,41 @@ void main() {
 
     testWidgets('missing type field returns Unsupported', (tester) async {
       final fixture = await _pumpFixture(tester);
-      final result = await applyDecryptedConfigPush(jsonEncode({'host': 'nas.local'}), ref: fixture.ref);
+      final result = await applyDecryptedConfigPush(
+          jsonEncode({'host': 'nas.local'}),
+          ref: fixture.ref);
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
     });
 
-    testWidgets('corrupt JSON returns Unsupported without throwing', (tester) async {
+    testWidgets('corrupt JSON returns Unsupported without throwing',
+        (tester) async {
       final fixture = await _pumpFixture(tester);
-      final result = await applyDecryptedConfigPush('{not valid json', ref: fixture.ref);
+      final result =
+          await applyDecryptedConfigPush('{not valid json', ref: fixture.ref);
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
     });
 
-    testWidgets('a JSON array (not an object) returns Unsupported', (tester) async {
+    testWidgets('a JSON array (not an object) returns Unsupported',
+        (tester) async {
       final fixture = await _pumpFixture(tester);
-      final result = await applyDecryptedConfigPush(jsonEncode([1, 2, 3]), ref: fixture.ref);
+      final result = await applyDecryptedConfigPush(jsonEncode([1, 2, 3]),
+          ref: fixture.ref);
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
     });
 
-    testWidgets('SMB payload missing host/share returns Unsupported', (tester) async {
+    testWidgets('SMB payload missing host/share returns Unsupported',
+        (tester) async {
       final fixture = await _pumpFixture(tester);
       final plaintext = jsonEncode({'type': 'smb', 'username': 'frank'});
 
-      final result = await applyDecryptedConfigPush(plaintext, ref: fixture.ref);
+      final result =
+          await applyDecryptedConfigPush(plaintext, ref: fixture.ref);
 
       expect(result.isErr, isTrue);
       expect(result.failureOrNull, isA<Unsupported>());
