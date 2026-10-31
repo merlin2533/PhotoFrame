@@ -378,7 +378,21 @@ class _NextcloudConfigFormScreenState
               color: Colors.red.withValues(alpha: 0.1),
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(_lastError!),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_lastError!),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _testing ? null : _testConnection,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Erneut versuchen'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
