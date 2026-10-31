@@ -7,6 +7,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
 
@@ -33,9 +34,34 @@ class SmallPhotoCache {
     return previous.then((_) => job()).whenComplete(done.complete);
   }
 
+  bool _purgedOldVersion = false;
+
+  /// Earlier versions stored copies with an unchecked, sometimes purple
+  /// colour cast and kept no original to compare with, so the old folder is
+  /// dropped once and everything is prepared again.
+  Future<void> _purgeOldVersion(Directory dir) async {
+    if (_purgedOldVersion) return;
+    _purgedOldVersion = true;
+    final old = Directory(
+        '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
+    try {
+      if (await old.exists()) await old.delete(recursive: true);
+    } catch (_) {}
+  }
+
+  /// Name of the folder used before colours were checked (see above).
+  static const legacyDirectoryName = 'small_photos';
+
+  /// Removes every prepared copy so they are created again.
+  Future<void> clear() async {
+    final dir = await _directory();
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
   Future<File> _fileFor(PhotoItem item) async {
     final dir = await _directory();
     await dir.create(recursive: true);
+    await _purgeOldVersion(dir);
     final name = item.stableId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
     return File('${dir.path}${Platform.pathSeparator}$name.jpg');
   }
@@ -151,7 +177,7 @@ class SmallPhotoCache {
   }
 
   /// Fallback scaler using Flutter's own decoder (correct colours for every
-  /// format it can read). Stored as PNG data: larger, but always right.
+  /// format it can read), re-encoded as JPEG to keep storage small.
   Future<File?> _scaleWithFlutter(File source, File temp) async {
     ui.Codec? codec;
     try {
@@ -171,10 +197,17 @@ class SmallPhotoCache {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
       if (data == null) return null;
-      final out = await temp.writeAsBytes(
-          Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
-          flush: true);
-      return out;
+      // Flutter decoded the colours correctly; the PNG is only handed to the
+      // native encoder, which turns it into a small JPEG (no colour
+      // conversion on this path, so the cast cannot come back).
+      final jpeg = await FlutterImageCompress.compressWithList(
+        Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 90,
+        format: CompressFormat.jpeg,
+      );
+      return await temp.writeAsBytes(jpeg, flush: true);
     } catch (_) {
       return null;
     } finally {
@@ -206,12 +239,13 @@ class SmallPhotoStatus {
   final int waiting;
 }
 
-/// Prepares the screen-sized copies in batches of [batchSize], one batch after
+/// Prepares the screen-sized copies in batches (size from the settings), one batch after
 /// the other. Work can be added at any time with [start]: items that arrive
 /// while a run is going are queued and handled by the same run, so the
 /// preparation never stops between two refreshes.
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
-  static const batchSize = 20;
+  /// Default batch size; the real value comes from the settings.
+  static const defaultBatchSize = 5;
 
   bool _running = false;
   int _done = 0;
@@ -239,6 +273,12 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     final cache = ref.read(smallPhotoCacheProvider);
     try {
       while (_queued.isNotEmpty) {
+        final batchSize = (ref
+                    .read(settingsProvider)
+                    .value
+                    ?.smallPhotoBatchSize ??
+                defaultBatchSize)
+            .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
           _queued.remove(item.stableId);

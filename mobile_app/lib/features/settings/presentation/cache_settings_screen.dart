@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../cache/small_photo_cache.dart';
 import '../state/settings_providers.dart';
 
 class CacheSettingsScreen extends ConsumerWidget {
@@ -67,6 +68,37 @@ class CacheSettingsScreen extends ConsumerWidget {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 24),
+            Text('Dias pro Batch: ${settings.smallPhotoBatchSize}',
+                style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              value: settings.smallPhotoBatchSize.toDouble(),
+              min: 1,
+              max: 50,
+              divisions: 49,
+              label: '${settings.smallPhotoBatchSize}',
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(smallPhotoBatchSize: v.round())),
+            ),
+            const Text(
+              'So viele Fotos werden pro Durchlauf eingereiht und dann '
+              'einzeln nacheinander verkleinert.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.tonalIcon(
+              onPressed: () async {
+                await ref.read(smallPhotoCacheProvider).clear();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Verkleinerte Dias gelöscht – sie werden '
+                          'beim nächsten Index-Lauf neu erstellt.')),
+                );
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Verkleinerte Dias neu aufbauen'),
+            ),
+            const SizedBox(height: 16),
             FilledButton.tonalIcon(
               onPressed: () async {
                 await ref.read(imageCacheManagerProvider).clear();

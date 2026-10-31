@@ -25,11 +25,15 @@ export async function processImage(inputBuffer: Buffer): Promise<ProcessedImage>
   // .withMetadata() means sharp drops metadata by default.
   const originalBuffer = await sharp(inputBuffer, { limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
+    // CMYK / other colour spaces must be converted, otherwise browsers and the
+    // app show a strong colour cast (purple).
+    .toColorspace('srgb')
     .jpeg({ quality: 90, mozjpeg: true })
     .toBuffer();
 
   const thumbnailBuffer = await sharp(inputBuffer, { limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
+    .toColorspace('srgb')
     .resize({
       width: THUMBNAIL_MAX_DIMENSION,
       height: THUMBNAIL_MAX_DIMENSION,

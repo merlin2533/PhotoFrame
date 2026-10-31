@@ -365,7 +365,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       if (!mounted || _engine != engine || eligible.isEmpty) return;
 
-      // Prepare a small, screen-sized copy of every photo in batches of 100.
+      // Prepare a small, screen-sized copy of every photo in small batches.
       unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
         (List<PhotoItem>.of(eligible)..shuffle()),
         {for (final s in sources) s.id: s},

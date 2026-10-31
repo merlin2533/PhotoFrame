@@ -43,6 +43,7 @@ class AppSettings {
     this.poolRefillIntervalHours = 1,
     this.indexRefreshHours = 48,
     this.selectionCount = 1000,
+    this.smallPhotoBatchSize = 5,
     this.poolNewImageQuota = 0.2,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
@@ -115,6 +116,10 @@ class AppSettings {
 
   /// How many random photos are drawn each day (100-5000).
   final int selectionCount;
+
+  /// How many photos are queued per batch when screen-sized copies are
+  /// prepared (1-50). Photos in a batch are scaled one after the other.
+  final int smallPhotoBatchSize;
   final double poolNewImageQuota;
 
   // --- Favorites / date filter (P2) ---------------------------------------
@@ -239,6 +244,7 @@ class AppSettings {
     int? poolRefillIntervalHours,
     int? indexRefreshHours,
     int? selectionCount,
+    int? smallPhotoBatchSize,
     double? poolNewImageQuota,
     bool? favoritesOnlyMode,
     List<String>? disabledSourceIds,
@@ -281,6 +287,7 @@ class AppSettings {
           poolRefillIntervalHours ?? this.poolRefillIntervalHours,
       indexRefreshHours: indexRefreshHours ?? this.indexRefreshHours,
       selectionCount: selectionCount ?? this.selectionCount,
+      smallPhotoBatchSize: smallPhotoBatchSize ?? this.smallPhotoBatchSize,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
       disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
@@ -328,6 +335,7 @@ class AppSettings {
         'poolRefillIntervalHours': poolRefillIntervalHours,
         'indexRefreshHours': indexRefreshHours,
         'selectionCount': selectionCount,
+        'smallPhotoBatchSize': smallPhotoBatchSize,
         'poolNewImageQuota': poolNewImageQuota,
         'favoritesOnlyMode': favoritesOnlyMode,
         'disabledSourceIds': disabledSourceIds,
@@ -382,6 +390,7 @@ class AppSettings {
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
       indexRefreshHours: json['indexRefreshHours'] as int? ?? 48,
       selectionCount: json['selectionCount'] as int? ?? 1000,
+      smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
