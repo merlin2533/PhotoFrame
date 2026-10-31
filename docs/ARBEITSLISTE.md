@@ -3,7 +3,7 @@
 Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 
 ## Offen
-- [ ] 1 – Ruhigere Uhr/Datum-Anzeige (größer, dezenter)
+- [x] 1 – Ruhigere Uhr/Datum-Anzeige (größer, dezenter)
 - [ ] 2 – Ortsname aus EXIF-GPS in der Bildinfo
 - [x] 3 – Schriftgröße und hoher Kontrast als Einstellung
 - [x] 4 – Fehlerzustände mit Aktionsbutton (Erneut versuchen / Quelle prüfen)
