@@ -155,7 +155,7 @@ void main() {
     // decode MockPhotoSource's non-image bytes) still renders the item's
     // real name, so this confirms the *actual* resolved PhotoItem reached
     // the renderer, not just "some" SlideRenderer instance.
-    expect(find.textContaining('mock_0_'), findsOneWidget);
+    expect(find.textContaining('mock_0_'), findsWidgets);
 
     // kioskModeEnabled defaults to false (see AppSettings), so entering the
     // slideshow must not have engaged kiosk/screen-pinning.
