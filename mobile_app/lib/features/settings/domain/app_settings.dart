@@ -25,7 +25,7 @@ class AppSettings {
     this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
     this.showClock = true,
-    this.displayMode = DisplayMode.contain,
+    this.displayMode = DisplayMode.blurredBackdrop,
     this.transition = SlideshowTransition.fade,
     this.kenBurnsEnabled = false,
     this.portraitPairLayoutEnabled = false,
