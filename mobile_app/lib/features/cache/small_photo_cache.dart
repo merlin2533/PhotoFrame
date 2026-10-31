@@ -109,7 +109,13 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
         final batch = items.skip(offset).take(batchSize);
         for (final item in batch) {
           final source = sourcesById[item.sourceId];
-          if (source != null) await cache.ensure(source, item);
+          // A stalled network read must not stop the whole preparation: after a
+          // minute the photo is skipped and the next one starts.
+          if (source != null) {
+            await cache
+                .ensure(source, item)
+                .timeout(const Duration(seconds: 60), onTimeout: () => null);
+          }
           done++;
           state =
               SmallPhotoStatus(done: done, total: items.length, running: true);

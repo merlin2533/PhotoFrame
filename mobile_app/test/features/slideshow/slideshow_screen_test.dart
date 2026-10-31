@@ -86,6 +86,7 @@ void main() {
               .overrideWithValue(_FakeKioskModeController()),
           networkCacheCleanerProvider.overrideWithValue(() async {}),
           smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
+          smallPhotoWorkerProvider.overrideWith(_NoWorker.new),
           photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
             read: () async => null,
             write: (_) async {},
@@ -176,4 +177,13 @@ class _NoSmallPhotoCache extends SmallPhotoCache {
 
   @override
   Future<File?> existing(PhotoItem item) async => null;
+}
+
+/// Test stand-in: does not prepare copies (its timers would outlive the test).
+class _NoWorker extends SmallPhotoWorker {
+  @override
+  Future<void> start(
+    List<PhotoItem> items,
+    Map<String, PhotoSource> sourcesById,
+  ) async {}
 }
