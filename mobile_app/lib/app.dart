@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'features/index/background_jobs.dart';
 import 'features/pairing/state/pairing_providers.dart';
 import 'features/settings/state/settings_providers.dart';
+import 'features/slideshow/state/slideshow_providers.dart';
 import 'l10n/app_localizations.dart';
 
 /// Root widget of the PhotoFrame companion app.
@@ -96,6 +97,9 @@ class _RoutedAppState extends ConsumerState<_RoutedApp> {
     // Starts the background index, cache and downscaling jobs for the whole
     // app lifetime (see BackgroundJobs).
     ref.read(backgroundJobsProvider);
+    // Keeps the screen awake according to "Dauer-Modus" from app start on, not
+    // only once a slideshow runs.
+    ref.read(alwaysOnControllerProvider);
   }
 
   @override
