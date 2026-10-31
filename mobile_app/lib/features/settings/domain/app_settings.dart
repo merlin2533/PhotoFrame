@@ -21,6 +21,7 @@ class AppSettings {
     // Slideshow
     this.intervalSeconds = 30,
     this.showSourceLabel = false,
+    this.showCaptionOverlay = false,
     this.showImageDetails = true,
     this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
@@ -69,6 +70,10 @@ class AppSettings {
   // --- Slideshow ------------------------------------------------------
   final int intervalSeconds;
   final bool showSourceLabel;
+
+  /// Photo date (and folder name) as a small caption at the bottom left,
+  /// see `widgets/caption_overlay.dart`.
+  final bool showCaptionOverlay;
 
   /// Folder and date of the shown photo at the bottom edge.
   final bool showImageDetails;
@@ -222,6 +227,7 @@ class AppSettings {
   AppSettings copyWith({
     int? intervalSeconds,
     bool? showSourceLabel,
+    bool? showCaptionOverlay,
     bool? showImageDetails,
     bool? imageDetailsOnRight,
     SlideLayout? slideLayout,
@@ -262,6 +268,7 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
       showSourceLabel: showSourceLabel ?? this.showSourceLabel,
+      showCaptionOverlay: showCaptionOverlay ?? this.showCaptionOverlay,
       showImageDetails: showImageDetails ?? this.showImageDetails,
       imageDetailsOnRight: imageDetailsOnRight ?? this.imageDetailsOnRight,
       slideLayout: slideLayout ?? this.slideLayout,
@@ -311,6 +318,7 @@ class AppSettings {
   Map<String, dynamic> toJson() => {
         'intervalSeconds': intervalSeconds,
         'showSourceLabel': showSourceLabel,
+        'showCaptionOverlay': showCaptionOverlay,
         'showImageDetails': showImageDetails,
         'imageDetailsOnRight': imageDetailsOnRight,
         'slideLayout': slideLayout.name,
@@ -349,6 +357,7 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: json['intervalSeconds'] as int? ?? 10,
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
+      showCaptionOverlay: json['showCaptionOverlay'] as bool? ?? false,
       showImageDetails: json['showImageDetails'] as bool? ?? true,
       imageDetailsOnRight: json['imageDetailsOnRight'] as bool? ?? false,
       slideLayout: SlideLayout.values.firstWhere(

@@ -29,6 +29,7 @@ import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../state/slideshow_providers.dart';
+import 'widgets/caption_overlay.dart';
 import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
@@ -948,6 +949,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
+                if (settings.showCaptionOverlay && item != null)
+                  CaptionOverlay(text: captionTextFor(item)),
                 // Clock and weather share the bottom-left corner: shown
                 // combined in one pill when both are enabled, otherwise
                 // whichever one is enabled renders alone. See
