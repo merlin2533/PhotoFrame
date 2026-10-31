@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../services/ambient/ambient_dim_controller.dart';
+import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../cache/small_photo_cache.dart';
 import '../../favorites/domain/favorites_store.dart';
@@ -29,6 +31,7 @@ import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../state/slideshow_providers.dart';
+import 'widgets/caption_overlay.dart';
 import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
@@ -37,6 +40,15 @@ import 'widgets/slide_renderer.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
 import 'widgets/weather_overlay.dart';
+
+/// Ambient light source for [AmbientDimController]. Defaults to the no-op
+/// source (no light sensor plugin yet), so ambient dimming uses its time
+/// window alone. Override this provider once a real sensor source exists.
+final Provider<AmbientLightSource> ambientLightSourceProvider =
+    Provider<AmbientLightSource>((ref) => const NoopAmbientLightSource());
+
+/// Opacity used for the time-window dim when no light sensor is available.
+const double _fixedAmbientDimOpacity = 0.6;
 
 /// Empties the network photo cache. Overridden in widget tests, where real
 /// file-system calls never complete under the fake clock.
@@ -92,6 +104,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
 
+  // Ambient dimming: the light source is subscribed for the screen's whole
+  // lifetime (a no-op stream by default); its readings drive `_sensorDimOpacity`.
+  late final AmbientLightSource _ambientSource;
+  StreamSubscription<double>? _ambientSub;
+  final AmbientDimController _ambientDim = AmbientDimController();
+  double _sensorDimOpacity = 0;
+
   static const _dailyKey = 'daily_selection_v1';
 
   /// Photos needed before the slideshow starts; the rest loads in the background.
@@ -126,6 +145,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // the field-level doc comment above for why that ordering matters.
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
+    _ambientSource = ref.read(ambientLightSourceProvider);
+    _ambientSub = _ambientSource.lux.listen(_onAmbientLux);
     unawaited(_buildEngine());
     // Fullscreen: hide status and navigation bar while the slideshow runs.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -138,6 +159,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   @override
   void dispose() {
     _nightTick?.cancel();
+    _ambientSub?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
     _refreshTimer?.cancel();
@@ -567,6 +589,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     return '$source \u203a $folder\n$when';
   }
 
+  void _onAmbientLux(double lux) {
+    final opacity = _ambientDim.update(lux);
+    if (mounted && opacity != _sensorDimOpacity) {
+      setState(() => _sensorDimOpacity = opacity);
+    }
+  }
+
   void _togglePause() {
     final engine = _engine;
     if (engine == null) return;
@@ -780,6 +809,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
     final settings = settingsAsync.value ?? const AppSettings();
     final isNight = settings.nightSchedule.isNightAt(DateTime.now());
+    final inDimWindow = isWithinDimWindow(
+      DateTime.now(),
+      startMinutes: settings.dimStartMinutes,
+      endMinutes: settings.dimEndMinutes,
+    );
+    final hasLightSensor = _ambientSource is! NoopAmbientLightSource;
+    final ambientDimOpacity = !inDimWindow
+        ? 0.0
+        : hasLightSensor
+            ? _sensorDimOpacity
+            : _fixedAmbientDimOpacity;
     final favorites = ref.watch(favoritesStoreProvider);
 
     return Scaffold(
@@ -952,6 +992,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
+                if (settings.showCaptionOverlay && item != null)
+                  CaptionOverlay(text: captionTextFor(item)),
                 // Clock and weather share the bottom-left corner: shown
                 // combined in one pill when both are enabled, otherwise
                 // whichever one is enabled renders alone. See
@@ -979,6 +1021,20 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ClockOverlay(atTop: settings.clockAtTop)
                 else if (settings.weatherEnabled)
                   const WeatherOverlay(),
+                // Ambient dimming: black overlay inside the configured time
+                // window. Without a light sensor the fixed opacity applies;
+                // with one, the lux-based opacity is used instead. The
+                // AnimatedOpacity fades in and out over the whole window edge.
+                if (settings.ambientDimEnabled)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: ambientDimOpacity,
+                        duration: const Duration(seconds: 2),
+                        child: const ColoredBox(color: Colors.black),
+                      ),
+                    ),
+                  ),
                 if (isNight)
                   IgnorePointer(
                     child: Container(

@@ -101,6 +101,52 @@ class NightModeSettingsScreen extends ConsumerWidget {
                                 nightSchedule: schedule.copyWith(dimAmount: v)),
                           ),
                 ),
+                const Divider(height: 32),
+                Text('Umgebungslicht',
+                    style: Theme.of(context).textTheme.titleMedium),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bildschirm im Zeitfenster abdunkeln'),
+                  subtitle: const Text(
+                    'Schwarze Überlagerung im unten gewählten Zeitfenster. '
+                    'Ohne Lichtsensor gilt nur das Zeitfenster.',
+                  ),
+                  value: settings.ambientDimEnabled,
+                  onChanged: (v) => notifier
+                      .updateSettings((s) => s.copyWith(ambientDimEnabled: v)),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  enabled: settings.ambientDimEnabled,
+                  title: const Text('Abdunkeln ab'),
+                  trailing: Text(_formatMinutes(settings.dimStartMinutes)),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _timeOfDay(settings.dimStartMinutes),
+                    );
+                    if (picked != null) {
+                      await notifier.updateSettings((s) => s.copyWith(
+                          dimStartMinutes: picked.hour * 60 + picked.minute));
+                    }
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  enabled: settings.ambientDimEnabled,
+                  title: const Text('Abdunkeln bis'),
+                  trailing: Text(_formatMinutes(settings.dimEndMinutes)),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _timeOfDay(settings.dimEndMinutes),
+                    );
+                    if (picked != null) {
+                      await notifier.updateSettings((s) => s.copyWith(
+                          dimEndMinutes: picked.hour * 60 + picked.minute));
+                    }
+                  },
+                ),
               ],
             ),
           );
@@ -108,6 +154,12 @@ class NightModeSettingsScreen extends ConsumerWidget {
       ),
     );
   }
+
+  static TimeOfDay _timeOfDay(int minutes) =>
+      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
+
+  static String _formatMinutes(int minutes) =>
+      _formatTime(minutes ~/ 60, minutes % 60);
 
   static String _formatTime(int hour, int minute) =>
       '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
