@@ -60,5 +60,16 @@
 	     without-this-key behaviour as NSCameraUsageDescription above. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Wird benötigt, um deine Fotos aus der Mediathek als Diashow-Quelle zu nutzen.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PhotoFrame sucht Netzwerkfreigaben (SMB) und Nextcloud-Server im lokalen Netz, um Fotos anzuzeigen.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_smb._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

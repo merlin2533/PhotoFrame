@@ -10,9 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../services/kiosk/kiosk_mode_controller.dart';
+import '../../cache/small_photo_cache.dart';
 import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
-import '../../cache/small_photo_cache.dart';
 import '../../index/photo_index_store.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';

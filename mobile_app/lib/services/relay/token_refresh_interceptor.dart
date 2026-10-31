@@ -7,7 +7,7 @@ import 'relay_token_storage.dart';
 /// request once with the new token.
 ///
 /// Only applies to user-JWT-authenticated calls (`Authorization: Bearer
-/// <accessToken>`); device-token calls (frame-authenticated, e.g. pairing,
+/// ACCESS_TOKEN`); device-token calls (frame-authenticated, e.g. pairing,
 /// images, config-push) 401 on revocation/loss and are surfaced as-is - a
 /// device token has no refresh flow server-side, the only recovery path is
 /// `/frames/:id/recover`, which is a deliberate user action, not something
