@@ -8,7 +8,7 @@ Lokale Liste der offenen Punkte (ersetzt das Kanban-Board).
 - [x] 3 – Schriftgröße und hoher Kontrast als Einstellung
 - [x] 4 – Fehlerzustände mit Aktionsbutton (Erneut versuchen / Quelle prüfen)
 - [ ] 5 – Status-Badges in der Quellenliste (Bilder, Stand, Verbindung)
-- [ ] 6 – Einheitliches Dunkel-Design, Suche in den Einstellungen
+- [x] 6 – Suche in den Einstellungen (Dunkel-Design folgt dem System; nicht einzeln geprüft)
 - [x] 7 – Nächstes Bild im Hintergrund vorladen (Netzwerkquellen)
 - [ ] 8 – Miniaturen-Cache für die Übersicht
 - [ ] 9 – Index in SQLite statt JSON (ab mehreren tausend Fotos)
