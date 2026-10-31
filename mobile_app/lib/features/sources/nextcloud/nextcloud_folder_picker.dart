@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../domain/photo_folder.dart';
-import 'nextcloud_photo_source.dart';
+import '../domain/photo_source.dart';
 
 /// Lets the user browse the folders of a connected Nextcloud and tick one or
 /// several of them. Returns the chosen paths (relative to the WebDAV root),
 /// or `null` if cancelled.
 Future<List<String>?> showNextcloudFolderPicker(
   BuildContext context, {
-  required NextcloudPhotoSource source,
+  required PhotoSource source,
   List<String> initiallySelected = const [],
 }) {
   return showModalBottomSheet<List<String>>(
@@ -25,7 +25,7 @@ Future<List<String>?> showNextcloudFolderPicker(
 class _FolderPicker extends StatefulWidget {
   const _FolderPicker({required this.source, required this.initiallySelected});
 
-  final NextcloudPhotoSource source;
+  final PhotoSource source;
   final List<String> initiallySelected;
 
   @override
