@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
+import '../../index/photo_index_store.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';
 import '../../settings/domain/app_settings.dart';
@@ -223,8 +224,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
     // Playlist "favoritesOnly" filter mode: an additional mode on top of
     // "everything from the configured sources"; a no-op when off.
+    return _applyFavoritesFilter(allItems, settings, favorites);
+  }
+
+  List<PhotoItem> _applyFavoritesFilter(
+    List<PhotoItem> items,
+    AppSettings settings,
+    FavoritesStore favorites,
+  ) {
     return applyPlaylistFilter<PhotoItem>(
-      allItems,
+      items,
       PlaylistFilter(favoritesOnly: settings.favoritesOnlyMode),
       stableIdOf: (item) => item.stableId,
       takenAtOf: (item) => item.takenAt,
@@ -268,10 +277,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     return chosen;
   }
 
-  /// Re-crawls the sources in the background and merges the result into the
-  /// running engine's pool (new photos added, vanished ones dropped) without
-  /// interrupting the slideshow. A crawl that finds nothing (e.g. network
-  /// down) never wipes the current pool.
+  /// Refreshes the photo list in the background and merges it into the
+  /// running engine's pool without interrupting the slideshow.
+  ///
+  /// Sources are only crawled when the saved index is older than
+  /// `AppSettings.indexRefreshHours` (or missing). Otherwise the saved index is
+  /// used, so a new day still draws a new selection without touching the
+  /// network. Sources that fail keep their photos.
   Future<void> _backgroundRefresh() async {
     final engine = _engine;
     final pool = _pool;
@@ -280,17 +292,42 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     try {
       final sources = await ref.read(sourcesProvider.future);
       final settings = ref.read(settingsProvider).value ?? const AppSettings();
-      // No timeout here: large network shares (SMB, Nextcloud) can take
-      // minutes. Sources that fail keep their current photos.
+      final favorites = ref.read(favoritesStoreProvider);
+      final store = ref.read(photoIndexStoreProvider);
+      final snapshot = await store.load();
+      final due = snapshot.items.isEmpty ||
+          snapshot.age(DateTime.now()) >=
+              Duration(hours: settings.indexRefreshHours);
+
       final failed = <String>{};
-      final eligible = await _crawlEligible(
-        sources,
-        settings,
-        ref.read(favoritesStoreProvider),
-        [],
-        failedSourceIds: failed,
-      );
+      final List<PhotoItem> eligible;
+      if (due) {
+        // No timeout here: large network shares can take minutes.
+        final crawled = await _crawlEligible(
+          sources,
+          settings,
+          favorites,
+          [],
+          failedSourceIds: failed,
+        );
+        if (!mounted || _engine != engine) return;
+        // Keep the saved photos of sources that failed in this crawl.
+        await store.save([
+          ...crawled,
+          ...snapshot.items.where((i) => failed.contains(i.sourceId)),
+        ]);
+        eligible = crawled;
+      } else {
+        final enabledIds = {for (final s in sources) s.id}
+          ..removeWhere(settings.disabledSourceIds.contains);
+        eligible = _applyFavoritesFilter(
+          snapshot.items.where((i) => enabledIds.contains(i.sourceId)).toList(),
+          settings,
+          favorites,
+        );
+      }
       if (!mounted || _engine != engine || eligible.isEmpty) return;
+
       final fresh = await _todaysSelection(eligible, settings.poolTargetSize);
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       bool kept(String sourceId, String itemId) =>
@@ -312,6 +349,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     } finally {
       _refreshing = false;
     }
+  }
+
+  /// A photo that cannot be fetched (file removed, share offline) is taken out
+  /// of the pool and the slideshow moves on to the next one.
+  void _skipUnavailable(PhotoItem item) {
+    final pool = _pool;
+    if (pool == null) return;
+    pool.remove(item.sourceId, item.id);
+    _itemsByKey.remove('${item.sourceId}::${item.id}');
+    _engine?.refreshPool(pool);
+    // Empty pool: nothing left to show, so do not advance.
+    if (pool.entries.isNotEmpty) _next();
   }
 
   Future<void> _buildEngine() async {
@@ -337,14 +386,30 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
       // Start with the first ~12 photos, then read the rest in the background
       // (see the refresh call after the engine has started).
-      final eligibleItems = await _crawlEligible(
-        sources,
-        settings,
-        favorites,
-        errors,
-        limit: _initialPhotoCount,
-        timeout: const Duration(seconds: 30),
-      );
+      // A saved index (see PhotoIndexStore) gives a full photo list at once;
+      // without one, start with the first photos found by a crawl.
+      final snapshot = await ref.read(photoIndexStoreProvider).load();
+      final indexed = snapshot.items
+          .where((i) =>
+              sourcesById.containsKey(i.sourceId) &&
+              !settings.disabledSourceIds.contains(i.sourceId))
+          .toList();
+      final List<PhotoItem> eligibleItems;
+      if (indexed.isNotEmpty) {
+        eligibleItems = await _todaysSelection(
+          _applyFavoritesFilter(indexed, settings, favorites),
+          settings.poolTargetSize,
+        );
+      } else {
+        eligibleItems = await _crawlEligible(
+          sources,
+          settings,
+          favorites,
+          errors,
+          limit: _initialPhotoCount,
+          timeout: const Duration(seconds: 30),
+        );
+      }
       for (final item in eligibleItems) {
         itemsByKey['${item.sourceId}::${item.id}'] = item;
         pool.add(PoolEntry(
@@ -656,6 +721,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                     item: item,
                     source: itemSource,
                     displayMode: settings.displayMode,
+                    onUnavailable: () => _skipUnavailable(item),
                   );
             if (item != null && effective.kenBurnsEnabled) {
               slide = KenBurnsEffect(

@@ -26,7 +26,11 @@ class SlideRenderer extends StatefulWidget {
     required this.item,
     required this.source,
     required this.displayMode,
+    this.onUnavailable,
   });
+
+  /// Called when the photo cannot be fetched, so the slideshow can skip it.
+  final VoidCallback? onUnavailable;
 
   final PhotoItem item;
   final PhotoSource source;
@@ -64,6 +68,7 @@ class _SlideRendererState extends State<SlideRenderer> {
     _fileFuture = widget.source.fetchToCache(widget.item).then((result) {
       if (result.valueOrNull == null) {
         _fetchError = result.failureOrNull?.message;
+        widget.onUnavailable?.call();
         debugPrint(
             'Fetch failed for ${widget.item.id}: ${result.failureOrNull?.message}');
       }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../index/photo_index_store.dart';
+
 import '../state/settings_providers.dart';
 
 /// Settings for the "Working-Set Pool" described in `docs/PLAN.md`
@@ -50,6 +52,31 @@ class PoolSettingsScreen extends ConsumerWidget {
               label: '${settings.poolRefillIntervalHours} h',
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(poolRefillIntervalHours: v.round())),
+            ),
+            const SizedBox(height: 16),
+            Text('Index-Aktualisierung: alle ${settings.indexRefreshHours} h',
+                style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              value: settings.indexRefreshHours.toDouble(),
+              min: 6,
+              max: 168,
+              divisions: 27,
+              label: '${settings.indexRefreshHours} h',
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(indexRefreshHours: v.round())),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                await ref.read(photoIndexStoreProvider).clear();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text(
+                        'Index wird beim nächsten Laden der Diashow neu aufgebaut'),
+                  ));
+                }
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Index jetzt neu aufbauen'),
             ),
             const SizedBox(height: 16),
             Text(

@@ -36,6 +36,7 @@ class AppSettings {
     // Working-set pool
     this.poolTargetSize = 1000,
     this.poolRefillIntervalHours = 1,
+    this.indexRefreshHours = 48,
     this.poolNewImageQuota = 0.2,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
@@ -94,6 +95,9 @@ class AppSettings {
   // --- Working-set pool ---------------------------------------------------
   final int poolTargetSize;
   final int poolRefillIntervalHours;
+
+  /// How often the saved photo index is rebuilt from the sources.
+  final int indexRefreshHours;
   final double poolNewImageQuota;
 
   // --- Favorites / date filter (P2) ---------------------------------------
@@ -208,6 +212,7 @@ class AppSettings {
     int? cacheLimitBytes,
     int? poolTargetSize,
     int? poolRefillIntervalHours,
+    int? indexRefreshHours,
     double? poolNewImageQuota,
     bool? favoritesOnlyMode,
     List<String>? disabledSourceIds,
@@ -244,6 +249,7 @@ class AppSettings {
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
       poolRefillIntervalHours:
           poolRefillIntervalHours ?? this.poolRefillIntervalHours,
+      indexRefreshHours: indexRefreshHours ?? this.indexRefreshHours,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
       disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
@@ -285,6 +291,7 @@ class AppSettings {
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
+        'indexRefreshHours': indexRefreshHours,
         'poolNewImageQuota': poolNewImageQuota,
         'favoritesOnlyMode': favoritesOnlyMode,
         'disabledSourceIds': disabledSourceIds,
@@ -330,6 +337,7 @@ class AppSettings {
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
+      indexRefreshHours: json['indexRefreshHours'] as int? ?? 48,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       disabledSourceIds:
