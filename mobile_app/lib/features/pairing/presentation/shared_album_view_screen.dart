@@ -127,8 +127,9 @@ class _SharedAlbumViewScreenState extends State<SharedAlbumViewScreen> {
                           child: FutureBuilder<Map<String, String>>(
                             future: _authHeaders(),
                             builder: (context, snapshot) {
-                              if (!snapshot.hasData)
+                              if (!snapshot.hasData) {
                                 return const ColoredBox(color: Colors.black12);
+                              }
                               return CachedNetworkImage(
                                 imageUrl: _thumbUrl(image.id),
                                 httpHeaders: snapshot.data,

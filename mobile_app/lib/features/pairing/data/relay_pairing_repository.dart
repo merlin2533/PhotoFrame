@@ -191,8 +191,9 @@ class RelayPairingRepository implements PairingRepository {
       pairingId: pairingId,
       targetFrameId: targetFrameId,
     );
-    if (recipientResult.isErr)
+    if (recipientResult.isErr) {
       return Result.err(recipientResult.failureOrNull!);
+    }
     final recipient = recipientResult.valueOrNull!;
 
     final publicKey = recipient.publicKey;

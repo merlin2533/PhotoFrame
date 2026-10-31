@@ -146,8 +146,9 @@ class _PairingScreenState extends State<PairingScreen> {
     if (member.keyFingerprint == null) return null;
     final trusted =
         await widget.fingerprintStore.trustedFingerprintFor(member.frameId);
-    if (trusted == null)
+    if (trusted == null) {
       return null; // never displayed before - not a mismatch, just unestablished.
+    }
     return trusted == member.keyFingerprint
         ? FingerprintTrust.match
         : FingerprintTrust.mismatch;

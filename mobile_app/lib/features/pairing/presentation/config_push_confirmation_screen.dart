@@ -98,9 +98,10 @@ class _ConfigPushConfirmationScreenState
         plaintextJson = await widget.crypto
             .decryptFromSender(ciphertext: widget.push.ciphertext);
       } on ConfigPushDecryptionException catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() =>
               _decryptError = 'Entschlüsselung fehlgeschlagen: ${e.reason}');
+        }
         return;
       }
 

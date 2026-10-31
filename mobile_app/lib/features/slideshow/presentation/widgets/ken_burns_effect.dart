@@ -53,14 +53,19 @@ class _KenBurnsEffectState extends State<KenBurnsEffect>
     _controller = AnimationController(vsync: this, duration: effectiveDuration)
       ..forward();
 
-    _scale = Tween<double>(begin: _minZoom, end: _maxZoom).animate(
+    // Zoom direction is random too: half the photos zoom in, half zoom out.
+    final random = Random();
+    final zoomIn = random.nextBool();
+    _scale = Tween<double>(
+      begin: zoomIn ? _minZoom : _maxZoom,
+      end: zoomIn ? _maxZoom : _minZoom,
+    ).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
     // Randomize the pan direction per instance (i.e. per slide, given this
     // widget is recreated per `key`) so consecutive images don't all zoom
     // toward the exact same corner.
-    final random = Random();
     _alignment = AlignmentTween(
       begin: _randomAlignment(random),
       end: _randomAlignment(random),
