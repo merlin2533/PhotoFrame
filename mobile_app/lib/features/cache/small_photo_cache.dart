@@ -86,29 +86,43 @@ class SmallPhotoStatus {
   final bool running;
 }
 
-/// Works through all photos in batches of [batchSize], one batch after the
-/// other, until none is left. Photos that already have a small file are
-/// skipped, so every run only does the new work.
+/// Prepares the screen-sized copies in batches of [batchSize], one batch after
+/// the other. Work can be added at any time with [start]: items that arrive
+/// while a run is going are queued and handled by the same run, so the
+/// preparation never stops between two refreshes.
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   static const batchSize = 100;
+
   bool _running = false;
+  int _done = 0;
+  int _total = 0;
+  final Map<String, PhotoItem> _queued = {};
+  final Map<String, PhotoSource> _sources = {};
 
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
 
+  /// Queues [items] (in random order) and runs the queue if it is not running.
+  /// Returns when the queue is empty.
   Future<void> start(
     List<PhotoItem> items,
     Map<String, PhotoSource> sourcesById,
   ) async {
-    if (_running) return;
+    _sources.addAll(sourcesById);
+    for (final item in List<PhotoItem>.of(items)..shuffle()) {
+      if (_queued.putIfAbsent(item.stableId, () => item) == item) {
+        _total++;
+      }
+    }
+    if (_running || _queued.isEmpty) return;
     _running = true;
     final cache = ref.read(smallPhotoCacheProvider);
     try {
-      var done = 0;
-      for (var offset = 0; offset < items.length; offset += batchSize) {
-        final batch = items.skip(offset).take(batchSize);
+      while (_queued.isNotEmpty) {
+        final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
-          final source = sourcesById[item.sourceId];
+          _queued.remove(item.stableId);
+          final source = _sources[item.sourceId];
           // A stalled network read must not stop the whole preparation: after a
           // minute the photo is skipped and the next one starts.
           if (source != null) {
@@ -116,14 +130,17 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                 .ensure(source, item)
                 .timeout(const Duration(seconds: 60), onTimeout: () => null);
           }
-          done++;
-          state =
-              SmallPhotoStatus(done: done, total: items.length, running: true);
+          _done++;
+          state = SmallPhotoStatus(
+            done: _done,
+            total: _total,
+            running: true,
+          );
         }
         // Give the UI and the slideshow room between batches.
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      state = SmallPhotoStatus(done: done, total: items.length);
+      state = SmallPhotoStatus(done: _done, total: _total);
     } finally {
       _running = false;
     }
