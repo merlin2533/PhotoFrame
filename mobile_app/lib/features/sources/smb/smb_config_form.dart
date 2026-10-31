@@ -77,6 +77,7 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
   void dispose() {
     _hostController.dispose();
     _shareController.dispose();
+    _extraShareController.dispose();
     _domainController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -188,6 +189,10 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
 
   List<String> _selectedFolders = [];
 
+  /// Further shares on the same host, each saved as its own source.
+  final List<String> _extraShares = [];
+  final _extraShareController = TextEditingController();
+
   Future<void> _pickFolders() async {
     final normalized = _model.normalized();
     if (_model.validate().isNotEmpty) return;
@@ -223,18 +228,27 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
       await ref.read(sourcesProvider.notifier).removeById(editing.id);
     }
     try {
-      for (final folder in folders) {
-        final id = ref.read(sourceIdGeneratorProvider).v4();
-        final config = _buildConfig(normalized.copyWith(rootPath: folder));
-        final source = SmbPhotoSource(
-          id: id,
-          config: config,
-          displayName: folder.isEmpty ? null : 'SMB: ${config.share}/$folder',
-        );
-        if (config.password.isNotEmpty) {
-          await store.write(id, 'password', config.password);
+      // One source per share and folder. The extra shares use the root folder
+      // of the Unterordner field.
+      final shares = [normalized.share, ..._extraShares];
+      for (final share in shares) {
+        for (final folder in folders) {
+          final id = ref.read(sourceIdGeneratorProvider).v4();
+          final config = _buildConfig(
+            normalized.copyWith(share: share, rootPath: folder),
+          );
+          final source = SmbPhotoSource(
+            id: id,
+            config: config,
+            displayName: folder.isEmpty
+                ? 'SMB: ${config.share}'
+                : 'SMB: ${config.share}/$folder',
+          );
+          if (config.password.isNotEmpty) {
+            await store.write(id, 'password', config.password);
+          }
+          await ref.read(sourcesProvider.notifier).add(source);
         }
-        await ref.read(sourcesProvider.notifier).add(source);
       }
     } catch (e) {
       if (!mounted) return;
@@ -298,6 +312,36 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
               hintText: 'z. B. Photos',
               errorText: errors['share'],
             ),
+          ),
+          const SizedBox(height: 8),
+          for (final share in _extraShares)
+            Chip(
+              label: Text('Freigabe: $share'),
+              onDeleted: () => setState(() => _extraShares.remove(share)),
+            ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _extraShareController,
+                  decoration: const InputDecoration(
+                    labelText: 'Weitere Freigabe (optional)',
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'Freigabe hinzufügen',
+                onPressed: () {
+                  final name = _extraShareController.text.trim();
+                  if (name.isEmpty || _extraShares.contains(name)) return;
+                  setState(() {
+                    _extraShares.add(name);
+                    _extraShareController.clear();
+                  });
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           TextField(
