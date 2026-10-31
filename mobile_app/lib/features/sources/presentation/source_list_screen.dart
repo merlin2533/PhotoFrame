@@ -52,27 +52,75 @@ class SourceListScreen extends ConsumerWidget {
         ),
         data: (sources) => sources.isEmpty
             ? const Center(child: Text('Noch keine Quelle konfiguriert.'))
-            : ListView.separated(
-                itemCount: sources.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) =>
-                    _SourceTile(source: sources[index]),
-              ),
+            : _groupedList(sources),
       ),
     );
   }
 }
 
+/// One list entry per server share (or Nextcloud server). Folders that were
+/// added from the same share are shown on that entry, on one line.
+Widget _groupedList(List<PhotoSource> sources) {
+  final groups = <String, List<PhotoSource>>{};
+  for (final source in sources) {
+    groups.putIfAbsent(_groupKey(source), () => []).add(source);
+  }
+  final entries = groups.values.toList();
+  return ListView.separated(
+    itemCount: entries.length,
+    separatorBuilder: (_, __) => const Divider(height: 1),
+    itemBuilder: (context, index) =>
+        _SourceTile(source: entries[index].first, group: entries[index]),
+  );
+}
+
+String _groupKey(PhotoSource source) {
+  if (source is SmbPhotoSource) {
+    return 'smb:${source.config.host}:${source.config.share}';
+  }
+  if (source is NextcloudPhotoSource) return 'nc:${source.config.davBaseUrl}';
+  return source.id;
+}
+
 class _SourceTile extends ConsumerStatefulWidget {
-  const _SourceTile({required this.source});
+  const _SourceTile({required this.source, this.group = const []});
 
   final PhotoSource source;
+
+  /// All sources that belong to this entry (one share, several folders).
+  /// Empty when the entry is a single source.
+  final List<PhotoSource> group;
 
   @override
   ConsumerState<_SourceTile> createState() => _SourceTileState();
 }
 
 class _SourceTileState extends ConsumerState<_SourceTile> {
+  List<PhotoSource> get _all =>
+      widget.group.isEmpty ? [widget.source] : widget.group;
+
+  /// Title without the folder part: "SMB: Freigabe", "Nextcloud".
+  String get _title {
+    final source = widget.source;
+    if (source is SmbPhotoSource) return 'SMB: ${source.config.share}';
+    if (source is NextcloudPhotoSource) return 'Nextcloud';
+    return source.displayName;
+  }
+
+  /// The folders of this entry on one line.
+  String get _folderLine {
+    final names = [
+      for (final s in _all)
+        if (s is SmbPhotoSource)
+          s.config.rootPath.isEmpty ? '(Hauptordner)' : s.config.rootPath
+        else if (s is NextcloudPhotoSource)
+          s.config.rootPath.isEmpty ? '(Hauptordner)' : s.config.rootPath
+        else
+          s.displayName,
+    ];
+    return 'Ordner: ${names.join(', ')}';
+  }
+
   bool _testing = false;
   ConnectionStatus? _status;
   String? _error;
@@ -108,17 +156,24 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
     final indexStatus = ref.watch(sourceIndexerProvider)[widget.source.id];
     final editable = widget.source.type == SourceType.smb ||
         widget.source.type == SourceType.nextcloud;
-    final disabled = ref.watch(settingsProvider.select(
-            (s) => s.value?.disabledSourceIds.contains(widget.source.id))) ??
-        false;
+    // The entry counts as off only when every folder of it is off.
+    final groupIds = {for (final g in _all) g.id};
+    final disabled = ref.watch(settingsProvider.select((s) {
+      final off = s.value?.disabledSourceIds ?? const <String>[];
+      return groupIds.every(off.contains);
+    }));
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: _statusColor(context),
         child: Icon(_iconForType(widget.source.type),
             color: Colors.white, size: 18),
       ),
-      title: Text(widget.source.displayName),
+      title: Text(_title),
       subtitle: Text([
+        if (_all.length > 1 ||
+            widget.source is SmbPhotoSource ||
+            widget.source is NextcloudPhotoSource)
+          _folderLine,
         disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle(),
         if (stats != null) _statsLine(stats),
         if (indexStatus != null) _indexLine(indexStatus),
@@ -133,10 +188,11 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             value: !disabled,
             onChanged: (on) =>
                 ref.read(settingsProvider.notifier).updateSettings((s) {
+              final groupIds = {for (final g in _all) g.id};
               final ids = s.disabledSourceIds
-                  .where((i) => i != widget.source.id)
+                  .where((i) => !groupIds.contains(i))
                   .toList();
-              if (!on) ids.add(widget.source.id);
+              if (!on) ids.addAll(groupIds);
               return s.copyWith(disabledSourceIds: ids);
             }),
           ),
@@ -162,16 +218,20 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
               if (value == 'test') {
                 _test();
               } else if (value == 'index') {
-                unawaited(ref
-                    .read(sourceIndexerProvider.notifier)
-                    .buildIndex(widget.source));
+                for (final source in _all) {
+                  unawaited(ref
+                      .read(sourceIndexerProvider.notifier)
+                      .buildIndex(source));
+                }
               } else if (value == 'edit') {
                 final path = widget.source.type == SourceType.smb
                     ? '/settings/sources/add/smb'
                     : '/settings/sources/add/nextcloud';
                 context.push(path, extra: widget.source);
               } else if (value == 'remove') {
-                ref.read(sourcesProvider.notifier).removeById(widget.source.id);
+                for (final source in _all) {
+                  ref.read(sourcesProvider.notifier).removeById(source.id);
+                }
               }
             },
             itemBuilder: (context) => [

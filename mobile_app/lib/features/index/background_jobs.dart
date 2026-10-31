@@ -83,8 +83,9 @@ class BackgroundJobs extends Notifier<bool> {
     List<PhotoItem> items,
     List<PhotoSource> sources,
   ) async {
+    // Random order: the copies that exist are a random sample of the library.
     await ref.read(smallPhotoWorkerProvider.notifier).start(
-      items,
+      List<PhotoItem>.of(items)..shuffle(),
       {for (final s in sources) s.id: s},
     );
   }
