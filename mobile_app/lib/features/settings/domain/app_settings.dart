@@ -25,7 +25,7 @@ class AppSettings {
     this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
     this.showClock = true,
-    this.clockAtTop = false,
+    this.clockAtTop = true,
     this.displayMode = DisplayMode.blurredBackdrop,
     this.transition = SlideshowTransition.fade,
     this.kenBurnsEnabled = false,
@@ -356,7 +356,7 @@ class AppSettings {
         orElse: () => SlideLayout.single,
       ),
       showClock: json['showClock'] as bool? ?? true,
-      clockAtTop: json['clockAtTop'] as bool? ?? false,
+      clockAtTop: json['clockAtTop'] as bool? ?? true,
       displayMode: DisplayMode.values.firstWhere(
         (m) => m.name == json['displayMode'],
         orElse: () => DisplayMode.contain,
