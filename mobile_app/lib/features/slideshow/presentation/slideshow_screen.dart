@@ -24,6 +24,7 @@ import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
 import 'widgets/slide_renderer.dart';
+import 'widgets/path_overlay.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
 import 'widgets/weather_overlay.dart';
@@ -158,6 +159,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
 
     for (final source in sources) {
+      if (settings.disabledSourceIds.contains(source.id)) continue;
       try {
         await crawl(source).timeout(const Duration(seconds: 90));
       } catch (e) {
@@ -190,8 +192,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _refreshing = true;
     try {
       final sources = await ref.read(sourcesProvider.future);
-      final settings =
-          ref.read(settingsProvider).value ?? const AppSettings();
+      final settings = ref.read(settingsProvider).value ?? const AppSettings();
       final fresh = await _crawlEligible(
           sources, settings, ref.read(favoritesStoreProvider), []);
       if (!mounted || _engine != engine || fresh.isEmpty) return;
@@ -226,8 +227,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // "loading failed" state instead of crashing unhandled.
       final sources = await ref.read(sourcesProvider.future);
       if (!mounted) return;
-      final settings =
-          ref.read(settingsProvider).value ?? const AppSettings();
+      final settings = ref.read(settingsProvider).value ?? const AppSettings();
       final favorites = ref.read(favoritesStoreProvider);
 
       final pool = InMemoryWorkingSetPool(targetSize: settings.poolTargetSize);
@@ -294,6 +294,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _loading = false;
       });
     }
+  }
+
+  /// "Quelle › Pfad" plus capture date (EXIF) or, failing that, file date.
+  String _originText(PhotoItem item) {
+    final source = _sourcesById[item.sourceId]?.displayName ?? item.sourceId;
+    final taken = item.takenAt;
+    final date = taken ?? item.mtime;
+    String two(int v) => v.toString().padLeft(2, '0');
+    final label = '${two(date.day)}.${two(date.month)}.${date.year}';
+    final when = taken != null ? 'Aufgenommen $label' : 'Datei vom $label';
+    return '$source \u203a ${item.id}\n$when';
   }
 
   void _togglePause() {
@@ -569,6 +580,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   },
                   child: slide,
                 ),
+                if (item != null)
+                  PathOverlay(text: _originText(item)),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
                 // Clock and weather share the bottom-left corner: shown

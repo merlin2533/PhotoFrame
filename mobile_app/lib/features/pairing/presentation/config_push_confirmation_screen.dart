@@ -58,16 +58,19 @@ class ConfigPushConfirmationScreen extends StatefulWidget {
   final VoidCallback onReject;
 
   @override
-  State<ConfigPushConfirmationScreen> createState() => _ConfigPushConfirmationScreenState();
+  State<ConfigPushConfirmationScreen> createState() =>
+      _ConfigPushConfirmationScreenState();
 }
 
-class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScreen> {
+class _ConfigPushConfirmationScreenState
+    extends State<ConfigPushConfirmationScreen> {
   bool _mismatchAcknowledged = false;
   bool _busy = false;
   String? _decryptError;
 
   bool get _isMismatch =>
-      widget.push.trust == FingerprintTrust.mismatch || widget.push.senderFingerprint == null;
+      widget.push.trust == FingerprintTrust.mismatch ||
+      widget.push.senderFingerprint == null;
 
   Future<void> _accept() async {
     setState(() {
@@ -92,9 +95,12 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
       // applied.
       final String plaintextJson;
       try {
-        plaintextJson = await widget.crypto.decryptFromSender(ciphertext: widget.push.ciphertext);
+        plaintextJson = await widget.crypto
+            .decryptFromSender(ciphertext: widget.push.ciphertext);
       } on ConfigPushDecryptionException catch (e) {
-        if (mounted) setState(() => _decryptError = 'Entschlüsselung fehlgeschlagen: ${e.reason}');
+        if (mounted)
+          setState(() =>
+              _decryptError = 'Entschlüsselung fehlgeschlagen: ${e.reason}');
         return;
       }
 
@@ -117,9 +123,11 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Von: ${widget.senderLabel}', style: theme.textTheme.titleMedium),
+            Text('Von: ${widget.senderLabel}',
+                style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text('Frame-ID: ${widget.push.senderFrameId}', style: theme.textTheme.bodySmall),
+            Text('Frame-ID: ${widget.push.senderFrameId}',
+                style: theme.textTheme.bodySmall),
             const SizedBox(height: 12),
             // Only SMB config-push payloads exist today (see
             // `send_config_push_screen.dart`'s doc comment) - this question
@@ -137,7 +145,8 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
                 peerLabel: widget.senderLabel,
                 observedFingerprint: widget.push.senderFingerprint,
                 acknowledged: _mismatchAcknowledged,
-                onAcknowledgedChanged: (v) => setState(() => _mismatchAcknowledged = v),
+                onAcknowledgedChanged: (v) =>
+                    setState(() => _mismatchAcknowledged = v),
               ),
             ] else ...[
               Row(
@@ -156,7 +165,8 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
             if (_decryptError != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Text(_decryptError!, style: TextStyle(color: theme.colorScheme.error)),
+                child: Text(_decryptError!,
+                    style: TextStyle(color: theme.colorScheme.error)),
               ),
             const Spacer(),
             Row(
@@ -168,7 +178,9 @@ class _ConfigPushConfirmationScreenState extends State<ConfigPushConfirmationScr
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: (_busy || (_isMismatch && !_mismatchAcknowledged)) ? null : _accept,
+                  onPressed: (_busy || (_isMismatch && !_mismatchAcknowledged))
+                      ? null
+                      : _accept,
                   child: _busy
                       ? const SizedBox(
                           width: 18,

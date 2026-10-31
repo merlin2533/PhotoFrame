@@ -25,7 +25,8 @@ class _SharingSettingsScreenState extends ConsumerState<SharingSettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider).value;
-    _urlController = TextEditingController(text: settings?.relayServerUrl ?? '');
+    _urlController =
+        TextEditingController(text: settings?.relayServerUrl ?? '');
   }
 
   @override
@@ -80,7 +81,8 @@ class _SharingSettingsScreenState extends ConsumerState<SharingSettingsScreen> {
             const Divider(height: 32),
             Builder(builder: (context) {
               final l10n = AppLocalizations.of(context);
-              final hasRelayUrl = settings.relayServerUrl != null && settings.relayServerUrl!.isNotEmpty;
+              final hasRelayUrl = settings.relayServerUrl != null &&
+                  settings.relayServerUrl!.isNotEmpty;
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.qr_code_2_outlined),
@@ -88,7 +90,9 @@ class _SharingSettingsScreenState extends ConsumerState<SharingSettingsScreen> {
                 subtitle: Text(hasRelayUrl ? '' : l10n.pairingNoRelayHint),
                 enabled: hasRelayUrl,
                 trailing: const Icon(Icons.chevron_right),
-                onTap: hasRelayUrl ? () => context.push('/settings/sharing/pairing') : null,
+                onTap: hasRelayUrl
+                    ? () => context.push('/settings/sharing/pairing')
+                    : null,
               );
             }),
           ],

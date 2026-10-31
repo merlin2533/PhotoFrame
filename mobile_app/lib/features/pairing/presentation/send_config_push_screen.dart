@@ -119,7 +119,8 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
     if (recipient.publicKey == null) {
       setState(() {
         _sending = false;
-        _error = 'Für Frame $targetFrameId liegt noch kein Sicherheitsschlüssel auf dem Relay-Server vor - '
+        _error =
+            'Für Frame $targetFrameId liegt noch kein Sicherheitsschlüssel auf dem Relay-Server vor - '
             'eine verschlüsselte Konfiguration kann noch nicht gesendet werden.';
       });
       return;
@@ -213,32 +214,42 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
               TextFormField(
                 controller: _targetFrameIdController,
                 decoration: const InputDecoration(labelText: 'Ziel-Frame-ID'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Ziel-Frame-ID erforderlich' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Ziel-Frame-ID erforderlich'
+                    : null,
               ),
               TextFormField(
                 controller: _hostController,
                 decoration: const InputDecoration(labelText: 'SMB-Host'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Host erforderlich' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Host erforderlich'
+                    : null,
               ),
               TextFormField(
                 controller: _shareController,
                 decoration: const InputDecoration(labelText: 'Freigabename'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Freigabename erforderlich' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Freigabename erforderlich'
+                    : null,
               ),
               TextFormField(
                 controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'Benutzername (optional)'),
+                decoration:
+                    const InputDecoration(labelText: 'Benutzername (optional)'),
               ),
               TextFormField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'Passwort (optional)'),
+                decoration:
+                    const InputDecoration(labelText: 'Passwort (optional)'),
                 obscureText: true,
               ),
               const SizedBox(height: 24),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  child: Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
                 ),
               if (_sent)
                 const Padding(
@@ -254,7 +265,8 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
                   peerLabel: _pendingRecipient!.frameId,
                   observedFingerprint: _pendingRecipient!.fingerprint,
                   acknowledged: _mismatchAcknowledged,
-                  onAcknowledgedChanged: (v) => setState(() => _mismatchAcknowledged = v),
+                  onAcknowledgedChanged: (v) =>
+                      setState(() => _mismatchAcknowledged = v),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -271,9 +283,14 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
-                      onPressed: (_sending || !_mismatchAcknowledged) ? null : _confirmMismatchAndSend,
+                      onPressed: (_sending || !_mismatchAcknowledged)
+                          ? null
+                          : _confirmMismatchAndSend,
                       child: _sending
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
                           : const Text('Trotzdem senden'),
                     ),
                   ],
@@ -282,7 +299,10 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
                 FilledButton(
                   onPressed: _sending ? null : _send,
                   child: _sending
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Senden'),
                 ),
             ],

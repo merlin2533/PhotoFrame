@@ -118,7 +118,8 @@ class CurrentWeather {
   }) {
     final current = json['current_weather'] as Map<String, dynamic>?;
     if (current == null) {
-      throw const FormatException('Open-Meteo response missing "current_weather"');
+      throw const FormatException(
+          'Open-Meteo response missing "current_weather"');
     }
     return CurrentWeather.fromCurrentWeatherJson(current, fetchedAt: fetchedAt);
   }
@@ -148,7 +149,11 @@ class GeocodingResult {
   /// `AppSettings.weatherLocationLabel`, e.g. "Berlin, Deutschland" or
   /// "Springfield, Illinois, United States".
   String get displayLabel {
-    final parts = [name, if (admin1 != null && admin1!.isNotEmpty) admin1, if (country != null && country!.isNotEmpty) country];
+    final parts = [
+      name,
+      if (admin1 != null && admin1!.isNotEmpty) admin1,
+      if (country != null && country!.isNotEmpty) country
+    ];
     return parts.join(', ');
   }
 

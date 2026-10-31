@@ -24,8 +24,10 @@ class RelayPairingRepository implements PairingRepository {
   final ConfigPushCrypto _crypto;
 
   @override
-  Future<Result<PairingInvite>> createInvite({String? pairingName, String? existingPairingId}) async {
-    final result = await _api.createPairingCode(pairingName: pairingName, pairingId: existingPairingId);
+  Future<Result<PairingInvite>> createInvite(
+      {String? pairingName, String? existingPairingId}) async {
+    final result = await _api.createPairingCode(
+        pairingName: pairingName, pairingId: existingPairingId);
     return result.map((created) => PairingInvite(
           pairingId: created.pairingId,
           code: created.code,
@@ -46,7 +48,8 @@ class RelayPairingRepository implements PairingRepository {
     final pairingId = redeemResult.valueOrNull!;
 
     if (linkFingerprint == null) {
-      return Result.ok(RedeemResult(pairingId: pairingId, outcome: RedeemOutcome.noFingerprintInLink));
+      return Result.ok(RedeemResult(
+          pairingId: pairingId, outcome: RedeemOutcome.noFingerprintInLink));
     }
 
     final pairingResult = await _api.getPairing(pairingId);
@@ -58,18 +61,21 @@ class RelayPairingRepository implements PairingRepository {
     );
 
     if (candidates.isEmpty) {
-      return Result.ok(RedeemResult(pairingId: pairingId, outcome: RedeemOutcome.noMatchingMember));
+      return Result.ok(RedeemResult(
+          pairingId: pairingId, outcome: RedeemOutcome.noMatchingMember));
     }
 
     // Fingerprints are 40-bit; a collision between two real members is not
     // realistically expected. If it ever happens, treat conservatively as
     // "cannot verify" rather than guessing which one is the real inviter.
     if (candidates.length > 1) {
-      return Result.ok(RedeemResult(pairingId: pairingId, outcome: RedeemOutcome.noMatchingMember));
+      return Result.ok(RedeemResult(
+          pairingId: pairingId, outcome: RedeemOutcome.noMatchingMember));
     }
 
     final matched = candidates.first;
-    final trust = await _fingerprints.checkOrTrust(matched.frameId, linkFingerprint);
+    final trust =
+        await _fingerprints.checkOrTrust(matched.frameId, linkFingerprint);
 
     switch (trust) {
       case FingerprintTrust.trusted:
@@ -124,19 +130,23 @@ class RelayPairingRepository implements PairingRepository {
   }
 
   @override
-  Future<Result<void>> rename(String pairingId, String name) => _api.renamePairing(pairingId, name);
+  Future<Result<void>> rename(String pairingId, String name) =>
+      _api.renamePairing(pairingId, name);
 
   @override
   Future<Result<void>> leave(String pairingId) => _api.leavePairing(pairingId);
 
   @override
-  Future<Result<void>> removeMember(String pairingId, String frameId) => _api.removeMember(pairingId, frameId);
+  Future<Result<void>> removeMember(String pairingId, String frameId) =>
+      _api.removeMember(pairingId, frameId);
 
   @override
-  Future<Result<void>> deletePairing(String pairingId) => _api.deletePairing(pairingId);
+  Future<Result<void>> deletePairing(String pairingId) =>
+      _api.deletePairing(pairingId);
 
   @override
-  Future<Result<String>> sendConfigPush({required String targetFrameId, required String ciphertext}) =>
+  Future<Result<String>> sendConfigPush(
+          {required String targetFrameId, required String ciphertext}) =>
       _api.sendConfigPush(targetFrameId: targetFrameId, ciphertext: ciphertext);
 
   @override
@@ -149,7 +159,8 @@ class RelayPairingRepository implements PairingRepository {
 
     final target = pairingResult.valueOrNull!.memberById(targetFrameId);
     if (target == null) {
-      return Result.err(Unsupported('Frame $targetFrameId ist kein Mitglied dieses Pairings (mehr).'));
+      return Result.err(Unsupported(
+          'Frame $targetFrameId ist kein Mitglied dieses Pairings (mehr).'));
     }
 
     // publicKey and fingerprint both come from this single GET /pairing/:id
@@ -180,7 +191,8 @@ class RelayPairingRepository implements PairingRepository {
       pairingId: pairingId,
       targetFrameId: targetFrameId,
     );
-    if (recipientResult.isErr) return Result.err(recipientResult.failureOrNull!);
+    if (recipientResult.isErr)
+      return Result.err(recipientResult.failureOrNull!);
     final recipient = recipientResult.valueOrNull!;
 
     final publicKey = recipient.publicKey;
@@ -229,7 +241,10 @@ class RelayPairingRepository implements PairingRepository {
 
     final result = <PendingConfigPush>[];
     for (final push in pushes) {
-      final sender = members.where((m) => m.frameId == push.senderFrameId).cast<PairingMemberInfo?>().firstOrNull;
+      final sender = members
+          .where((m) => m.frameId == push.senderFrameId)
+          .cast<PairingMemberInfo?>()
+          .firstOrNull;
       final senderFingerprint = sender?.keyFingerprint;
 
       FingerprintTrust? trust;
@@ -237,7 +252,8 @@ class RelayPairingRepository implements PairingRepository {
         // No key on file for the sender at all: never treat as safe.
         trust = FingerprintTrust.mismatch;
       } else {
-        trust = await _fingerprints.checkOrTrust(push.senderFrameId, senderFingerprint);
+        trust = await _fingerprints.checkOrTrust(
+            push.senderFrameId, senderFingerprint);
       }
 
       result.add(PendingConfigPush(
@@ -253,10 +269,12 @@ class RelayPairingRepository implements PairingRepository {
   }
 
   @override
-  Future<Result<void>> ackConfigPush(String pushId) => _api.ackConfigPush(pushId);
+  Future<Result<void>> ackConfigPush(String pushId) =>
+      _api.ackConfigPush(pushId);
 
   @override
-  Future<void> confirmSenderTrust({required String frameId, required String fingerprint}) =>
+  Future<void> confirmSenderTrust(
+          {required String frameId, required String fingerprint}) =>
       _fingerprints.acceptFingerprint(frameId, fingerprint);
 }
 

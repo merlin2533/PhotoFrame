@@ -61,14 +61,23 @@ class SourceDescriptor {
 /// so no descriptor shape is defined for it yet - and for any type this
 /// build doesn't recognize, rather than throwing during app startup over a
 /// single bad/forward-incompatible descriptor.
-PhotoSource fromDescriptor(SourceDescriptor descriptor, {required String? password}) {
+PhotoSource fromDescriptor(SourceDescriptor descriptor,
+    {required String? password}) {
   switch (descriptor.type) {
     case SourceType.smb:
-      final config = SmbSourceConfig.fromJson(descriptor.config, password: password ?? '');
-      return SmbPhotoSource(id: descriptor.id, config: config, displayName: descriptor.displayName);
+      final config =
+          SmbSourceConfig.fromJson(descriptor.config, password: password ?? '');
+      return SmbPhotoSource(
+          id: descriptor.id,
+          config: config,
+          displayName: descriptor.displayName);
     case SourceType.nextcloud:
-      final config = NextcloudSourceConfig.fromJson(descriptor.config, password: password ?? '');
-      return NextcloudPhotoSource(id: descriptor.id, config: config, displayName: descriptor.displayName);
+      final config = NextcloudSourceConfig.fromJson(descriptor.config,
+          password: password ?? '');
+      return NextcloudPhotoSource(
+          id: descriptor.id,
+          config: config,
+          displayName: descriptor.displayName);
     case SourceType.local:
       return LocalFolderSource(
         id: descriptor.id,
@@ -78,7 +87,8 @@ PhotoSource fromDescriptor(SourceDescriptor descriptor, {required String? passwo
       );
     case SourceType.mock:
     case SourceType.sharedAlbum:
-      return MockPhotoSource(id: descriptor.id, displayName: descriptor.displayName);
+      return MockPhotoSource(
+          id: descriptor.id, displayName: descriptor.displayName);
   }
 }
 
@@ -110,13 +120,17 @@ extension PhotoSourceDescriptorX on PhotoSource {
         type: SourceType.local,
         id: source.id,
         displayName: source.displayName,
-        config: {'rootPath': source.rootPath ?? '', 'rootUri': source.rootUri ?? ''},
+        config: {
+          'rootPath': source.rootPath ?? '',
+          'rootUri': source.rootUri ?? ''
+        },
       );
     }
     // MockPhotoSource (and anything else not modeled above, e.g. a future
     // SharedAlbumPhotoSource) - persisted as a bare mock descriptor so it at
     // least survives a restart as *something* rather than silently vanishing;
     // see `fromDescriptor`'s doc comment for the corresponding fallback.
-    return SourceDescriptor(type: SourceType.mock, id: source.id, displayName: source.displayName);
+    return SourceDescriptor(
+        type: SourceType.mock, id: source.id, displayName: source.displayName);
   }
 }

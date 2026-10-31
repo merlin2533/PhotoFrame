@@ -100,17 +100,20 @@ GoRouter buildAppRouter({required String initialLocation}) {
                     path: 'send',
                     name: 'settings-sharing-pairing-send',
                     builder: (context, state) {
-                      final pairingId = state.uri.queryParameters['pairingId'] ?? '';
+                      final pairingId =
+                          state.uri.queryParameters['pairingId'] ?? '';
                       return SendConfigPushRouteScreen(
                         pairingId: pairingId,
-                        initialTargetFrameId: state.uri.queryParameters['targetFrameId'],
+                        initialTargetFrameId:
+                            state.uri.queryParameters['targetFrameId'],
                       );
                     },
                   ),
                   GoRoute(
                     path: 'confirm-push',
                     name: 'settings-sharing-pairing-confirm-push',
-                    builder: (context, state) => ConfigPushConfirmationRouteScreen(
+                    builder: (context, state) =>
+                        ConfigPushConfirmationRouteScreen(
                       args: state.extra as ConfigPushConfirmationArgs,
                     ),
                   ),
@@ -161,7 +164,8 @@ GoRouter buildAppRouter({required String initialLocation}) {
                   GoRoute(
                     path: 'nextcloud',
                     name: 'settings-sources-add-nextcloud',
-                    builder: (context, state) => const NextcloudConfigFormScreen(),
+                    builder: (context, state) =>
+                        const NextcloudConfigFormScreen(),
                   ),
                 ],
               ),

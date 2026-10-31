@@ -47,7 +47,8 @@ class KioskSettingsScreen extends ConsumerWidget {
               subtitle: Text(l10n.kioskToggleSubtitle),
               value: settings.kioskModeEnabled,
               onChanged: (value) {
-                notifier.updateSettings((s) => s.copyWith(kioskModeEnabled: value));
+                notifier
+                    .updateSettings((s) => s.copyWith(kioskModeEnabled: value));
                 // Found on a real device: turning this off only updated the
                 // persisted setting - screen pinning (if currently active)
                 // stayed in effect until the slideshow screen happened to be
@@ -70,11 +71,14 @@ class KioskSettingsScreen extends ConsumerWidget {
               label: Text(l10n.kioskExitNowButton),
             ),
             const Divider(height: 32),
-            _KioskExplanation(icon: Icons.home_outlined, text: l10n.kioskHomeAppNote),
+            _KioskExplanation(
+                icon: Icons.home_outlined, text: l10n.kioskHomeAppNote),
             const SizedBox(height: 12),
-            _KioskExplanation(icon: Icons.push_pin_outlined, text: l10n.kioskPinningNote),
+            _KioskExplanation(
+                icon: Icons.push_pin_outlined, text: l10n.kioskPinningNote),
             const SizedBox(height: 12),
-            _KioskExplanation(icon: Icons.android_outlined, text: l10n.kioskAndroidOnlyNote),
+            _KioskExplanation(
+                icon: Icons.android_outlined, text: l10n.kioskAndroidOnlyNote),
           ],
         ),
       ),

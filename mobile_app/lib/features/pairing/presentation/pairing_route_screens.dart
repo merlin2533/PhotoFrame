@@ -37,12 +37,15 @@ class PairingRouteScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final repository = ref.watch(pairingRepositoryProvider);
     if (repository == null) {
-      return _Hint(title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
+      return _Hint(
+          title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
     }
 
     final queryPairingId = this.queryPairingId;
     if (queryPairingId != null && queryPairingId.isNotEmpty) {
-      unawaited(ref.read(relayTokenStorageProvider).saveActivePairingId(queryPairingId));
+      unawaited(ref
+          .read(relayTokenStorageProvider)
+          .saveActivePairingId(queryPairingId));
     }
 
     final storedPairingIdAsync = ref.watch(activePairingIdProvider);
@@ -54,8 +57,13 @@ class PairingRouteScreen extends ConsumerWidget {
     if (storedPairingIdAsync.isLoading || localFrameIdAsync.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (pairingId == null || pairingId.isEmpty || localFrameId == null || localFrameId.isEmpty) {
-      return _Hint(title: l10n.settingsSharingTitle, message: l10n.pairingNoActivePairingHint);
+    if (pairingId == null ||
+        pairingId.isEmpty ||
+        localFrameId == null ||
+        localFrameId.isEmpty) {
+      return _Hint(
+          title: l10n.settingsSharingTitle,
+          message: l10n.pairingNoActivePairingHint);
     }
 
     final fingerprintStore = ref.watch(keyFingerprintStoreProvider);
@@ -82,7 +90,8 @@ class PairingRouteScreen extends ConsumerWidget {
 /// id string encodes cleanly in a URL, unlike the [PendingConfigPush] object
 /// used by [ConfigPushConfirmationRouteScreen] below.
 class SendConfigPushRouteScreen extends ConsumerWidget {
-  const SendConfigPushRouteScreen({super.key, required this.pairingId, this.initialTargetFrameId});
+  const SendConfigPushRouteScreen(
+      {super.key, required this.pairingId, this.initialTargetFrameId});
 
   final String pairingId;
   final String? initialTargetFrameId;
@@ -92,7 +101,8 @@ class SendConfigPushRouteScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final repository = ref.watch(pairingRepositoryProvider);
     if (repository == null) {
-      return _Hint(title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
+      return _Hint(
+          title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
     }
     return SendConfigPushScreen(
       pairingId: pairingId,
@@ -121,7 +131,8 @@ class ConfigPushConfirmationRouteScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final repository = ref.watch(pairingRepositoryProvider);
     if (repository == null) {
-      return _Hint(title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
+      return _Hint(
+          title: l10n.settingsSharingTitle, message: l10n.pairingNoRelayHint);
     }
 
     return ConfigPushConfirmationScreen(
@@ -157,7 +168,9 @@ class _Hint extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(message))),
+      body: Center(
+          child:
+              Padding(padding: const EdgeInsets.all(24), child: Text(message))),
     );
   }
 }

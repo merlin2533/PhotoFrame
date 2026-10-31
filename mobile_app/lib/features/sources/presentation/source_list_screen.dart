@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../domain/photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
+import '../../settings/state/settings_providers.dart';
 import '../state/sources_providers.dart';
 
 /// Lists configured [PhotoSource]s with a connection-status indicator and a
@@ -34,7 +35,9 @@ class SourceListScreen extends ConsumerWidget {
         // overwrite every previously configured source's persisted
         // descriptor with just the one being added - a real, reachable data
         // loss path found in review, not just a timing theoretical.
-        onPressed: sourcesAsync.hasValue ? () => context.push('/settings/sources/add') : null,
+        onPressed: sourcesAsync.hasValue
+            ? () => context.push('/settings/sources/add')
+            : null,
         icon: const Icon(Icons.add),
         label: const Text('Quelle hinzufügen'),
       ),
@@ -48,7 +51,8 @@ class SourceListScreen extends ConsumerWidget {
             : ListView.separated(
                 itemCount: sources.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) => _SourceTile(source: sources[index]),
+                itemBuilder: (context, index) =>
+                    _SourceTile(source: sources[index]),
               ),
       ),
     );
@@ -93,20 +97,36 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
 
   @override
   Widget build(BuildContext context) {
-    final canUpload =
-        widget.source is UploadablePhotoSource && (widget.source as UploadablePhotoSource).canUpload;
+    final canUpload = widget.source is UploadablePhotoSource &&
+        (widget.source as UploadablePhotoSource).canUpload;
 
+    final disabled = ref.watch(settingsProvider.select(
+            (s) => s.value?.disabledSourceIds.contains(widget.source.id))) ??
+        false;
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: _statusColor(context),
-        child: Icon(_iconForType(widget.source.type), color: Colors.white, size: 18),
+        child: Icon(_iconForType(widget.source.type),
+            color: Colors.white, size: 18),
       ),
       title: Text(widget.source.displayName),
-      subtitle: Text(_subtitle()),
+      subtitle:
+          Text(disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle()),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (canUpload) const Icon(Icons.upload_outlined, size: 18),
+          Switch(
+            value: !disabled,
+            onChanged: (on) =>
+                ref.read(settingsProvider.notifier).updateSettings((s) {
+              final ids = s.disabledSourceIds
+                  .where((i) => i != widget.source.id)
+                  .toList();
+              if (!on) ids.add(widget.source.id);
+              return s.copyWith(disabledSourceIds: ids);
+            }),
+          ),
           IconButton(
             icon: _testing
                 ? const SizedBox(

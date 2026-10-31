@@ -41,7 +41,8 @@ class _PairingScanScreenState extends State<PairingScanScreen> {
         return;
       }
     }
-    setState(() => _error = 'QR-Code enthält keinen gültigen PhotoFrame-Einladungslink.');
+    setState(() =>
+        _error = 'QR-Code enthält keinen gültigen PhotoFrame-Einladungslink.');
   }
 
   @override

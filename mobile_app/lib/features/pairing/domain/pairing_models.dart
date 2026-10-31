@@ -4,7 +4,8 @@ import 'key_fingerprint.dart';
 /// on the relay (`'owner' | 'member'`).
 enum PairingRole { owner, member }
 
-PairingRole pairingRoleFromWire(String role) => role == 'owner' ? PairingRole.owner : PairingRole.member;
+PairingRole pairingRoleFromWire(String role) =>
+    role == 'owner' ? PairingRole.owner : PairingRole.member;
 
 /// One member (frame) of a [Pairing], as last observed from the relay.
 class PairingMember {
@@ -104,7 +105,8 @@ class PairingInvite {
       queryParameters: {
         'u': relayUrl,
         'c': code,
-        if (registrationInviteCode != null && registrationInviteCode!.isNotEmpty)
+        if (registrationInviteCode != null &&
+            registrationInviteCode!.isNotEmpty)
           'i': registrationInviteCode,
         if (fingerprint != null) 'fp': fingerprint,
       },
@@ -121,13 +123,15 @@ class PairingInvite {
     final params = uri.queryParameters;
     final relayUrl = params['u'];
     final code = params['c'];
-    if (relayUrl == null || relayUrl.isEmpty || code == null || code.isEmpty) return null;
+    if (relayUrl == null || relayUrl.isEmpty || code == null || code.isEmpty)
+      return null;
 
     return ParsedPairingLink(
       relayUrl: relayUrl,
       code: code,
       fingerprint: (params['fp']?.isEmpty ?? true) ? null : params['fp'],
-      registrationInviteCode: (params['i']?.isEmpty ?? true) ? null : params['i'],
+      registrationInviteCode:
+          (params['i']?.isEmpty ?? true) ? null : params['i'],
     );
   }
 }
@@ -197,7 +201,8 @@ class RedeemResult {
   final String? matchedFingerprint;
 
   bool get requiresUserConfirmation =>
-      outcome == RedeemOutcome.verifiedButLocalTrustMismatch || outcome == RedeemOutcome.noMatchingMember;
+      outcome == RedeemOutcome.verifiedButLocalTrustMismatch ||
+      outcome == RedeemOutcome.noMatchingMember;
 }
 
 /// A pending config-push, joined with the client-side TOFU verdict for its
@@ -268,5 +273,6 @@ class ConfigPushRecipient {
   /// .mismatch] (or no fingerprint at all) MUST NOT be encrypted to without
   /// the user explicitly confirming the warning first (see
   /// `send_config_push_screen.dart`).
-  bool get isSafeToSend => trust == FingerprintTrust.trusted || trust == FingerprintTrust.match;
+  bool get isSafeToSend =>
+      trust == FingerprintTrust.trusted || trust == FingerprintTrust.match;
 }

@@ -68,10 +68,12 @@ class MockPhotoSource implements PhotoSource {
             mediaType: MediaType.image,
             width: 1920,
             height: 1080,
-            takenAt: DateTime(2024, 1, 1).add(Duration(days: f * itemsPerFolder + i)),
+            takenAt: DateTime(2024, 1, 1)
+                .add(Duration(days: f * itemsPerFolder + i)),
             orientation: 1,
             size: 1024 * 1024,
-            mtime: DateTime(2024, 1, 1).add(Duration(days: f * itemsPerFolder + i)),
+            mtime: DateTime(2024, 1, 1)
+                .add(Duration(days: f * itemsPerFolder + i)),
           ),
         );
       }
@@ -163,7 +165,8 @@ class MockPhotoSource implements PhotoSource {
       }
       return Result.ok(file);
     } on FileSystemException catch (e) {
-      return Result.err(NetworkError('Failed to write mock cache file', cause: e));
+      return Result.err(
+          NetworkError('Failed to write mock cache file', cause: e));
     }
   }
 

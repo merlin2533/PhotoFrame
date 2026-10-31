@@ -123,9 +123,13 @@ class _PairingScreenState extends State<PairingScreen> {
 
   _MemberStatus _statusFor(PairingMember member) {
     if (member.frameId == widget.localFrameId) {
-      return _socketState == RelaySocketState.connected ? _MemberStatus.onlineLocal : _MemberStatus.unknown;
+      return _socketState == RelaySocketState.connected
+          ? _MemberStatus.onlineLocal
+          : _MemberStatus.unknown;
     }
-    return _presence.isRecentlyActive(member.frameId) ? _MemberStatus.recentlyActive : _MemberStatus.unknown;
+    return _presence.isRecentlyActive(member.frameId)
+        ? _MemberStatus.recentlyActive
+        : _MemberStatus.unknown;
   }
 
   Color _statusColor(_MemberStatus status) {
@@ -140,9 +144,13 @@ class _PairingScreenState extends State<PairingScreen> {
 
   Future<FingerprintTrust?> _peekTrust(PairingMember member) async {
     if (member.keyFingerprint == null) return null;
-    final trusted = await widget.fingerprintStore.trustedFingerprintFor(member.frameId);
-    if (trusted == null) return null; // never displayed before - not a mismatch, just unestablished.
-    return trusted == member.keyFingerprint ? FingerprintTrust.match : FingerprintTrust.mismatch;
+    final trusted =
+        await widget.fingerprintStore.trustedFingerprintFor(member.frameId);
+    if (trusted == null)
+      return null; // never displayed before - not a mismatch, just unestablished.
+    return trusted == member.keyFingerprint
+        ? FingerprintTrust.match
+        : FingerprintTrust.mismatch;
   }
 
   Future<void> _removeMember(PairingMember member) async {
@@ -150,20 +158,27 @@ class _PairingScreenState extends State<PairingScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Gerät entfernen'),
-        content: Text('Soll "${member.frameId}" wirklich aus dieser Gruppe entfernt werden?'),
+        content: Text(
+            'Soll "${member.frameId}" wirklich aus dieser Gruppe entfernt werden?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Entfernen')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Entfernen')),
         ],
       ),
     );
     if (confirmed != true) return;
 
-    final result = await widget.repository.removeMember(widget.pairingId, member.frameId);
+    final result =
+        await widget.repository.removeMember(widget.pairingId, member.frameId);
     if (!mounted) return;
     result.when(
       onOk: (_) => _load(),
-      onErr: (failure) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure.message))),
+      onErr: (failure) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message))),
     );
   }
 
@@ -177,7 +192,10 @@ class _PairingScreenState extends State<PairingScreen> {
       appBar: AppBar(
         title: Text(pairing?.name ?? 'Pairing'),
         actions: [
-          IconButton(icon: const Icon(Icons.person_add), onPressed: widget.onInvite, tooltip: 'Gerät einladen'),
+          IconButton(
+              icon: const Icon(Icons.person_add),
+              onPressed: widget.onInvite,
+              tooltip: 'Gerät einladen'),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
@@ -201,7 +219,8 @@ class _PairingScreenState extends State<PairingScreen> {
                           final trust = snapshot.data;
                           final status = _statusFor(member);
                           return ListTile(
-                            leading: Icon(Icons.circle, size: 12, color: _statusColor(status)),
+                            leading: Icon(Icons.circle,
+                                size: 12, color: _statusColor(status)),
                             title: Text(member.frameId == widget.localFrameId
                                 ? '${member.frameId} (dieses Gerät)'
                                 : member.frameId),
@@ -209,7 +228,9 @@ class _PairingScreenState extends State<PairingScreen> {
                               '${member.isOwner ? "Besitzer" : "Mitglied"}'
                               '${trust == FingerprintTrust.mismatch ? " · Sicherheitsschlüssel geändert!" : ""}',
                               style: trust == FingerprintTrust.mismatch
-                                  ? TextStyle(color: Theme.of(context).colorScheme.error)
+                                  ? TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error)
                                   : null,
                             ),
                             trailing: member.frameId == widget.localFrameId
@@ -221,12 +242,14 @@ class _PairingScreenState extends State<PairingScreen> {
                                         IconButton(
                                           icon: const Icon(Icons.send_outlined),
                                           tooltip: l10n.pairingSendConfigButton,
-                                          onPressed: () => widget.onSendConfig!(member.frameId),
+                                          onPressed: () => widget
+                                              .onSendConfig!(member.frameId),
                                         ),
                                       if (isOwner)
                                         IconButton(
                                           icon: const Icon(Icons.person_remove),
-                                          onPressed: () => _removeMember(member),
+                                          onPressed: () =>
+                                              _removeMember(member),
                                         ),
                                     ],
                                   ),
@@ -238,26 +261,32 @@ class _PairingScreenState extends State<PairingScreen> {
                       leading: const Icon(Icons.logout),
                       title: const Text('Diese Gruppe verlassen'),
                       onTap: () async {
-                        final result = await widget.repository.leave(widget.pairingId);
+                        final result =
+                            await widget.repository.leave(widget.pairingId);
                         if (context.mounted) {
                           result.when(
                             onOk: (_) => Navigator.of(context).maybePop(),
-                            onErr: (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message))),
+                            onErr: (f) => ScaffoldMessenger.of(context)
+                                .showSnackBar(
+                                    SnackBar(content: Text(f.message))),
                           );
                         }
                       },
                     ),
                     if (isOwner)
                       ListTile(
-                        leading: Icon(Icons.delete_forever, color: Theme.of(context).colorScheme.error),
+                        leading: Icon(Icons.delete_forever,
+                            color: Theme.of(context).colorScheme.error),
                         title: const Text('Gruppe löschen'),
                         onTap: () async {
-                          final result = await widget.repository.deletePairing(widget.pairingId);
+                          final result = await widget.repository
+                              .deletePairing(widget.pairingId);
                           if (context.mounted) {
                             result.when(
                               onOk: (_) => Navigator.of(context).maybePop(),
-                              onErr: (f) =>
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message))),
+                              onErr: (f) => ScaffoldMessenger.of(context)
+                                  .showSnackBar(
+                                      SnackBar(content: Text(f.message))),
                             );
                           }
                         },

@@ -43,7 +43,8 @@ class RelayTokenStorage {
   Future<void> saveActivePairingId(String pairingId) =>
       _storage.write(key: _kActivePairingId, value: pairingId);
 
-  Future<void> clearActivePairingId() => _storage.delete(key: _kActivePairingId);
+  Future<void> clearActivePairingId() =>
+      _storage.delete(key: _kActivePairingId);
 
   Future<void> saveUserSession({
     required String userId,

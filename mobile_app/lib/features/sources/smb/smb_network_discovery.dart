@@ -155,7 +155,8 @@ class SmbNetworkDiscovery {
     final seenAddresses = mdnsResults.map((h) => h.address.address).toSet();
     return [
       ...mdnsResults,
-      ...netbiosResults.where((h) => !seenAddresses.contains(h.address.address)),
+      ...netbiosResults
+          .where((h) => !seenAddresses.contains(h.address.address)),
     ];
   }
 

@@ -35,11 +35,12 @@ class PoolSettingsScreen extends ConsumerWidget {
               max: 5000,
               divisions: 99,
               label: '${settings.poolTargetSize}',
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(poolTargetSize: v.round())),
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(poolTargetSize: v.round())),
             ),
             const SizedBox(height: 16),
-            Text('Auffüll-Intervall: alle ${settings.poolRefillIntervalHours} h',
+            Text(
+                'Auffüll-Intervall: alle ${settings.poolRefillIntervalHours} h',
                 style: Theme.of(context).textTheme.titleMedium),
             Slider(
               value: settings.poolRefillIntervalHours.toDouble(),
@@ -47,8 +48,8 @@ class PoolSettingsScreen extends ConsumerWidget {
               max: 24,
               divisions: 23,
               label: '${settings.poolRefillIntervalHours} h',
-              onChanged: (v) => notifier
-                  .updateSettings((s) => s.copyWith(poolRefillIntervalHours: v.round())),
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(poolRefillIntervalHours: v.round())),
             ),
             const SizedBox(height: 16),
             Text(
@@ -58,8 +59,8 @@ class PoolSettingsScreen extends ConsumerWidget {
             ),
             Slider(
               value: settings.poolNewImageQuota,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(poolNewImageQuota: v)),
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(poolNewImageQuota: v)),
             ),
           ],
         ),

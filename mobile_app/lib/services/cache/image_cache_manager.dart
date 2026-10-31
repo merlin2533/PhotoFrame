@@ -140,7 +140,8 @@ class ImageCacheManager {
           CacheTier.thumbnail: thumbnailLimitBytes,
           CacheTier.full: fullLimitBytes,
         },
-        _getFreeDiskSpaceBytes = getFreeDiskSpaceBytes ?? defaultGetFreeDiskSpaceBytes,
+        _getFreeDiskSpaceBytes =
+            getFreeDiskSpaceBytes ?? defaultGetFreeDiskSpaceBytes,
         _tiers = {
           CacheTier.thumbnail: _TierStore(thumbnailLimitBytes),
           CacheTier.full: _TierStore(fullLimitBytes),
@@ -258,7 +259,9 @@ class ImageCacheManager {
 
   /// Current pin count for [key] in [tier] - exposed mainly for tests.
   int pinCountOf(String key, {CacheTier tier = CacheTier.full}) {
-    return _tiers[tier]!.get(key)?.pinCount ?? _pendingPins[_pendingKey(tier, key)] ?? 0;
+    return _tiers[tier]!.get(key)?.pinCount ??
+        _pendingPins[_pendingKey(tier, key)] ??
+        0;
   }
 
   /// Marks [key] as having just been successfully displayed, adding it to
@@ -267,7 +270,8 @@ class ImageCacheManager {
   /// sources unreachable" scenarios per docs/PLAN.md. When the queue for
   /// [tier] exceeds [offlineReserveCount], the oldest reserved entry loses
   /// its reserve flag (it remains evictable going forward, unless pinned).
-  void recordSuccessfullyDisplayed(String key, {CacheTier tier = CacheTier.full}) {
+  void recordSuccessfullyDisplayed(String key,
+      {CacheTier tier = CacheTier.full}) {
     final store = _tiers[tier]!;
     final entry = store.get(key);
     if (entry == null) return;
@@ -344,7 +348,8 @@ class ImageCacheManager {
         unawaited(_deleteFileQuietly(entry.file));
       }
     }
-    _offlineReserveQueue.removeWhere((slot) => tiersToClear.contains(slot.tier));
+    _offlineReserveQueue
+        .removeWhere((slot) => tiersToClear.contains(slot.tier));
   }
 }
 

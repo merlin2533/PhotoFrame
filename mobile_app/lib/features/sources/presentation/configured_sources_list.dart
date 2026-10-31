@@ -16,7 +16,8 @@ class ConfiguredSourcesList extends ConsumerWidget {
     if (sources == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     if (sources.isEmpty) {
-      return Text('Noch keine Quelle eingerichtet.', style: theme.textTheme.bodySmall);
+      return Text('Noch keine Quelle eingerichtet.',
+          style: theme.textTheme.bodySmall);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

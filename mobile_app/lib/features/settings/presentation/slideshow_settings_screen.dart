@@ -29,8 +29,8 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               max: 120,
               divisions: 117,
               label: '${settings.intervalSeconds} s',
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(intervalSeconds: v.round())),
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(intervalSeconds: v.round())),
             ),
             const Divider(height: 32),
             Text('Overlays', style: Theme.of(context).textTheme.titleMedium),
@@ -38,17 +38,19 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               title: const Text('Ordnername/Quelle anzeigen'),
               value: settings.showSourceLabel,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(showSourceLabel: v)),
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(showSourceLabel: v)),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Uhr anzeigen'),
               value: settings.showClock,
-              onChanged: (v) => notifier.updateSettings((s) => s.copyWith(showClock: v)),
+              onChanged: (v) =>
+                  notifier.updateSettings((s) => s.copyWith(showClock: v)),
             ),
             const Divider(height: 32),
-            Text('Anzeige-Modus', style: Theme.of(context).textTheme.titleMedium),
+            Text('Anzeige-Modus',
+                style: Theme.of(context).textTheme.titleMedium),
             RadioGroup<DisplayMode>(
               groupValue: settings.displayMode,
               onChanged: (v) =>
@@ -68,8 +70,7 @@ class SlideshowSettingsScreen extends ConsumerWidget {
                   RadioListTile<DisplayMode>(
                     contentPadding: EdgeInsets.zero,
                     title: Text('Unscharfer Hintergrund'),
-                    subtitle:
-                        Text('Löst Hochkantbilder ohne schwarze Balken'),
+                    subtitle: Text('Löst Hochkantbilder ohne schwarze Balken'),
                     value: DisplayMode.blurredBackdrop,
                   ),
                 ],
@@ -107,8 +108,8 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               title: const Text('Ken-Burns-Effekt'),
               subtitle: const Text('Langsamer Zoom/Pan auf dem Bild'),
               value: settings.kenBurnsEnabled,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(kenBurnsEnabled: v)),
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(kenBurnsEnabled: v)),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -116,19 +117,20 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               subtitle: const Text(
                   'Zwei aufeinanderfolgende Hochkantbilder nebeneinander'),
               value: settings.portraitPairLayoutEnabled,
-              onChanged: (v) => notifier
-                  .updateSettings((s) => s.copyWith(portraitPairLayoutEnabled: v)),
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(portraitPairLayoutEnabled: v)),
             ),
             const Divider(height: 32),
-            Text('Favoriten & Datum', style: Theme.of(context).textTheme.titleMedium),
+            Text('Favoriten & Datum',
+                style: Theme.of(context).textTheme.titleMedium),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Nur Favoriten zeigen'),
               subtitle: const Text(
                   'Diashow speist sich nur aus favorisierten Bildern'),
               value: settings.favoritesOnlyMode,
-              onChanged: (v) =>
-                  notifier.updateSettings((s) => s.copyWith(favoritesOnlyMode: v)),
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(favoritesOnlyMode: v)),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

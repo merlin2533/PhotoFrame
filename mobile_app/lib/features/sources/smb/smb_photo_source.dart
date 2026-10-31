@@ -66,7 +66,8 @@ class SmbSourceConfig {
 
   /// Rebuilds a config from its non-secret [json] (as produced by [toJson])
   /// plus a [password] loaded separately from `SecureCredentialStore`.
-  factory SmbSourceConfig.fromJson(Map<String, dynamic> json, {required String password}) {
+  factory SmbSourceConfig.fromJson(Map<String, dynamic> json,
+      {required String password}) {
     return SmbSourceConfig(
       host: json['host'] as String? ?? '',
       share: json['share'] as String? ?? '',
@@ -135,9 +136,25 @@ class SmbPhotoSource implements PhotoSource {
   /// `local_folder_source.dart`'s doc comment for the full rationale); they
   /// are counted like HEIC/RAW rather than surfaced as playable items.
   static const Set<String> _unsupportedMediaExtensions = {
-    'heic', 'heif',
-    'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'srw',
-    'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp',
+    'heic',
+    'heif',
+    'raw',
+    'cr2',
+    'cr3',
+    'nef',
+    'arw',
+    'dng',
+    'raf',
+    'orf',
+    'rw2',
+    'srw',
+    'mp4',
+    'mov',
+    'm4v',
+    'avi',
+    'mkv',
+    'webm',
+    '3gp',
   };
 
   /// Number of files skipped in the most recent [listImages] run because
@@ -181,13 +198,20 @@ class SmbPhotoSource implements PhotoSource {
       _connect = connect;
       return Result.ok(connect);
     } on TimeoutException {
-      return Result.err(Timeout('Connecting to SMB host "${_config.host}" timed out'));
+      return Result.err(
+          Timeout('Connecting to SMB host "${_config.host}" timed out'));
     } catch (e) {
       final msg = e.toString().toLowerCase();
-      if (msg.contains('logon') || msg.contains('access') || msg.contains('password')) {
-        return Result.err(AuthError('SMB authentication failed for "${_config.host}"', cause: e));
+      if (msg.contains('logon') ||
+          msg.contains('access') ||
+          msg.contains('password')) {
+        return Result.err(AuthError(
+            'SMB authentication failed for "${_config.host}"',
+            cause: e));
       }
-      return Result.err(NetworkError('Could not connect to SMB host "${_config.host}"', cause: e));
+      return Result.err(NetworkError(
+          'Could not connect to SMB host "${_config.host}"',
+          cause: e));
     }
   }
 
@@ -214,7 +238,8 @@ class SmbPhotoSource implements PhotoSource {
         domain: _config.domain,
       ).timeout(timeout);
       if (!reachable) {
-        return Result.err(NetworkError('SMB host "${_config.host}" is not reachable'));
+        return Result.err(
+            NetworkError('SMB host "${_config.host}" is not reachable'));
       }
 
       final connectResult = await _ensureConnected(timeout);
@@ -226,7 +251,8 @@ class SmbPhotoSource implements PhotoSource {
       final rootFile = await connect.file(_fullPath('')).timeout(timeout);
       if (!rootFile.isExists) {
         return Result.err(
-          NotFound('Share/folder not found: ${_config.share}/${_config.rootPath}'),
+          NotFound(
+              'Share/folder not found: ${_config.share}/${_config.rootPath}'),
         );
       }
       stopwatch.stop();
@@ -238,9 +264,11 @@ class SmbPhotoSource implements PhotoSource {
         ),
       );
     } on TimeoutException {
-      return Result.err(Timeout('SMB connection test to "${_config.host}" timed out'));
+      return Result.err(
+          Timeout('SMB connection test to "${_config.host}" timed out'));
     } catch (e) {
-      return Result.err(NetworkError('Unexpected error testing SMB connection', cause: e));
+      return Result.err(
+          NetworkError('Unexpected error testing SMB connection', cause: e));
     }
   }
 
@@ -263,7 +291,8 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } catch (e) {
-      yield Result.err(NetworkError('Unexpected error listing SMB folders', cause: e));
+      yield Result.err(
+          NetworkError('Unexpected error listing SMB folders', cause: e));
     }
   }
 
@@ -278,7 +307,8 @@ class SmbPhotoSource implements PhotoSource {
       final folder = await connect.file(_fullPath(relPath));
       children = await connect.listFiles(folder);
     } catch (e) {
-      yield Result.err(NetworkError('Failed to list SMB folder "$relPath"', cause: e));
+      yield Result.err(
+          NetworkError('Failed to list SMB folder "$relPath"', cause: e));
       return;
     }
 
@@ -286,7 +316,8 @@ class SmbPhotoSource implements PhotoSource {
       token?.throwIfCancelled();
       if (!child.isDirectory()) continue;
       if (child.name == '.' || child.name == '..') continue;
-      final childRelPath = relPath.isEmpty ? child.name : '$relPath/${child.name}';
+      final childRelPath =
+          relPath.isEmpty ? child.name : '$relPath/${child.name}';
       yield Result.ok(
         PhotoFolder(
           id: childRelPath,
@@ -325,7 +356,8 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } catch (e) {
-      yield Result.err(NetworkError('Unexpected error listing SMB images', cause: e));
+      yield Result.err(
+          NetworkError('Unexpected error listing SMB images', cause: e));
     }
   }
 
@@ -341,7 +373,8 @@ class SmbPhotoSource implements PhotoSource {
       final folder = await connect.file(_fullPath(relPath));
       children = await connect.listFiles(folder);
     } catch (e) {
-      yield Result.err(NetworkError('Failed to list SMB folder "$relPath"', cause: e));
+      yield Result.err(
+          NetworkError('Failed to list SMB folder "$relPath"', cause: e));
       return;
     }
 
@@ -351,7 +384,8 @@ class SmbPhotoSource implements PhotoSource {
 
       if (child.isDirectory()) {
         if (recursive) {
-          final childRelPath = relPath.isEmpty ? child.name : '$relPath/${child.name}';
+          final childRelPath =
+              relPath.isEmpty ? child.name : '$relPath/${child.name}';
           yield* _walkImages(connect, childRelPath, recursive, token);
         }
         continue;
@@ -365,7 +399,8 @@ class SmbPhotoSource implements PhotoSource {
       }
       if (!_imageExtensions.contains(ext)) continue;
 
-      final childRelPath = relPath.isEmpty ? child.name : '$relPath/${child.name}';
+      final childRelPath =
+          relPath.isEmpty ? child.name : '$relPath/${child.name}';
       yield Result.ok(
         PhotoItem(
           id: childRelPath,
@@ -385,7 +420,8 @@ class SmbPhotoSource implements PhotoSource {
   }
 
   @override
-  Future<Result<File>> fetchToCache(PhotoItem item, {CancellationToken? token}) async {
+  Future<Result<File>> fetchToCache(PhotoItem item,
+      {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
     final connectResult = await _ensureConnected(const Duration(seconds: 8));
@@ -423,7 +459,8 @@ class SmbPhotoSource implements PhotoSource {
     } on TimeoutException {
       return Result.err(Timeout('Fetching SMB file "${item.id}" timed out'));
     } catch (e) {
-      return Result.err(NetworkError('Failed to fetch SMB file "${item.id}"', cause: e));
+      return Result.err(
+          NetworkError('Failed to fetch SMB file "${item.id}"', cause: e));
     }
   }
 

@@ -30,8 +30,10 @@ final Provider<KeyFingerprintStore> keyFingerprintStoreProvider =
 /// `pairing_providers.dart`'s own [pairingRepositoryProvider]) can render a
 /// clear "set up a relay server first" hint instead of the app crashing on
 /// an unconfigured feature.
-final Provider<RelayApiClient?> relayApiClientProvider = Provider<RelayApiClient?>((ref) {
-  final relayServerUrl = ref.watch(settingsProvider.select((s) => s.value?.relayServerUrl));
+final Provider<RelayApiClient?> relayApiClientProvider =
+    Provider<RelayApiClient?>((ref) {
+  final relayServerUrl =
+      ref.watch(settingsProvider.select((s) => s.value?.relayServerUrl));
   if (relayServerUrl == null || relayServerUrl.isEmpty) return null;
   final tokenStorage = ref.watch(relayTokenStorageProvider);
   return RelayApiClient(baseUrl: relayServerUrl, tokenStorage: tokenStorage);
@@ -56,7 +58,8 @@ final FutureProvider<RelaySocketClient?> relaySocketClientProvider =
   final deviceToken = await tokenStorage.deviceToken;
   if (deviceToken == null) return null;
 
-  final client = RelaySocketClient(baseUrl: api.socketOrigin, deviceToken: deviceToken);
+  final client =
+      RelaySocketClient(baseUrl: api.socketOrigin, deviceToken: deviceToken);
   client.connect();
   ref.onDispose(() {
     unawaited(client.dispose());
@@ -68,11 +71,13 @@ final FutureProvider<RelaySocketClient?> relaySocketClientProvider =
 /// [keyFingerprintStoreProvider]. `null` under the same "no relay configured
 /// yet" condition as [relayApiClientProvider] - callers must show a
 /// "Relay-Server einrichten" hint rather than assume a non-null repository.
-final Provider<PairingRepository?> pairingRepositoryProvider = Provider<PairingRepository?>((ref) {
+final Provider<PairingRepository?> pairingRepositoryProvider =
+    Provider<PairingRepository?>((ref) {
   final api = ref.watch(relayApiClientProvider);
   if (api == null) return null;
   final fingerprintStore = ref.watch(keyFingerprintStoreProvider);
-  return RelayPairingRepository(apiClient: api, fingerprintStore: fingerprintStore);
+  return RelayPairingRepository(
+      apiClient: api, fingerprintStore: fingerprintStore);
 });
 
 /// The pairing id this device most recently opened `PairingScreen` for,
@@ -80,14 +85,16 @@ final Provider<PairingRepository?> pairingRepositoryProvider = Provider<PairingR
 /// doc comment for why this "last active pairing" memory - rather than a
 /// real "list my pairings" server endpoint - is this iteration's deliberate
 /// scope boundary).
-final FutureProvider<String?> activePairingIdProvider = FutureProvider<String?>((ref) async {
+final FutureProvider<String?> activePairingIdProvider =
+    FutureProvider<String?>((ref) async {
   final tokenStorage = ref.watch(relayTokenStorageProvider);
   return tokenStorage.activePairingId;
 });
 
 /// This device's own relay frame id, once registered
 /// (`relay_server_setup_screen.dart`). `null` before that has happened.
-final FutureProvider<String?> localFrameIdProvider = FutureProvider<String?>((ref) async {
+final FutureProvider<String?> localFrameIdProvider =
+    FutureProvider<String?>((ref) async {
   final tokenStorage = ref.watch(relayTokenStorageProvider);
   return tokenStorage.frameId;
 });
@@ -98,7 +105,8 @@ final FutureProvider<String?> localFrameIdProvider = FutureProvider<String?>((re
 /// `app_router.dart` for the route definition and the project-wide note on
 /// introducing `extra` there.
 class ConfigPushConfirmationArgs {
-  const ConfigPushConfirmationArgs({required this.push, required this.senderLabel});
+  const ConfigPushConfirmationArgs(
+      {required this.push, required this.senderLabel});
 
   final PendingConfigPush push;
   final String senderLabel;
@@ -138,7 +146,8 @@ class _ConfigPushListenerState extends ConsumerState<ConfigPushListener> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<RelaySocketClient?>>(relaySocketClientProvider, (previous, next) {
+    ref.listen<AsyncValue<RelaySocketClient?>>(relaySocketClientProvider,
+        (previous, next) {
       final client = next.value;
       if (identical(client, _attachedClient)) return;
       _subscription?.cancel();
@@ -178,7 +187,8 @@ class _ConfigPushListenerState extends ConsumerState<ConfigPushListener> {
     // (see `PairingMember`), only `frameId` itself.
     unawaited(GoRouter.of(navigatorContext).push(
       '/settings/sharing/pairing/confirm-push',
-      extra: ConfigPushConfirmationArgs(push: match, senderLabel: event.senderFrameId),
+      extra: ConfigPushConfirmationArgs(
+          push: match, senderLabel: event.senderFrameId),
     ));
   }
 

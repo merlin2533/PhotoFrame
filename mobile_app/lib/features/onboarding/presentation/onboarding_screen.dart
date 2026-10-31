@@ -136,7 +136,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     onPressed: isLast
                         ? () => _finish(goToSources: true)
                         : () => _goToPage(_page + 1),
-                    child: Text(isLast ? l10n.onboardingAddSourceCta : l10n.commonNext),
+                    child: Text(
+                        isLast ? l10n.onboardingAddSourceCta : l10n.commonNext),
                   ),
                 ],
               ),
@@ -216,7 +217,8 @@ class _AlwaysOnExplainerStep extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.bolt, color: Theme.of(context).colorScheme.onErrorContainer),
+            Icon(Icons.bolt,
+                color: Theme.of(context).colorScheme.onErrorContainer),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

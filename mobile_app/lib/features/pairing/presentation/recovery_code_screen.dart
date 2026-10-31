@@ -32,7 +32,8 @@ class RecoveryCodeScreen extends StatefulWidget {
 
   /// Called with the recovered frame's new `deviceToken` and (if
   /// available) its new fingerprint once recovery succeeds.
-  final void Function(String frameId, String deviceToken, String? newFingerprint) onRecovered;
+  final void Function(
+      String frameId, String deviceToken, String? newFingerprint) onRecovered;
 
   @override
   State<RecoveryCodeScreen> createState() => _RecoveryCodeScreenState();
@@ -93,7 +94,8 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
           await candidate.commit();
           recoveredFingerprint = recovery.fingerprint;
           if (mounted) {
-            widget.onRecovered(recovery.frameId, recovery.deviceToken, recovery.fingerprint);
+            widget.onRecovered(
+                recovery.frameId, recovery.deviceToken, recovery.fingerprint);
           }
         } on StateError catch (e) {
           // Candidate expired (>60 min since generation, e.g. the user left
@@ -149,7 +151,9 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(_error!,
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
             if (_newFingerprint != null)
               Padding(
@@ -163,7 +167,10 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
             FilledButton(
               onPressed: _submitting ? null : _recover,
               child: _submitting
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text('Wiederherstellen'),
             ),
           ],

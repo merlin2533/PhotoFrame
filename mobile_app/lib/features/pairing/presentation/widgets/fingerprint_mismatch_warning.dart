@@ -55,11 +55,13 @@ class FingerprintMismatchWarning extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: theme.colorScheme.onErrorContainer),
+                Icon(Icons.warning_amber_rounded,
+                    color: theme.colorScheme.onErrorContainer),
                 const SizedBox(width: 8),
                 Text(
                   'Sicherheitswarnung',
-                  style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onErrorContainer),
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(color: theme.colorScheme.onErrorContainer),
                 ),
               ],
             ),
@@ -69,13 +71,15 @@ class FingerprintMismatchWarning extends StatelessWidget {
                   ? 'Für dieses Gerät ist noch kein Sicherheitsschlüssel bekannt. '
                       'Eine Konfiguration kann nicht verifiziert werden.'
                   : fingerprintMismatchWarningFor(peerLabel),
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onErrorContainer),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onErrorContainer),
             ),
             if (observedFingerprint != null) ...[
               const SizedBox(height: 8),
               Text(
                 'Neuer Sicherheitsschlüssel: $observedFingerprint',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onErrorContainer),
               ),
             ],
             const SizedBox(height: 8),
@@ -85,7 +89,8 @@ class FingerprintMismatchWarning extends StatelessWidget {
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(
                 acknowledgementLabel,
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onErrorContainer),
               ),
             ),
           ],

@@ -9,7 +9,8 @@ import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 /// expected to fetch the full ciphertext via
 /// `RelayApiClient.pendingConfigPushes()`.
 class ConfigPushNotification {
-  const ConfigPushNotification({required this.pushId, required this.senderFrameId});
+  const ConfigPushNotification(
+      {required this.pushId, required this.senderFrameId});
 
   final String pushId;
   final String senderFrameId;
@@ -46,7 +47,8 @@ class RelaySocketClient {
   socket_io.Socket? _socket;
 
   final StreamController<RelaySocketState> _stateController =
-      StreamController<RelaySocketState>.broadcast()..add(RelaySocketState.disconnected);
+      StreamController<RelaySocketState>.broadcast()
+        ..add(RelaySocketState.disconnected);
   final StreamController<ConfigPushNotification> _configPushController =
       StreamController<ConfigPushNotification>.broadcast();
 
@@ -60,7 +62,8 @@ class RelaySocketClient {
   /// `/config-push/pending` (and run the config-push confirmation flow,
   /// including the TOFU fingerprint check) rather than trusting anything
   /// about the payload beyond `pushId`/`senderFrameId`.
-  Stream<ConfigPushNotification> get configPushes => _configPushController.stream;
+  Stream<ConfigPushNotification> get configPushes =>
+      _configPushController.stream;
 
   void _setState(RelaySocketState newState) {
     _state = newState;
@@ -94,7 +97,8 @@ class RelaySocketClient {
         final pushId = data['id'] as String?;
         final senderFrameId = data['senderFrameId'] as String?;
         if (pushId != null && senderFrameId != null) {
-          _configPushController.add(ConfigPushNotification(pushId: pushId, senderFrameId: senderFrameId));
+          _configPushController.add(ConfigPushNotification(
+              pushId: pushId, senderFrameId: senderFrameId));
         }
       }
     });

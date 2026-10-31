@@ -69,13 +69,15 @@ class FavoritesStore extends ChangeNotifier {
   bool isFavorite(String itemId) => _favoriteIds.contains(itemId);
 
   /// Flips the favorite state of [itemId] and persists the result.
-  Future<void> toggleFavorite(String itemId) => setFavorite(itemId, !isFavorite(itemId));
+  Future<void> toggleFavorite(String itemId) =>
+      setFavorite(itemId, !isFavorite(itemId));
 
   /// Sets the favorite state of [itemId] explicitly and persists the result.
   /// No-op (and does not persist/notify) if the state is already as
   /// requested.
   Future<void> setFavorite(String itemId, bool value) async {
-    final changed = value ? _favoriteIds.add(itemId) : _favoriteIds.remove(itemId);
+    final changed =
+        value ? _favoriteIds.add(itemId) : _favoriteIds.remove(itemId);
     if (!changed) return;
     await _persist();
     _emit();
@@ -83,7 +85,8 @@ class FavoritesStore extends ChangeNotifier {
 
   Future<void> _persist() async {
     final prefs = await _resolvePrefs();
-    await prefs.setString(_storageKey, jsonEncode(_favoriteIds.toList(growable: false)));
+    await prefs.setString(
+        _storageKey, jsonEncode(_favoriteIds.toList(growable: false)));
   }
 
   void _emit() {

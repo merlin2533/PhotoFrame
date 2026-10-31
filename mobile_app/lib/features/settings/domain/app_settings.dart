@@ -37,6 +37,7 @@ class AppSettings {
     this.poolNewImageQuota = 0.2,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
+    this.disabledSourceIds = const [],
     this.preferOnThisDayEnabled = false,
     this.onThisDayQuota = 0.1,
     // Sharing/Relay (URL only - pairing logic lives elsewhere)
@@ -95,6 +96,10 @@ class AppSettings {
   /// top of - not a replacement for - the default "all configured sources"
   /// behaviour.
   final bool favoritesOnlyMode;
+
+  /// Ids of sources the user switched off: they stay configured but are
+  /// skipped by the slideshow.
+  final List<String> disabledSourceIds;
 
   /// "Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen" -
   /// whether items matching `filterOnThisDay` (same month+day as today, any
@@ -195,6 +200,7 @@ class AppSettings {
     int? poolRefillIntervalHours,
     double? poolNewImageQuota,
     bool? favoritesOnlyMode,
+    List<String>? disabledSourceIds,
     bool? preferOnThisDayEnabled,
     double? onThisDayQuota,
     String? relayServerUrl,
@@ -228,19 +234,23 @@ class AppSettings {
           poolRefillIntervalHours ?? this.poolRefillIntervalHours,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
+      disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
       preferOnThisDayEnabled:
           preferOnThisDayEnabled ?? this.preferOnThisDayEnabled,
       onThisDayQuota: onThisDayQuota ?? this.onThisDayQuota,
       relayServerUrl:
           clearRelayServerUrl ? null : (relayServerUrl ?? this.relayServerUrl),
       settingsPin: clearSettingsPin ? null : (settingsPin ?? this.settingsPin),
-      languageCode: clearLanguageCode ? null : (languageCode ?? this.languageCode),
+      languageCode:
+          clearLanguageCode ? null : (languageCode ?? this.languageCode),
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       weatherEnabled: weatherEnabled ?? this.weatherEnabled,
-      weatherLatitude:
-          clearWeatherLocation ? null : (weatherLatitude ?? this.weatherLatitude),
-      weatherLongitude:
-          clearWeatherLocation ? null : (weatherLongitude ?? this.weatherLongitude),
+      weatherLatitude: clearWeatherLocation
+          ? null
+          : (weatherLatitude ?? this.weatherLatitude),
+      weatherLongitude: clearWeatherLocation
+          ? null
+          : (weatherLongitude ?? this.weatherLongitude),
       weatherLocationLabel: clearWeatherLocation
           ? null
           : (weatherLocationLabel ?? this.weatherLocationLabel),
@@ -263,6 +273,7 @@ class AppSettings {
         'poolRefillIntervalHours': poolRefillIntervalHours,
         'poolNewImageQuota': poolNewImageQuota,
         'favoritesOnlyMode': favoritesOnlyMode,
+        'disabledSourceIds': disabledSourceIds,
         'preferOnThisDayEnabled': preferOnThisDayEnabled,
         'onThisDayQuota': onThisDayQuota,
         'relayServerUrl': relayServerUrl,
@@ -303,11 +314,12 @@ class AppSettings {
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
-      poolNewImageQuota:
-          (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
+      poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
-      preferOnThisDayEnabled:
-          json['preferOnThisDayEnabled'] as bool? ?? false,
+      disabledSourceIds:
+          (json['disabledSourceIds'] as List?)?.whereType<String>().toList() ??
+              const [],
+      preferOnThisDayEnabled: json['preferOnThisDayEnabled'] as bool? ?? false,
       onThisDayQuota: (json['onThisDayQuota'] as num?)?.toDouble() ?? 0.1,
       relayServerUrl: json['relayServerUrl'] as String?,
       settingsPin: json['settingsPin'] as String?,

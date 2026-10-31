@@ -21,7 +21,8 @@ class SmbConfigFormScreen extends ConsumerStatefulWidget {
   const SmbConfigFormScreen({super.key});
 
   @override
-  ConsumerState<SmbConfigFormScreen> createState() => _SmbConfigFormScreenState();
+  ConsumerState<SmbConfigFormScreen> createState() =>
+      _SmbConfigFormScreenState();
 }
 
 class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
@@ -111,7 +112,9 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
       if (mounted) {
         setState(() => _discovering = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Netzwerksuche fehlgeschlagen. Host manuell eingeben.')),
+          const SnackBar(
+              content:
+                  Text('Netzwerksuche fehlgeschlagen. Host manuell eingeben.')),
         );
       }
       return;
@@ -140,7 +143,8 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
         children: [
           const Padding(
             padding: EdgeInsets.all(16),
-            child: Text('Gefundene Geräte', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text('Gefundene Geräte',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           for (final host in hosts)
             ListTile(
@@ -179,7 +183,9 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
     // persistence, which no longer needs to know about it directly but
     // reads it back on the *next* app start via `SourcesController.build`.
     if (config.password.isNotEmpty) {
-      await ref.read(secureCredentialStoreProvider).write(id, 'password', config.password);
+      await ref
+          .read(secureCredentialStoreProvider)
+          .write(id, 'password', config.password);
     }
 
     await ref.read(sourcesProvider.notifier).add(source);
@@ -266,8 +272,11 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
             decoration: InputDecoration(
               labelText: 'Passwort',
               suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(_obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
             ),
           ),

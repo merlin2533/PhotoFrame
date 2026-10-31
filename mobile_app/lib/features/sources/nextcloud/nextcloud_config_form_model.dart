@@ -91,7 +91,9 @@ class NextcloudConfigFormModel {
           errors['serverUrl'] = 'Server URL is required';
         } else {
           final uri = Uri.tryParse(trimmedUrl);
-          if (uri == null || !uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http')) {
+          if (uri == null ||
+              !uri.hasScheme ||
+              (uri.scheme != 'https' && uri.scheme != 'http')) {
             errors['serverUrl'] = 'Enter a valid http(s) URL';
           } else if (uri.scheme == 'http' && !_isPrivateHost(uri.host)) {
             // Per docs/PLAN.md P0 decisions: HTTPS is enforced except for
@@ -123,8 +125,10 @@ class NextcloudConfigFormModel {
         } else {
           final derivedServerUrl = _extractShareServerUrl(trimmedShareInput);
           if (derivedServerUrl == null) {
-            errors['shareToken'] = 'Enter the full share link, e.g. https://cloud.example.com/s/AbCdEf';
-          } else if (derivedServerUrl.scheme == 'http' && !_isPrivateHost(derivedServerUrl.host)) {
+            errors['shareToken'] =
+                'Enter the full share link, e.g. https://cloud.example.com/s/AbCdEf';
+          } else if (derivedServerUrl.scheme == 'http' &&
+              !_isPrivateHost(derivedServerUrl.host)) {
             // Same HTTPS-except-LAN policy as the account mode above,
             // applied to the server URL derived from the pasted link.
             errors['shareToken'] =
@@ -188,7 +192,9 @@ class NextcloudConfigFormModel {
     if (!input.contains('/s/')) return null;
     final beforeMarker = input.substring(0, input.indexOf('/s/'));
     final uri = Uri.tryParse(beforeMarker);
-    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
+    if (uri == null ||
+        (uri.scheme != 'https' && uri.scheme != 'http') ||
+        uri.host.isEmpty) {
       return null;
     }
     return uri;

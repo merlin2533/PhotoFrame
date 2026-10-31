@@ -103,7 +103,8 @@ class FrameKeypairStore {
     final seed = _seedGenerator();
     final keyPair = await _algorithm.newKeyPairFromSeed(seed);
     final publicKey = await keyPair.extractPublicKey();
-    return CandidateFrameKeypair._(seed, base64Encode(publicKey.bytes), this, DateTime.now());
+    return CandidateFrameKeypair._(
+        seed, base64Encode(publicKey.bytes), this, DateTime.now());
   }
 
   /// Deletes the locally stored keypair entirely. Mostly useful for tests;
@@ -125,7 +126,8 @@ class FrameKeypairStore {
 /// a [StateError] once expired; the caller should call
 /// [FrameKeypairStore.generateCandidateKeypair] again and retry.
 class CandidateFrameKeypair {
-  CandidateFrameKeypair._(this._seed, this.publicKeyBase64, this._store, this._generatedAt);
+  CandidateFrameKeypair._(
+      this._seed, this.publicKeyBase64, this._store, this._generatedAt);
 
   final List<int> _seed;
   final String publicKeyBase64;
