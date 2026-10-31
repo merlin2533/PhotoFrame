@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/photo_source.dart';
 import '../state/sources_providers.dart';
+import '../nextcloud/nextcloud_folder_picker.dart';
 import 'smb_config_form_model.dart';
 import 'smb_network_discovery.dart';
 import 'smb_photo_source.dart';
@@ -162,6 +163,24 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
     }
   }
 
+  List<String> _selectedFolders = [];
+
+  Future<void> _pickFolders() async {
+    final normalized = _model.normalized();
+    if (_model.validate().isNotEmpty) return;
+    final probe = SmbPhotoSource(
+      id: 'browse',
+      config: _buildConfig(normalized.copyWith(rootPath: '')),
+    );
+    final picked = await showNextcloudFolderPicker(
+      context,
+      source: probe,
+      initiallySelected: _selectedFolders,
+    );
+    await probe.dispose();
+    if (picked != null && mounted) setState(() => _selectedFolders = picked);
+  }
+
   Future<void> _save() async {
     setState(() => _submitted = true);
     final normalized = _model.normalized();
@@ -171,24 +190,34 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
       return;
     }
 
-    final id = ref.read(sourceIdGeneratorProvider).v4();
-    final config = _buildConfig(normalized);
-    final source = SmbPhotoSource(id: id, config: config);
-
-    // Persist the password in the secure keychain (never in
-    // shared_preferences - see SecureCredentialStore's doc comment) so a
-    // future source-registry reload can restore it without asking the user
-    // to retype it. Awaited (unlike before) so the write has actually landed
-    // before `add()` below triggers `SourcesController`'s own descriptor
-    // persistence, which no longer needs to know about it directly but
-    // reads it back on the *next* app start via `SourcesController.build`.
-    if (config.password.isNotEmpty) {
-      await ref
-          .read(secureCredentialStoreProvider)
-          .write(id, 'password', config.password);
+    // One source per ticked folder; with none ticked, the Unterordner field
+    // (rootPath) is used as before.
+    final folders =
+        _selectedFolders.isNotEmpty ? _selectedFolders : [normalized.rootPath];
+    final store = ref.read(secureCredentialStoreProvider);
+    try {
+      for (final folder in folders) {
+        final id = ref.read(sourceIdGeneratorProvider).v4();
+        final config = _buildConfig(normalized.copyWith(rootPath: folder));
+        final source = SmbPhotoSource(
+          id: id,
+          config: config,
+          displayName: folder.isEmpty
+              ? null
+              : 'SMB: ${config.host}/${config.share}/$folder',
+        );
+        if (config.password.isNotEmpty) {
+          await store.write(id, 'password', config.password);
+        }
+        await ref.read(sourcesProvider.notifier).add(source);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+      );
+      return;
     }
-
-    await ref.read(sourcesProvider.notifier).add(source);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -253,6 +282,25 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
               hintText: 'z. B. Frame/2024',
             ),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _pickFolders,
+            icon: const Icon(Icons.folder_open_outlined),
+            label: Text(_selectedFolders.isEmpty
+                ? 'Ordner auswählen'
+                : '${_selectedFolders.length} Ordner ausgewählt'),
+          ),
+          if (_selectedFolders.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final f in _selectedFolders)
+                  Chip(
+                    label: Text(f),
+                    onDeleted: () => setState(() => _selectedFolders.remove(f)),
+                  ),
+              ],
+            ),
           const SizedBox(height: 16),
           TextField(
             controller: _domainController,

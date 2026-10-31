@@ -119,6 +119,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     FavoritesStore favorites,
     List<String> errors, {
     int? limit,
+    Duration? timeout,
+    Set<String>? failedSourceIds,
   }) async {
     final allItems = <PhotoItem>[];
     // With [limit] the crawl stops early once that many photos were found, so
@@ -173,9 +175,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (full()) break;
       if (settings.disabledSourceIds.contains(source.id)) continue;
       try {
-        await crawl(source).timeout(const Duration(seconds: 90));
+        final run = crawl(source);
+        await (timeout == null ? run : run.timeout(timeout));
       } catch (e) {
         errors.add('${source.displayName}: $e');
+        // Remembered so a failed or slow source does not wipe its photos from
+        // the running pool during a background refresh.
+        failedSourceIds?.add(source.id);
       }
       ref.read(sourceStatsProvider.notifier).record(
             source.id,
@@ -209,12 +215,22 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     try {
       final sources = await ref.read(sourcesProvider.future);
       final settings = ref.read(settingsProvider).value ?? const AppSettings();
+      // No timeout here: large network shares (SMB, Nextcloud) can take
+      // minutes. Sources that fail keep their current photos.
+      final failed = <String>{};
       final fresh = await _crawlEligible(
-          sources, settings, ref.read(favoritesStoreProvider), []);
+        sources,
+        settings,
+        ref.read(favoritesStoreProvider),
+        [],
+        failedSourceIds: failed,
+      );
       if (!mounted || _engine != engine || fresh.isEmpty) return;
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
+      bool kept(String sourceId, String itemId) =>
+          failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
       for (final e in pool.entries) {
-        if (!freshKeys.contains(e.key)) pool.remove(e.sourceId, e.itemId);
+        if (!kept(e.sourceId, e.itemId)) pool.remove(e.sourceId, e.itemId);
       }
       for (final item in fresh) {
         _itemsByKey['${item.sourceId}::${item.id}'] = item;
@@ -223,7 +239,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
             itemId: item.id,
             addedToPoolAt: DateTime.now()));
       }
-      _itemsByKey.removeWhere((k, _) => !freshKeys.contains(k));
+      _itemsByKey.removeWhere((_, item) => !kept(item.sourceId, item.id));
       if (pool.entries.isNotEmpty) engine.refreshPool(pool);
     } catch (e) {
       debugPrint('Background refresh failed: $e');
@@ -259,6 +275,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         favorites,
         errors,
         limit: _initialPhotoCount,
+        timeout: const Duration(seconds: 30),
       );
       for (final item in eligibleItems) {
         itemsByKey['${item.sourceId}::${item.id}'] = item;
