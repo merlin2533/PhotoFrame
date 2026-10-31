@@ -14,7 +14,19 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsScreenTitle)),
+      appBar: AppBar(
+        title: Text(l10n.settingsScreenTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Einstellungen durchsuchen',
+            onPressed: () => showSearch<void>(
+              context: context,
+              delegate: _SettingsSearchDelegate(),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         children: [
           _SettingsGroupHeader(l10n.settingsGroupSlideshow),
@@ -166,6 +178,63 @@ class _SettingsGroupHeader extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
       ),
+    );
+  }
+}
+
+/// Searches the settings sub-pages by name and opens the chosen one.
+class _SettingsSearchDelegate extends SearchDelegate<void> {
+  static const _entries = <(String, String)>[
+    ('Diashow', '/settings/slideshow'),
+    ('Dauer-Modus', '/settings/always-on'),
+    ('Nachtmodus', '/settings/night-mode'),
+    ('Wetter', '/settings/weather'),
+    ('Quellen', '/settings/sources'),
+    ('Cache', '/settings/cache'),
+    ('Pool und Index', '/settings/pool'),
+    ('Teilen', '/settings/sharing'),
+    ('Barrierefreiheit', '/settings/accessibility'),
+    ('Autostart', '/settings/autostart-help'),
+    ('Kiosk-Modus', '/settings/kiosk'),
+    ('Sprache', '/settings/language'),
+    ('Setup-Guide', '/onboarding'),
+  ];
+
+  @override
+  List<Widget>? buildActions(BuildContext context) => [
+        IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+      ];
+
+  @override
+  Widget? buildLeading(BuildContext context) => IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => close(context, null),
+      );
+
+  @override
+  Widget buildResults(BuildContext context) => _list(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _list(context);
+
+  Widget _list(BuildContext context) {
+    final q = query.trim().toLowerCase();
+    final matches = [
+      for (final e in _entries)
+        if (q.isEmpty || e.$1.toLowerCase().contains(q)) e,
+    ];
+    return ListView(
+      children: [
+        for (final (title, path) in matches)
+          ListTile(
+            title: Text(title),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              close(context, null);
+              context.push(path);
+            },
+          ),
+      ],
     );
   }
 }
