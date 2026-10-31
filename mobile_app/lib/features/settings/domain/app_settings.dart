@@ -37,6 +37,10 @@ class AppSettings {
     this.kioskModeEnabled = false,
     // Night mode
     this.nightSchedule = const NightSchedule.disabled(),
+    // Ambient dimming (time window + optional light sensor)
+    this.ambientDimEnabled = false,
+    this.dimStartMinutes = 22 * 60,
+    this.dimEndMinutes = 6 * 60,
     // Cache
     this.cacheLimitBytes = 500 * 1024 * 1024,
     // Working-set pool
@@ -107,6 +111,19 @@ class AppSettings {
 
   // --- Night mode -------------------------------------------------------
   final NightSchedule nightSchedule;
+
+  // --- Ambient dimming ----------------------------------------------------
+  /// Whether the screen is dimmed with a black overlay inside the time
+  /// window below. Off by default.
+  final bool ambientDimEnabled;
+
+  /// Start of the dimming window, minutes since midnight (default 22:00).
+  /// See `isWithinDimWindow` in `services/ambient/ambient_dim_controller.dart`.
+  final int dimStartMinutes;
+
+  /// End of the dimming window, minutes since midnight (default 06:00).
+  /// The window may cross midnight.
+  final int dimEndMinutes;
 
   // --- Cache ------------------------------------------------------------
   final int cacheLimitBytes;
@@ -240,6 +257,9 @@ class AppSettings {
     AlwaysOnMode? alwaysOnMode,
     bool? kioskModeEnabled,
     NightSchedule? nightSchedule,
+    bool? ambientDimEnabled,
+    int? dimStartMinutes,
+    int? dimEndMinutes,
     int? cacheLimitBytes,
     int? poolTargetSize,
     int? poolRefillIntervalHours,
@@ -282,6 +302,9 @@ class AppSettings {
       alwaysOnMode: alwaysOnMode ?? this.alwaysOnMode,
       kioskModeEnabled: kioskModeEnabled ?? this.kioskModeEnabled,
       nightSchedule: nightSchedule ?? this.nightSchedule,
+      ambientDimEnabled: ambientDimEnabled ?? this.ambientDimEnabled,
+      dimStartMinutes: dimStartMinutes ?? this.dimStartMinutes,
+      dimEndMinutes: dimEndMinutes ?? this.dimEndMinutes,
       cacheLimitBytes: cacheLimitBytes ?? this.cacheLimitBytes,
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
       poolRefillIntervalHours:
@@ -331,6 +354,9 @@ class AppSettings {
         'alwaysOnMode': alwaysOnMode.name,
         'kioskModeEnabled': kioskModeEnabled,
         'nightSchedule': nightSchedule.toJson(),
+        'ambientDimEnabled': ambientDimEnabled,
+        'dimStartMinutes': dimStartMinutes,
+        'dimEndMinutes': dimEndMinutes,
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
@@ -386,6 +412,9 @@ class AppSettings {
           ? NightSchedule.fromJson(
               Map<String, dynamic>.from(json['nightSchedule'] as Map))
           : const NightSchedule.disabled(),
+      ambientDimEnabled: json['ambientDimEnabled'] as bool? ?? false,
+      dimStartMinutes: json['dimStartMinutes'] as int? ?? 22 * 60,
+      dimEndMinutes: json['dimEndMinutes'] as int? ?? 6 * 60,
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
