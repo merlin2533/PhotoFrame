@@ -304,7 +304,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     String two(int v) => v.toString().padLeft(2, '0');
     final label = '${two(date.day)}.${two(date.month)}.${date.year}';
     final when = taken != null ? 'Aufgenommen $label' : 'Datei vom $label';
-    return '$source \u203a ${item.id}\n$when';
+    final slash = item.id.lastIndexOf('/');
+    final folder = slash > 0 ? item.id.substring(0, slash) : '/';
+    return '$source \u203a $folder\n$when';
   }
 
   void _togglePause() {
@@ -576,12 +578,40 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                           ).animate(animation),
                           child: child,
                         );
+                      case SlideshowTransition.slideUp:
+                        return SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 1),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          )),
+                          child: child,
+                        );
+                      case SlideshowTransition.zoom:
+                        // New photo grows from 92% and fades in together.
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween<double>(begin: 0.92, end: 1).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                              ),
+                            ),
+                            child: child,
+                          ),
+                        );
                     }
                   },
                   child: slide,
                 ),
-                if (item != null)
-                  PathOverlay(text: _originText(item)),
+                if (settings.showImageDetails && item != null)
+                  PathOverlay(
+                    text: _originText(item),
+                    onRight: settings.imageDetailsOnRight,
+                  ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
                 // Clock and weather share the bottom-left corner: shown

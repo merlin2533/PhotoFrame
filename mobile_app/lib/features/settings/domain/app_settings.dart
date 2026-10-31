@@ -3,7 +3,7 @@ import '../../slideshow/domain/night_schedule.dart';
 import '../../slideshow/domain/slideshow_config.dart';
 
 /// Visual transition played between slideshow items.
-enum SlideshowTransition { fade, slide, none }
+enum SlideshowTransition { fade, slide, zoom, slideUp, none }
 
 /// All persisted, user-configurable app settings, gathered in one immutable
 /// value object so it can be loaded/saved as a single JSON blob in
@@ -18,6 +18,8 @@ class AppSettings {
     // Slideshow
     this.intervalSeconds = 10,
     this.showSourceLabel = false,
+    this.showImageDetails = true,
+    this.imageDetailsOnRight = false,
     this.showClock = true,
     this.displayMode = DisplayMode.contain,
     this.transition = SlideshowTransition.fade,
@@ -58,6 +60,12 @@ class AppSettings {
   // --- Slideshow ------------------------------------------------------
   final int intervalSeconds;
   final bool showSourceLabel;
+
+  /// Folder and date of the shown photo at the bottom edge.
+  final bool showImageDetails;
+
+  /// `false` = bottom left (default), `true` = bottom right.
+  final bool imageDetailsOnRight;
   final bool showClock;
   final DisplayMode displayMode;
   final SlideshowTransition transition;
@@ -187,6 +195,8 @@ class AppSettings {
   AppSettings copyWith({
     int? intervalSeconds,
     bool? showSourceLabel,
+    bool? showImageDetails,
+    bool? imageDetailsOnRight,
     bool? showClock,
     DisplayMode? displayMode,
     SlideshowTransition? transition,
@@ -219,6 +229,8 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
       showSourceLabel: showSourceLabel ?? this.showSourceLabel,
+      showImageDetails: showImageDetails ?? this.showImageDetails,
+      imageDetailsOnRight: imageDetailsOnRight ?? this.imageDetailsOnRight,
       showClock: showClock ?? this.showClock,
       displayMode: displayMode ?? this.displayMode,
       transition: transition ?? this.transition,
@@ -260,6 +272,8 @@ class AppSettings {
   Map<String, dynamic> toJson() => {
         'intervalSeconds': intervalSeconds,
         'showSourceLabel': showSourceLabel,
+        'showImageDetails': showImageDetails,
+        'imageDetailsOnRight': imageDetailsOnRight,
         'showClock': showClock,
         'displayMode': displayMode.name,
         'transition': transition.name,
@@ -290,6 +304,8 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: json['intervalSeconds'] as int? ?? 10,
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
+      showImageDetails: json['showImageDetails'] as bool? ?? true,
+      imageDetailsOnRight: json['imageDetailsOnRight'] as bool? ?? false,
       showClock: json['showClock'] as bool? ?? true,
       displayMode: DisplayMode.values.firstWhere(
         (m) => m.name == json['displayMode'],
