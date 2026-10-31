@@ -9,6 +9,7 @@ import 'photo_item.dart';
 enum SourceType {
   smb,
   nextcloud,
+  immich,
   local,
   sharedAlbum,
   mock,

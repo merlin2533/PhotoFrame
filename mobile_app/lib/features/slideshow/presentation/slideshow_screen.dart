@@ -65,7 +65,9 @@ Future<void> clearNetworkCache() async {
     await for (final entity in dir.list(followLinks: false)) {
       final name = entity.path.split(Platform.pathSeparator).last;
       if (entity is File &&
-          (name.startsWith('nextcloud_') || name.startsWith('smb_'))) {
+          (name.startsWith('nextcloud_') ||
+              name.startsWith('smb_') ||
+              name.startsWith('immich_'))) {
         await entity.delete();
       }
     }
@@ -202,7 +204,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // `seenKeys`.
       if (source.type == SourceType.local ||
           source.type == SourceType.smb ||
-          source.type == SourceType.nextcloud) {
+          source.type == SourceType.nextcloud ||
+          source.type == SourceType.immich) {
         const root = PhotoFolder(id: '', name: '', path: '');
         await for (final r in source.listImages(root, recursive: false)) {
           if (full()) break;
@@ -426,7 +429,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final source = _sourcesById[item.sourceId];
       return source != null &&
           (source.type == SourceType.smb ||
-              source.type == SourceType.nextcloud);
+              source.type == SourceType.nextcloud ||
+              source.type == SourceType.immich);
     }).toList();
     if (candidates.isEmpty) return;
     final item = candidates[_prefetchRandom.nextInt(candidates.length)];

@@ -42,6 +42,8 @@ class ConfiguredSourcesList extends ConsumerWidget {
         return Icons.dns_outlined;
       case SourceType.nextcloud:
         return Icons.cloud_outlined;
+      case SourceType.immich:
+        return Icons.photo_library_outlined;
       case SourceType.local:
         return Icons.folder_outlined;
       case SourceType.sharedAlbum:

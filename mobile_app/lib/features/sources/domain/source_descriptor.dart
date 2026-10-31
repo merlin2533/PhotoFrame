@@ -1,5 +1,6 @@
 import '../local/local_folder_source.dart';
 import '../mock/mock_photo_source.dart';
+import '../immich/immich_photo_source.dart';
 import '../nextcloud/nextcloud_photo_source.dart';
 import '../smb/smb_photo_source.dart';
 import 'photo_source.dart';
@@ -78,6 +79,13 @@ PhotoSource fromDescriptor(SourceDescriptor descriptor,
           id: descriptor.id,
           config: config,
           displayName: descriptor.displayName);
+    case SourceType.immich:
+      final config = ImmichSourceConfig.fromJson(descriptor.config,
+          password: password ?? '');
+      return ImmichPhotoSource(
+          id: descriptor.id,
+          config: config,
+          displayName: descriptor.displayName);
     case SourceType.local:
       return LocalFolderSource(
         id: descriptor.id,
@@ -110,6 +118,14 @@ extension PhotoSourceDescriptorX on PhotoSource {
     if (source is NextcloudPhotoSource) {
       return SourceDescriptor(
         type: SourceType.nextcloud,
+        id: source.id,
+        displayName: source.displayName,
+        config: source.config.toJson(),
+      );
+    }
+    if (source is ImmichPhotoSource) {
+      return SourceDescriptor(
+        type: SourceType.immich,
         id: source.id,
         displayName: source.displayName,
         config: source.config.toJson(),

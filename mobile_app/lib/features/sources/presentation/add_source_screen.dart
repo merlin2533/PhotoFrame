@@ -112,6 +112,13 @@ class AddSourceScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/sources/add/nextcloud'),
           ),
           _SourceTypeCard(
+            icon: Icons.photo_library_outlined,
+            title: 'Immich',
+            subtitle: 'Alben eines Immich-Servers mit API-Schlüssel',
+            enabled: true,
+            onTap: () => context.push('/settings/sources/add/immich'),
+          ),
+          _SourceTypeCard(
             icon: Icons.science_outlined,
             title: 'Mock/Test-Quelle',
             subtitle: 'Für Entwicklung: generiert Beispielbilder',
