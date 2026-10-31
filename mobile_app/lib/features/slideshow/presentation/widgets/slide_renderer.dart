@@ -102,12 +102,12 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
         final file = snapshot.data;
         switch (widget.displayMode) {
           case DisplayMode.contain:
-            return Center(
-              child: AspectRatio(
-                aspectRatio: _aspectRatio,
-                child: _PhotoImage(
-                    item: widget.item, file: file, fit: BoxFit.contain),
-              ),
+            // The photo fits the whole screen. The real aspect ratio is not
+            // used as a box: the index does not store it, so a fixed 16:9 box
+            // cut portrait and 4:3 photos down to a fraction of the screen.
+            return SizedBox.expand(
+              child: _PhotoImage(
+                  item: widget.item, file: file, fit: BoxFit.contain),
             );
           case DisplayMode.cover:
             return SizedBox.expand(
