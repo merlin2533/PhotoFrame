@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,17 +14,74 @@ import '../../sources/state/sources_providers.dart';
 
 /// Lists the connected sources and every photo in the saved index as a grid.
 /// Tap a photo to see it larger.
-class PhotoOverviewScreen extends ConsumerWidget {
+/// How the photos are listed in the overview.
+enum OverviewOrder { random, folder, saved }
+
+class PhotoOverviewScreen extends ConsumerStatefulWidget {
   const PhotoOverviewScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PhotoOverviewScreen> createState() =>
+      _PhotoOverviewScreenState();
+}
+
+class _PhotoOverviewScreenState extends ConsumerState<PhotoOverviewScreen> {
+  OverviewOrder _order = OverviewOrder.random;
+  int _seed = DateTime.now().microsecondsSinceEpoch;
+
+  /// The list in the chosen order. Random uses a seed, so "Neu mischen" changes
+  /// the seed and everything else stays put.
+  List<PhotoItem> _ordered(List<PhotoItem> items) {
+    switch (_order) {
+      case OverviewOrder.random:
+        return List<PhotoItem>.of(items)..shuffle(math.Random(_seed));
+      case OverviewOrder.folder:
+        return List<PhotoItem>.of(items)
+          ..sort((a, b) {
+            final bySource = a.sourceId.compareTo(b.sourceId);
+            if (bySource != 0) return bySource;
+            final byFolder = a.folderId.compareTo(b.folderId);
+            return byFolder != 0 ? byFolder : a.name.compareTo(b.name);
+          });
+      case OverviewOrder.saved:
+        return items;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value ?? const <PhotoSource>[];
     final stats = ref.watch(sourceStatsProvider);
     final index = ref.watch(_indexProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Übersicht')),
+      appBar: AppBar(
+        title: const Text('Übersicht'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shuffle),
+            tooltip: 'Neu mischen',
+            onPressed: () => setState(() {
+              _order = OverviewOrder.random;
+              _seed = DateTime.now().microsecondsSinceEpoch;
+            }),
+          ),
+          PopupMenuButton<OverviewOrder>(
+            tooltip: 'Sortierung',
+            icon: const Icon(Icons.sort),
+            onSelected: (order) => setState(() => _order = order),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                  value: OverviewOrder.random, child: Text('Zufällig')),
+              PopupMenuItem(
+                  value: OverviewOrder.folder, child: Text('Nach Ordner')),
+              PopupMenuItem(
+                  value: OverviewOrder.saved,
+                  child: Text('Reihenfolge der Quellen')),
+            ],
+          ),
+        ],
+      ),
       body: index.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -40,7 +98,8 @@ class PhotoOverviewScreen extends ConsumerWidget {
             ],
           ),
         ),
-        data: (items) {
+        data: (savedItems) {
+          final items = _ordered(savedItems);
           final byId = {for (final s in sources) s.id: s};
           return Column(
             children: [

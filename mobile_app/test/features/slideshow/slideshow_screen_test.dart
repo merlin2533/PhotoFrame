@@ -134,6 +134,8 @@ void main() {
           ),
           kioskModeControllerProvider.overrideWithValue(kiosk),
           networkCacheCleanerProvider.overrideWithValue(() async {}),
+          smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
+          smallPhotoWorkerProvider.overrideWith(_NoWorker.new),
           photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
             read: () async => null,
             write: (_) async {},
