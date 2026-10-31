@@ -1,16 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/index/photo_index_store.dart';
-import 'package:mobile_app/features/sources/domain/photo_item.dart';
-import 'dart:io';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/slide_renderer.dart';
 import 'package:mobile_app/features/slideshow/state/slideshow_providers.dart';
+import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/domain/photo_source.dart';
 import 'package:mobile_app/features/sources/mock/mock_photo_source.dart';
 import 'package:mobile_app/features/sources/state/sources_providers.dart';
