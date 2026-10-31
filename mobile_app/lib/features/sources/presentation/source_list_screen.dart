@@ -114,6 +114,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
       title: Text(widget.source.displayName),
       subtitle:
           Text(disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle()),
+      // Compact trailing: switch + overflow menu. Three separate icon buttons
+      // overflowed the ListTile on phone widths and hid the switch.
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -129,22 +131,19 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
               return s.copyWith(disabledSourceIds: ids);
             }),
           ),
-          IconButton(
-            icon: _testing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            onPressed: _testing ? null : _test,
-            tooltip: 'Verbindung erneut testen',
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Quelle entfernen',
-            onPressed: () =>
-                ref.read(sourcesProvider.notifier).removeById(widget.source.id),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'test') {
+                _test();
+              } else if (value == 'remove') {
+                ref.read(sourcesProvider.notifier).removeById(widget.source.id);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                  value: 'test', child: Text('Verbindung erneut testen')),
+              PopupMenuItem(value: 'remove', child: Text('Quelle entfernen')),
+            ],
           ),
         ],
       ),
