@@ -48,6 +48,9 @@ class BackgroundJobs extends Notifier<bool> {
           .toList();
       final store = ref.read(photoIndexStoreProvider);
       var snapshot = await store.load();
+      // Preparation of the photos we already know starts right away and runs
+      // alongside the index refresh; new photos are queued into the same run.
+      unawaited(_prepareSmallPhotos(_enabledItems(snapshot, enabled), enabled));
       final due = snapshot.items.isEmpty ||
           snapshot.age(DateTime.now()) >=
               Duration(hours: settings.indexRefreshHours);
@@ -56,11 +59,9 @@ class BackgroundJobs extends Notifier<bool> {
           await _refreshSource(source, store);
         }
         snapshot = await store.load();
+        unawaited(
+            _prepareSmallPhotos(_enabledItems(snapshot, enabled), enabled));
       }
-      final items = snapshot.items
-          .where((i) => enabled.any((s) => s.id == i.sourceId))
-          .toList();
-      await _prepareSmallPhotos(items, enabled);
     } catch (_) {
       // Next run tries again; nothing else to do here.
     } finally {
@@ -68,6 +69,12 @@ class BackgroundJobs extends Notifier<bool> {
       state = false;
     }
   }
+
+  List<PhotoItem> _enabledItems(
+          IndexSnapshot snapshot, List<PhotoSource> enabled) =>
+      snapshot.items
+          .where((i) => enabled.any((s) => s.id == i.sourceId))
+          .toList();
 
   /// Replaces the photos of one source in the saved index.
   Future<void> _refreshSource(PhotoSource source, PhotoIndexStore store) async {
