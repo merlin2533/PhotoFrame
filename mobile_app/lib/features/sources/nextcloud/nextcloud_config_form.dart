@@ -61,8 +61,10 @@ class _NextcloudConfigFormScreenState
 
   Future<void> _testConnection() async {
     setState(() => _submitted = true);
+    // Validate the raw input: `normalized()` already reduced a pasted share
+    // link to its bare token, which the share-link validation rejects.
+    if (!_model.isValid) return;
     final normalized = _model.normalized();
-    if (!normalized.isValid) return;
 
     setState(() {
       _testing = true;
@@ -92,11 +94,11 @@ class _NextcloudConfigFormScreenState
 
   Future<void> _save() async {
     setState(() => _submitted = true);
-    final normalized = _model.normalized();
-    if (!normalized.isValid) {
+    if (!_model.isValid) {
       setState(() {});
       return;
     }
+    final normalized = _model.normalized();
 
     final id = ref.read(sourceIdGeneratorProvider).v4();
     final config = NextcloudSourceConfig.fromForm(normalized);
@@ -107,13 +109,20 @@ class _NextcloudConfigFormScreenState
     // the write has landed before `add()` triggers `SourcesController`'s own
     // descriptor persistence; the password itself is read back separately
     // from `SecureCredentialStore` on the next app start.
-    if (config.authPassword.isNotEmpty) {
-      await ref
-          .read(secureCredentialStoreProvider)
-          .write(id, 'password', config.authPassword);
+    try {
+      if (config.authPassword.isNotEmpty) {
+        await ref
+            .read(secureCredentialStoreProvider)
+            .write(id, 'password', config.authPassword);
+      }
+      await ref.read(sourcesProvider.notifier).add(source);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+      );
+      return;
     }
-
-    await ref.read(sourcesProvider.notifier).add(source);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
