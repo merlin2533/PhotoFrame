@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart' as ph;
 
 import '../../../l10n/app_localizations.dart';
 import '../../settings/state/settings_providers.dart';
+import '../../sources/presentation/configured_sources_list.dart';
 
 /// First-run setup wizard.
 ///
@@ -424,7 +425,14 @@ class _AddSourceStep extends StatelessWidget {
     return _StepScaffold(
       icon: Icons.add_photo_alternate_outlined,
       title: l10n.onboardingAddSourceTitle,
-      body: Text(l10n.onboardingAddSourceBody),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.onboardingAddSourceBody),
+          const SizedBox(height: 16),
+          const ConfiguredSourcesList(),
+        ],
+      ),
     );
   }
 }

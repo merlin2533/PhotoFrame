@@ -14,7 +14,8 @@ class SourceLabelOverlay extends StatelessWidget {
     return Positioned(
       right: 16,
       bottom: 16,
-      child: _OverlayPill(child: Text(label, style: const TextStyle(color: Colors.white))),
+      child: _OverlayPill(
+          child: Text(label, style: const TextStyle(color: Colors.white))),
     );
   }
 }

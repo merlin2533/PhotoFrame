@@ -24,7 +24,7 @@ class _SharingSettingsScreenState extends ConsumerState<SharingSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final settings = ref.read(settingsProvider).valueOrNull;
+    final settings = ref.read(settingsProvider).value;
     _urlController = TextEditingController(text: settings?.relayServerUrl ?? '');
   }
 

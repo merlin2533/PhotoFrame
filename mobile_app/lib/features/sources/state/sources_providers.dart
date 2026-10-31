@@ -56,13 +56,13 @@ final Provider<Future<SharedPreferences>> sourcesSharedPreferencesProvider =
 /// and no further seeding happens.
 class SourcesController extends AsyncNotifier<List<PhotoSource>> {
   SharedPreferences? _prefs;
+  List<PhotoSource> _liveSources = const [];
 
   @override
   Future<List<PhotoSource>> build() async {
     ref.onDispose(() {
-      final current = state.valueOrNull;
-      if (current == null) return;
-      for (final source in current) {
+      // Riverpod 3 forbids reading `state` inside onDispose.
+      for (final source in _liveSources) {
         // Fire-and-forget: dispose() is async but Notifier.onDispose isn't.
         unawaited(source.dispose());
       }
@@ -110,6 +110,7 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     // not-yet-in-`sources`, credential reclaimed as an "orphan".
     await credentialStore.pruneOrphans(sources.map((s) => s.id).toSet());
 
+    _liveSources = sources;
     return sources;
   }
 
@@ -145,7 +146,7 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
 
   Future<void> add(PhotoSource source) async {
     // Deliberately `await future` (waits for build() to finish, rethrowing
-    // if it failed) rather than `state.valueOrNull ?? []`: the latter
+    // if it failed) rather than `state.value ?? []`: the latter
     // silently treats a still-loading OR permanently-errored provider as an
     // *empty* list, and the write below persists the entire list - so a
     // call landing in that window would overwrite every previously
@@ -155,6 +156,7 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     // actually makes that safe rather than just less likely to be hit.
     final current = await future;
     final updated = [...current, source];
+    _liveSources = updated;
     state = AsyncValue.data(updated);
     await _saveDescriptors(await _prefsInstance(), updated);
   }
@@ -163,6 +165,7 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
     final current = await future;
     final removed = current.where((s) => s.id == id).toList();
     final updated = current.where((s) => s.id != id).toList();
+    _liveSources = updated;
     state = AsyncValue.data(updated);
     await _saveDescriptors(await _prefsInstance(), updated);
     for (final source in removed) {

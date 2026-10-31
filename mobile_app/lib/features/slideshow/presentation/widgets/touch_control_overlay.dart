@@ -73,7 +73,8 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
     onToggleFavorite();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(wasFavorite ? 'Favorit entfernt' : 'Als Favorit markiert'),
+        content:
+            Text(wasFavorite ? 'Favorit entfernt' : 'Als Favorit markiert'),
       ),
     );
   }
@@ -141,7 +142,8 @@ class _ControlBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            icon: Icon(isPaused ? Icons.play_arrow : Icons.pause, color: Colors.white),
+            icon: Icon(isPaused ? Icons.play_arrow : Icons.pause,
+                color: Colors.white),
             onPressed: onTogglePause,
             tooltip: isPaused ? 'Weiter' : 'Pause',
           ),

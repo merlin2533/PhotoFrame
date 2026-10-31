@@ -46,7 +46,7 @@ class AddSourceScreen extends ConsumerWidget {
     // user retried via "Quelle hinzufügen" instead of the existing entry's
     // reconnect action) would otherwise silently create a duplicate entry
     // for the same path.
-    final existingSources = ref.read(sourcesProvider).valueOrNull ?? const [];
+    final existingSources = ref.read(sourcesProvider).value ?? const [];
     final alreadyConfigured = existingSources.any(
       (existing) => existing.type == SourceType.local && (existing as LocalFolderSource).rootPath == path,
     );

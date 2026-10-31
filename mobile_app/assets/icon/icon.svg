@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B3C7A"/>
+      <stop offset="1" stop-color="#14A89D"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7CCDE6"/>
+      <stop offset="1" stop-color="#FCE3B0"/>
+    </linearGradient>
+    <clipPath id="photo">
+      <rect x="284" y="284" width="456" height="456" rx="20"/>
+    </clipPath>
+  </defs>
+  <!-- full-bleed background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- white frame (content stays inside the central 66% safe zone: 174..850) -->
+  <rect x="232" y="232" width="560" height="560" rx="56" fill="#FFFFFF"/>
+  <!-- picture: sky, sun, two mountain ranges -->
+  <g clip-path="url(#photo)">
+    <rect x="284" y="284" width="456" height="456" fill="url(#sky)"/>
+    <circle cx="640" cy="380" r="56" fill="#FFD23F"/>
+    <path d="M284 600 L420 450 L530 560 L610 480 L740 610 L740 740 L284 740 Z" fill="#4A9BB5"/>
+    <path d="M284 690 L390 590 L490 680 L570 610 L740 720 L740 740 L284 740 Z" fill="#1F5C7A"/>
+  </g>
+</svg>
