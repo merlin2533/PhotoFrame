@@ -23,6 +23,12 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
+              onPressed: () => context.pushNamed('overview'),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Übersicht'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
               onPressed: () => context.pushNamed('settings'),
               icon: const Icon(Icons.settings_outlined),
               label: const Text('Einstellungen'),

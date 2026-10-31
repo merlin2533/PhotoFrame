@@ -153,6 +153,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     int? limit,
     Duration? timeout,
     Set<String>? failedSourceIds,
+    Future<void> Function(String sourceId, bool ok, List<PhotoItem> soFar)?
+        onSourceDone,
   }) async {
     final allItems = <PhotoItem>[];
     // With [limit] the crawl stops early once that many photos were found, so
@@ -222,6 +224,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         // the running pool during a background refresh.
         failedSourceIds?.add(source.id);
       }
+      // Reported after every source, so a cancelled or interrupted crawl still
+      // leaves a usable index behind.
+      await onSourceDone?.call(
+        source.id,
+        !(failedSourceIds?.contains(source.id) ?? false),
+        List.of(allItems),
+      );
       ref.read(sourceStatsProvider.notifier).record(
             source.id,
             allItems.where((item) => item.sourceId == source.id).length,
@@ -311,6 +320,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final failed = <String>{};
       final List<PhotoItem> eligible;
       if (due) {
+        // Sources that succeeded in this crawl; everything else keeps its saved
+        // photos.
+        final succeeded = <String>{};
+        Future<void> persist(List<PhotoItem> soFar) async {
+          final merged = <String, PhotoItem>{
+            for (final i in snapshot.items)
+              if (!succeeded.contains(i.sourceId)) '${i.sourceId}::${i.id}': i,
+            for (final i in soFar) '${i.sourceId}::${i.id}': i,
+          };
+          await store.save(merged.values.toList());
+        }
+
         // No timeout here: large network shares can take minutes.
         final crawled = await _crawlEligible(
           sources,
@@ -318,13 +339,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           favorites,
           [],
           failedSourceIds: failed,
+          onSourceDone: (sourceId, ok, soFar) async {
+            if (ok) succeeded.add(sourceId);
+            await persist(soFar);
+          },
         );
         if (!mounted || _engine != engine) return;
-        // Keep the saved photos of sources that failed in this crawl.
-        await store.save([
-          ...crawled,
-          ...snapshot.items.where((i) => failed.contains(i.sourceId)),
-        ]);
+        await persist(crawled);
         eligible = crawled;
       } else {
         final enabledIds = {for (final s in sources) s.id}
@@ -337,7 +358,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       if (!mounted || _engine != engine || eligible.isEmpty) return;
 
-      final fresh = await _todaysSelection(eligible, settings.poolTargetSize);
+      final fresh = await _todaysSelection(eligible, settings.selectionCount);
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       bool kept(String sourceId, String itemId) =>
           failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
@@ -407,7 +428,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (indexed.isNotEmpty) {
         eligibleItems = await _todaysSelection(
           _applyFavoritesFilter(indexed, settings, favorites),
-          settings.poolTargetSize,
+          settings.selectionCount,
         );
       } else {
         eligibleItems = await _crawlEligible(
