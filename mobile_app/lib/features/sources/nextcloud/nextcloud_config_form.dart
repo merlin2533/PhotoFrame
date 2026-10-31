@@ -13,7 +13,11 @@ import 'nextcloud_photo_source.dart';
 /// modelled by [NextcloudConfigFormModel]: an account (WebDAV login) or a
 /// public share link.
 class NextcloudConfigFormScreen extends ConsumerStatefulWidget {
-  const NextcloudConfigFormScreen({super.key});
+  const NextcloudConfigFormScreen({super.key, this.editing});
+
+  /// The source being edited: prefilled, and replaced on save. `null` for a
+  /// new source.
+  final PhotoSource? editing;
 
   @override
   ConsumerState<NextcloudConfigFormScreen> createState() =>
@@ -49,6 +53,36 @@ class _NextcloudConfigFormScreenState
         sharePassword: _sharePasswordController.text,
         folderPath: _folderPathController.text,
       );
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.editing;
+    if (source is! NextcloudPhotoSource) return;
+    final c = source.config;
+    _folderPathController.text = c.rootPath;
+    if (c.isShareLink) {
+      _authKind = NextcloudAuthKind.shareLink;
+      _serverUrlController.text =
+          c.davBaseUrl.replaceAll('/public.php/webdav', '');
+      _shareTokenController.text = c.authUsername;
+    } else {
+      _authKind = NextcloudAuthKind.account;
+      _serverUrlController.text =
+          c.davBaseUrl.replaceAll(RegExp(r'/remote\.php/dav/files/.*$'), '');
+      _usernameController.text = c.authUsername;
+    }
+    unawaited(() async {
+      final store = ref.read(secureCredentialStoreProvider);
+      final pw = await store.read(source.id, 'password');
+      if (pw == null || !mounted) return;
+      if (c.isShareLink) {
+        _sharePasswordController.text = pw;
+      } else {
+        _appPasswordController.text = pw;
+      }
+    }());
+  }
 
   @override
   void dispose() {
@@ -141,6 +175,10 @@ class _NextcloudConfigFormScreenState
         ? _selectedFolders
         : [_model.normalized().folderPath];
     final store = ref.read(secureCredentialStoreProvider);
+    final editing = widget.editing;
+    if (editing != null) {
+      await ref.read(sourcesProvider.notifier).removeById(editing.id);
+    }
 
     try {
       for (final folder in folders) {

@@ -19,7 +19,11 @@ import 'smb_photo_source.dart';
 /// `SmbPhotoSource.testConnection()` and surfaces its actual result/error -
 /// it just can't be exercised end-to-end here.
 class SmbConfigFormScreen extends ConsumerStatefulWidget {
-  const SmbConfigFormScreen({super.key});
+  const SmbConfigFormScreen({super.key, this.editing});
+
+  /// The source being edited. Its fields are prefilled and it is replaced on
+  /// save. `null` for a new source.
+  final PhotoSource? editing;
 
   @override
   ConsumerState<SmbConfigFormScreen> createState() =>
@@ -49,6 +53,25 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
         password: _passwordController.text,
         rootPath: _rootPathController.text,
       );
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.editing;
+    if (source is! SmbPhotoSource) return;
+    final c = source.config;
+    _hostController.text = c.host;
+    _shareController.text = c.share;
+    _domainController.text = c.domain;
+    _usernameController.text = c.username;
+    _rootPathController.text = c.rootPath;
+    unawaited(() async {
+      final pw = await ref
+          .read(secureCredentialStoreProvider)
+          .read(source.id, 'password');
+      if (pw != null && mounted) _passwordController.text = pw;
+    }());
+  }
 
   @override
   void dispose() {
@@ -195,6 +218,10 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
     final folders =
         _selectedFolders.isNotEmpty ? _selectedFolders : [normalized.rootPath];
     final store = ref.read(secureCredentialStoreProvider);
+    final editing = widget.editing;
+    if (editing != null) {
+      await ref.read(sourcesProvider.notifier).removeById(editing.id);
+    }
     try {
       for (final folder in folders) {
         final id = ref.read(sourceIdGeneratorProvider).v4();

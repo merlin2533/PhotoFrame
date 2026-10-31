@@ -25,6 +25,7 @@ class TouchControlOverlay extends StatefulWidget {
     required this.onNext,
     required this.onShowInfo,
     required this.onOpenSettings,
+    this.onPrevious,
     this.isFavorite = false,
     this.onToggleFavorite,
   });
@@ -35,6 +36,9 @@ class TouchControlOverlay extends StatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onShowInfo;
   final VoidCallback onOpenSettings;
+
+  /// Swipe right: back to the previous photo.
+  final VoidCallback? onPrevious;
 
   /// Whether the currently-shown item is favorited, per `FavoritesStore`.
   final bool isFavorite;
@@ -97,6 +101,15 @@ class _TouchControlOverlayState extends State<TouchControlOverlay> {
       onTap: _toggleControls,
       onDoubleTap: () => _toggleFavorite(context),
       onLongPress: widget.onOpenSettings,
+      // Swipe left = next photo, swipe right = previous photo.
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -300) {
+          widget.onNext();
+        } else if (velocity > 300) {
+          widget.onPrevious?.call();
+        }
+      },
       child: Stack(
         fit: StackFit.expand,
         children: [

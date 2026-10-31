@@ -102,6 +102,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         (widget.source as UploadablePhotoSource).canUpload;
 
     final stats = ref.watch(sourceStatsProvider)[widget.source.id];
+    final editable = widget.source.type == SourceType.smb ||
+        widget.source.type == SourceType.nextcloud;
     final disabled = ref.watch(settingsProvider.select(
             (s) => s.value?.disabledSourceIds.contains(widget.source.id))) ??
         false;
@@ -135,14 +137,22 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             onSelected: (value) {
               if (value == 'test') {
                 _test();
+              } else if (value == 'edit') {
+                final path = widget.source.type == SourceType.smb
+                    ? '/settings/sources/add/smb'
+                    : '/settings/sources/add/nextcloud';
+                context.push(path, extra: widget.source);
               } else if (value == 'remove') {
                 ref.read(sourcesProvider.notifier).removeById(widget.source.id);
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
                   value: 'test', child: Text('Verbindung erneut testen')),
-              PopupMenuItem(value: 'remove', child: Text('Quelle entfernen')),
+              if (editable)
+                const PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
+              const PopupMenuItem(
+                  value: 'remove', child: Text('Quelle entfernen')),
             ],
           ),
         ],

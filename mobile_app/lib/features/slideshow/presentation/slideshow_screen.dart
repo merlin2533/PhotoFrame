@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -180,14 +181,21 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           }
         }
       }
+      // Folders are visited in random order, so a partial crawl (quick start)
+      // draws photos from many folders instead of just the first one.
+      final folders = <PhotoFolder>[];
       await for (final folderResult in source.listFolders()) {
-        if (full()) break;
         final folder = folderResult.valueOrNull;
-        if (folder == null) {
+        if (folder != null) {
+          folders.add(folder);
+        } else {
           errors.add(
               '${source.displayName}: ${folderResult.failureOrNull?.message}');
-          continue;
         }
+      }
+      folders.shuffle(Random());
+      for (final folder in folders) {
+        if (full()) break;
         await for (final itemResult in source.listImages(folder)) {
           if (full()) break;
           final item = itemResult.valueOrNull;
@@ -496,6 +504,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     setState(() => _paused = !_paused);
   }
 
+  void _previous() {
+    final engine = _engine;
+    if (engine != null) unawaited(engine.showPrevious());
+  }
+
   void _next() {
     final engine = _engine;
     if (engine != null) unawaited(engine.skipToNext());
@@ -689,6 +702,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         isPaused: _paused,
         onTogglePause: _togglePause,
         onNext: _next,
+        onPrevious: _previous,
         onShowInfo: () {
           final item = engine.currentItem;
           if (item != null) _showInfo(item);
