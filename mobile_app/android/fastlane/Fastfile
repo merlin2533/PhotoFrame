@@ -4,7 +4,7 @@
 #   fastlane android release   builds and uploads to the internal test track
 #
 # Upload needs a Play service account JSON, given by path in the environment:
-#   PLAY_JSON_KEY_PATH=~/Documents/PhotoFrame-keys/play-service-account.json
+#   PLAY_JSON_KEY_PATH=~/Documents/Zertifikate/PhotoFrame/play-service-account.json
 # The JSON is never stored in the repo.
 
 default_platform(:android)
