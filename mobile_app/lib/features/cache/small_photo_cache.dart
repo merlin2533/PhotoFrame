@@ -615,8 +615,11 @@ class SmallPhotoCache {
     // A colour-rejected photo is not decoded by the Flutter engine: on large
     // camera files that decode crashed the app. It counts as not convertible,
     // and the original is shown instead.
-    if (colourRejected) return null;
-    return small ?? await _scaleWithFlutter(full, temp);
+    // The Flutter fallback is disabled: its decode of the engine crashed the app
+    // on photos where the native scaler threw (also small ones). Such a photo
+    // counts as not convertible and the original is shown instead.
+    if (colourRejected || small == null) return null;
+    return small;
   }
 
   /// Grid size of the colour comparison: the picture is split into
@@ -694,6 +697,7 @@ class SmallPhotoCache {
 
   /// Fallback scaler using Flutter's own decoder (correct colours for every
   /// format it can read), re-encoded as JPEG to keep storage small.
+  // ignore: unused_element
   Future<File?> _scaleWithFlutter(File source, File temp) async {
     final name = DebugTrace.baseName(source.path);
     DebugTrace.event('cache', 'flutter scale start $name');
