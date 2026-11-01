@@ -11,7 +11,44 @@ export function ensureStorageDirs(): void {
 
 export function hashFile(filePath: string): string {
   const buf = fs.readFileSync(filePath);
+  return sha256Hex(buf);
+}
+
+export function sha256Hex(buf: Buffer): string {
   return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Writes the re-encoded original and thumbnail for a blob to the store, using
+ * async fs and the bytes already in memory (no re-read to hash them). The
+ * original is written to a temp file and renamed into place, so readers never
+ * see a partial file. An existing original is left untouched (dedup).
+ *
+ * This runs OUTSIDE the SQL transaction on purpose; the blob row is recorded
+ * afterwards by commitBlobRow() inside the transaction. See commitBlob's doc
+ * comment for the orphaned-file trade-off, which applies here too.
+ */
+export async function storeBlobFiles(
+  hash: string,
+  originalBuffer: Buffer,
+  thumbnailBuffer: Buffer,
+): Promise<void> {
+  const dest = originalPath(hash);
+  if (!(await fileExists(dest))) {
+    const tmp = path.join(UPLOAD_TMP_DIR, `${crypto.randomUUID()}.orig.tmp`);
+    await fs.promises.writeFile(tmp, originalBuffer);
+    await fs.promises.rename(tmp, dest);
+  }
+  await fs.promises.writeFile(thumbPath(hash), thumbnailBuffer);
 }
 
 export function originalPath(hash: string): string {
@@ -51,6 +88,15 @@ export function commitBlob(tmpFilePath: string, bytes: number): string {
     fs.unlinkSync(tmpFilePath);
   }
 
+  return commitBlobRow(hash, bytes);
+}
+
+/**
+ * Records one more reference to a blob in the `blobs` table: increments the
+ * refcount if the row exists, otherwise inserts it with refcount 1. Must run
+ * inside the caller's transaction, next to the `images` INSERT.
+ */
+export function commitBlobRow(hash: string, bytes: number): string {
   const db = getDb();
   const existing = db.prepare('SELECT hash FROM blobs WHERE hash = ?').get(hash);
   if (existing) {
