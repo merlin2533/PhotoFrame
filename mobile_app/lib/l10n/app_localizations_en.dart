@@ -424,4 +424,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get slideDecodeFailed => 'Cannot be decoded';
+
+  @override
+  String rotationSwapPercentLabel(int percent) {
+    return 'Daily share swapped: $percent %';
+  }
+
+  @override
+  String rotationRenewalDaysLabel(int days) {
+    return 'Whole pool renewed after $days days';
+  }
 }

@@ -140,5 +140,9 @@
   "pairingNoRelayHint": "Set up a relay server first to pair devices.",
   "pairingNoActivePairingHint": "No pairing group connected yet.",
   "configPushConfirmSmbTitle": "Apply new SMB source from {senderLabel}?",
-  "slideDecodeFailed": "Cannot be decoded"
+  "slideDecodeFailed": "Cannot be decoded",
+  "rotationSwapPercentLabel": "Daily share swapped: {percent} %",
+  "@rotationSwapPercentLabel": {"description": "Slider in the slideshow settings: share of the rotation pool swapped out each day.", "placeholders": {"percent": {"type": "int"}}},
+  "rotationRenewalDaysLabel": "Whole pool renewed after {days} days",
+  "@rotationRenewalDaysLabel": {"description": "Slider in the slideshow settings: days until the whole rotation pool is renewed.", "placeholders": {"days": {"type": "int"}}}
 }

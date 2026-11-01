@@ -72,10 +72,10 @@ class ShuffleBag<T> {
   /// Replaces the working list, e.g. after the `WorkingSetPool` admitted or
   /// evicted entries. The current in-progress cycle's remaining queue is
   /// filtered to drop items no longer present. Items that were added to the
-  /// list and are neither queued nor drawn in this cycle are inserted at random
-  /// positions of the queue, so they join the rotation at once instead of
-  /// waiting for the next cycle. If the queue is empty, a fresh cycle is
-  /// started from the new list.
+  /// list and are neither queued nor drawn in this cycle are appended to the
+  /// end of the queue, in the order they were added: they are shown after the
+  /// photos already in the rotation, and the next cycle starts with a normal
+  /// shuffle. If the queue is empty, a fresh cycle is started from the new list.
   void updateItems(List<T> items) {
     if (items.isEmpty) {
       throw ArgumentError.value(items, 'items', 'must not be empty');
@@ -92,7 +92,7 @@ class ShuffleBag<T> {
     for (final item in _source) {
       final key = _keyOf(item);
       if (queuedKeys.contains(key) || _drawnInCycle.contains(key)) continue;
-      _queue.insert(_random.nextInt(_queue.length + 1), item);
+      _queue.add(item);
       queuedKeys.add(key);
     }
   }

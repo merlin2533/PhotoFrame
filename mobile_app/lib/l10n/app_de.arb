@@ -260,5 +260,9 @@
   },
 
   "slideDecodeFailed": "Nicht dekodierbar",
-  "@slideDecodeFailed": {"description": "Platzhaltertext auf einer Folie, wenn das Foto nicht dekodiert werden kann."}
+  "@slideDecodeFailed": {"description": "Platzhaltertext auf einer Folie, wenn das Foto nicht dekodiert werden kann."},
+  "rotationSwapPercentLabel": "Täglich getauschter Anteil: {percent} %",
+  "@rotationSwapPercentLabel": {"description": "Schieberegler in den Diashow-Einstellungen: Anteil des Rotations-Pools, der jeden Tag ausgetauscht wird.", "placeholders": {"percent": {"type": "int"}}},
+  "rotationRenewalDaysLabel": "Ganzer Pool erneuert sich nach {days} Tagen",
+  "@rotationRenewalDaysLabel": {"description": "Schieberegler in den Diashow-Einstellungen: Tage, bis der ganze Rotations-Pool erneuert ist.", "placeholders": {"days": {"type": "int"}}}
 }

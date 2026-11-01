@@ -33,6 +33,7 @@ import '../domain/always_on_controller.dart';
 import '../domain/daily_selection.dart';
 import '../domain/effective_visual_settings.dart';
 import '../domain/night_schedule.dart';
+import '../domain/rotation_swap.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../domain/transition_picker.dart';
@@ -166,6 +167,19 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
 
+  // Keys of photos the daily swap took out of the rotation. A refresh or a
+  // late download does not put them back into the rotation (the swap itself
+  // may take them again later from the cache). Cleared on every build.
+  final Set<String> _retiredKeys = {};
+  // stableIds of replacement photos requested for the download queue and not
+  // cached yet. Cleared on every build.
+  final Set<String> _replacementRequested = {};
+  // Photos replacements are taken from, in order: today's selection first, then
+  // the rest of the index in random order.
+  List<PhotoItem> _replacementOrder = const [];
+  // Day key (yyyy-MM-dd) of the last daily swap, in the app preferences.
+  static const _swapDayKey = 'rotation_swap_day_v1';
+
   // Keys ('sourceId::itemId') of photos whose checked file is on disk: a
   // prepared copy, or a complete raw download. The engine reads this set
   // synchronously (see `_isCachedEntry`), so it never waits for I/O. It is
@@ -263,8 +277,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     unawaited(_buildEngine());
     // Fullscreen: hide status and navigation bar while the slideshow runs.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _refreshTimer = Timer.periodic(
-        _refreshInterval, (_) => unawaited(_backgroundRefresh()));
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      unawaited(_backgroundRefresh());
+      unawaited(_maybeDailySwap());
+    });
   }
 
   /// Starts or stops the minute timer for the night/dim overlays. Called from
@@ -565,6 +581,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // that are already on disk.
       final fresh = await _todaysSelection(eligible, settings.selectionCount);
       if (fresh.isEmpty || !mounted || _engine != engine) return;
+      // Replacements come from today's selection first, then the rest of the index.
+      final freshSet = {for (final i in fresh) _keyOf(i)};
+      _replacementOrder = [
+        ...fresh,
+        for (final i in List<PhotoItem>.of(eligible)..shuffle())
+          if (!freshSet.contains(_keyOf(i))) i,
+      ];
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       // Photos that are cached stay in the rotation even when they are not in
       // today's selection, and so do the photos of sources that failed.
@@ -577,6 +600,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       for (final item in fresh) {
         _itemsByKey['${item.sourceId}::${item.id}'] = item;
+        if (_retiredKeys.contains(_keyOf(item))) continue;
         pool.add(PoolEntry(
             sourceId: item.sourceId,
             itemId: item.id,
@@ -663,15 +687,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     if (!await _cacheBelowLimit(settings)) return;
     if (!mounted || epoch != _cacheEpoch) return;
     if (settings.preparationEnabled) {
-      final cache = ref.read(smallPhotoCacheProvider);
       // Each `prioritize` call moves its photo to the front of the worker's
       // queue, so the calls run from the farthest to the nearest photo.
       for (final (item, source) in upcoming.reversed) {
-        unawaited(ref
-            .read(smallPhotoWorkerProvider.notifier)
-            .prioritize(item, source)
-            .then<void>((_) => _markPreparedIfExists(cache, item, epoch),
-                onError: (Object _) {}));
+        _prioritizeDownload(item, source, epoch);
       }
       return;
     }
@@ -679,23 +698,141 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // stays as small as the window and a photo that comes back is requested
     // again.
     final windowIds = {for (final (item, _) in upcoming) item.stableId};
-    _rawRequested.removeWhere((id) =>
-        !windowIds.contains(id) && !_rawPrefetches.containsKey(id));
+    _rawRequested.removeWhere(
+        (id) => !windowIds.contains(id) && !_rawPrefetches.containsKey(id));
     for (final (item, source) in upcoming) {
       if (_rawRequested.contains(item.stableId)) continue;
-      _rawRequested.add(item.stableId);
-      final token = CancellationTokenSource();
-      _rawPrefetches[item.stableId] = token;
-      unawaited(source
-          .fetchToCache(item, token: token.token)
-          .then<void>((result) => _markDownloaded(item, result, epoch),
-              onError: (Object _) {})
-          .whenComplete(() {
-        if (identical(_rawPrefetches[item.stableId], token)) {
-          _rawPrefetches.remove(item.stableId);
-        }
-      }));
+      _startRawDownload(item, source, epoch);
     }
+  }
+
+  /// Queues [item] at the front of the small-photo worker (preparation on).
+  /// Once the worker is done with it, the cached check runs for it.
+  void _prioritizeDownload(PhotoItem item, PhotoSource source, int epoch) {
+    final cache = ref.read(smallPhotoCacheProvider);
+    unawaited(ref
+        .read(smallPhotoWorkerProvider.notifier)
+        .prioritize(item, source)
+        .then<void>((_) => _markPreparedIfExists(cache, item, epoch),
+            onError: (Object _) {}));
+  }
+
+  /// Starts the raw download of [item] with `fetchToCache` (preparation off).
+  void _startRawDownload(PhotoItem item, PhotoSource source, int epoch) {
+    _rawRequested.add(item.stableId);
+    final token = CancellationTokenSource();
+    _rawPrefetches[item.stableId] = token;
+    unawaited(source
+        .fetchToCache(item, token: token.token)
+        .then<void>((result) => _markDownloaded(item, result, epoch),
+            onError: (Object _) {})
+        .whenComplete(() {
+      if (identical(_rawPrefetches[item.stableId], token)) {
+        _rawPrefetches.remove(item.stableId);
+      }
+    }));
+  }
+
+  /// Once per calendar day, while the slideshow is visible: takes the oldest
+  /// [AppSettings.rotationSwapPercent] of the rotation pool out of the rotation
+  /// and puts the same number of photos in. The new photos come from the cached
+  /// stock that is not in the rotation; only the shortfall is requested for
+  /// download (see `_requestReplacements`). The day is stored in the app
+  /// preferences, so the swap runs at most once per calendar day.
+  Future<void> _maybeDailySwap() async {
+    final engine = _engine;
+    final pool = _pool;
+    if (engine == null || pool == null || !mounted) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+    final prefs = await ref.read(sharedPreferencesProvider);
+    final today = DailySelection.dayKey(DateTime.now());
+    if (!swapDue(lastSwapDay: prefs.getString(_swapDayKey), today: today)) {
+      return;
+    }
+    if (!mounted || _engine != engine) return;
+    await prefs.setString(_swapDayKey, today);
+
+    final size = rotationSwapSize(pool.entries.length,
+        percent: settings.rotationSwapPercent);
+    if (size == 0) return;
+    final victims = swapOutOldest(pool, size);
+    final victimKeys = {for (final v in victims) '${v.sourceId}::${v.itemId}'};
+    _retiredKeys.addAll(victimKeys);
+
+    // Stock: cached photos that are not in the rotation, in random order.
+    final inPool = {for (final e in pool.entries) e.key};
+    final stock = List<String>.of(_cachedKeys)..shuffle();
+    final now = DateTime.now();
+    var added = 0;
+    for (final key in stock) {
+      if (added >= victims.length) break;
+      if (inPool.contains(key) || victimKeys.contains(key)) continue;
+      final item = _itemsByKey[key];
+      if (item == null || !_sourcesById.containsKey(item.sourceId)) continue;
+      if (!pool.add(PoolEntry(
+        sourceId: item.sourceId,
+        itemId: item.id,
+        addedToPoolAt: now,
+      ))) {
+        break;
+      }
+      _retiredKeys.remove(key);
+      added++;
+    }
+    engine.refreshPool(pool);
+    final shortfall = victims.length - added;
+    if (shortfall > 0) {
+      await _requestReplacements(shortfall, settings);
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// Requests [count] photos from the index for the download queue, in
+  /// replacement order (see `_replacementOrder`). Photos that are cached, in
+  /// the rotation, retired or already requested are skipped. Local photos need
+  /// no download: they join the rotation at once. The cache limit still applies.
+  Future<void> _requestReplacements(int count, AppSettings settings) async {
+    final engine = _engine;
+    final pool = _pool;
+    if (engine == null || pool == null) return;
+    final epoch = _cacheEpoch;
+    if (!await _cacheBelowLimit(settings)) return;
+    if (!mounted || epoch != _cacheEpoch || _engine != engine) return;
+
+    final inPool = {for (final e in pool.entries) e.key};
+    final picks = nextReplacements<PhotoItem>(
+      candidates: _replacementOrder,
+      count: count,
+      skip: (item) {
+        final key = _keyOf(item);
+        return inPool.contains(key) ||
+            _cachedKeys.contains(key) ||
+            _retiredKeys.contains(key) ||
+            _replacementRequested.contains(item.stableId) ||
+            !_sourcesById.containsKey(item.sourceId);
+      },
+    );
+    for (final item in picks) {
+      final source = _sourcesById[item.sourceId]!;
+      if (!_needsDownload(source.type)) {
+        _itemsByKey[_keyOf(item)] = item;
+        pool.add(PoolEntry(
+          sourceId: item.sourceId,
+          itemId: item.id,
+          addedToPoolAt: DateTime.now(),
+        ));
+        continue;
+      }
+      _replacementRequested.add(item.stableId);
+      if (settings.preparationEnabled) {
+        _prioritizeDownload(item, source, epoch);
+      } else {
+        _startRawDownload(item, source, epoch);
+      }
+    }
+    engine.refreshPool(pool);
   }
 
   /// Whether the small-photo cache is still below `AppSettings.cacheLimitBytes`.
@@ -706,7 +843,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     final usage = await ref
         .read(smallPhotoCacheProvider)
         .usage(_sourcesById.keys.toList());
-    return usage.totalBytes < settings.cacheLimitBytes;
+    return downloadsAllowed(
+        cachedBytes: usage.totalBytes, limitBytes: settings.cacheLimitBytes);
   }
 
   /// Called for every photo that became cached (a prepared small copy, a
@@ -719,15 +857,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     if (!_sourcesById.containsKey(item.sourceId)) return;
     final key = _keyOf(item);
     _cachedKeys.add(key);
+    // Kept even without room in the rotation: the daily swap takes its
+    // replacements from these cached photos.
+    _itemsByKey[key] = item;
     final pool = _pool;
-    if (pool == null) return;
+    if (pool == null || _retiredKeys.contains(key)) return;
     final added = pool.add(PoolEntry(
       sourceId: item.sourceId,
       itemId: item.id,
       addedToPoolAt: DateTime.now(),
     ));
     if (!added) return;
-    _itemsByKey[key] = item;
     _engine?.refreshPool(pool);
   }
 
@@ -912,6 +1052,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // The cleaner removed the files, so nothing is known to be cached any more.
     _cachedKeys.clear();
     _cacheEpoch++;
+    _retiredKeys.clear();
+    _replacementRequested.clear();
     try {
       // `sourcesProvider` now loads its descriptor list (and re-attaches
       // credentials) from storage asynchronously - see
@@ -982,6 +1124,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // Must be filled before `engine.start()`: it resolves the first item
       // through `_itemsByKey` immediately.
       _pool = pool;
+      _replacementOrder = List<PhotoItem>.of(eligibleItems);
       _itemsByKey
         ..clear()
         ..addAll(itemsByKey);
