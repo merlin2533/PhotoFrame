@@ -24,8 +24,7 @@ Future<File> _twoTonePng(
     Directory dir, String name, ui.Color left, ui.Color right) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
-  canvas.drawRect(
-      const ui.Rect.fromLTWH(0, 0, 16, 32), ui.Paint()..color = left);
+  canvas.drawRect(const ui.Rect.fromLTWH(0, 0, 16, 32), ui.Paint()..color = left);
   canvas.drawRect(
       const ui.Rect.fromLTWH(16, 0, 16, 32), ui.Paint()..color = right);
   final image = await recorder.endRecording().toImage(32, 32);
@@ -106,18 +105,7 @@ void main() {
     // SOI, a JFIF APP0 segment and EOI: the smallest JPEG structure with an
     // end marker.
     const jpeg = [
-      0xFF,
-      0xD8,
-      0xFF,
-      0xE0,
-      0x00,
-      0x04,
-      0x00,
-      0x00,
-      0x11,
-      0x22,
-      0xFF,
-      0xD9,
+      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, 0x11, 0x22, 0xFF, 0xD9,
     ];
     // A motion photo: a video follows the EOI. The 200 KiB appended contain no
     // 0xFF byte, so the search has to walk through several chunks.

@@ -114,8 +114,7 @@ void main() {
   });
 
   group('SmbPhotoSource crawl timeouts', () {
-    test(
-        'a hanging directory listing yields a Timeout and drops the connection',
+    test('a hanging directory listing yields a Timeout and drops the connection',
         () async {
       final fake = _Fake();
       final hang = Completer<SmbFile>();
@@ -317,8 +316,7 @@ void main() {
       await source.dispose();
     });
 
-    test(
-        'a failure on both attempts returns an error and leaves no partial file',
+    test('a failure on both attempts returns an error and leaves no partial file',
         () async {
       final first = _Fake();
       final second = _Fake();
@@ -346,8 +344,7 @@ void main() {
       await source.dispose();
     });
 
-    test('a short read on both attempts returns an error and no file',
-        () async {
+    test('a short read on both attempts returns an error and no file', () async {
       final first = _Fake();
       final second = _Fake();
       serveShort(first);

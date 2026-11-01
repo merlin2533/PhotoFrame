@@ -87,8 +87,8 @@ void main() {
     DateTime at(int hour, int minute) => DateTime(2026, 1, 15, hour, minute);
 
     test('midnight-crossing window 22:00-06:00', () {
-      bool inside(DateTime t) =>
-          isWithinDimWindow(t, startMinutes: 22 * 60, endMinutes: 6 * 60);
+      bool inside(DateTime t) => isWithinDimWindow(t,
+          startMinutes: 22 * 60, endMinutes: 6 * 60);
       expect(inside(at(23, 0)), isTrue);
       expect(inside(at(5, 0)), isTrue);
       expect(inside(at(22, 0)), isTrue); // start is inclusive
@@ -98,8 +98,8 @@ void main() {
     });
 
     test('same-day window 09:00-17:00', () {
-      bool inside(DateTime t) =>
-          isWithinDimWindow(t, startMinutes: 9 * 60, endMinutes: 17 * 60);
+      bool inside(DateTime t) => isWithinDimWindow(t,
+          startMinutes: 9 * 60, endMinutes: 17 * 60);
       expect(inside(at(12, 0)), isTrue);
       expect(inside(at(8, 59)), isFalse);
       expect(inside(at(17, 0)), isFalse);
@@ -108,7 +108,8 @@ void main() {
 
     test('equal start and end is an empty window', () {
       expect(
-        isWithinDimWindow(at(12, 0), startMinutes: 600, endMinutes: 600),
+        isWithinDimWindow(at(12, 0),
+            startMinutes: 600, endMinutes: 600),
         isFalse,
       );
     });

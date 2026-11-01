@@ -312,8 +312,7 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       yield Result.err(
         denied
-            ? PermissionDenied(
-                'Permission denied listing folders under "$root"',
+            ? PermissionDenied('Permission denied listing folders under "$root"',
                 cause: e)
             : NotFound('Folder not accessible: "$root"', cause: e),
       );
