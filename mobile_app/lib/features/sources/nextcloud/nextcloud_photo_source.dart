@@ -8,6 +8,7 @@ import 'package:webdav_client/webdav_client.dart' as webdav;
 
 import '../../../core/errors/failure.dart';
 import '../../../core/utils/cancellation_token.dart';
+import '../../../core/utils/private_host.dart';
 import '../../../core/utils/result.dart';
 import '../domain/media_type.dart';
 import '../domain/photo_folder.dart';
@@ -195,7 +196,9 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
     // invalid certificates; the user explicitly chose to accept those.
     client.c.httpClientAdapter = IOHttpClientAdapter(
       createHttpClient: () =>
-          HttpClient()..badCertificateCallback = (cert, host, port) => true,
+          HttpClient()
+            ..badCertificateCallback =
+                (cert, host, port) => isPrivateHost(host),
     );
     return client;
   }

@@ -6,18 +6,21 @@ import '../../../sources/domain/photo_item.dart';
 /// name. Same pill style as `SourceLabelOverlay` (which sits bottom right).
 /// Visibility is controlled by the caller via `AppSettings.showCaptionOverlay`.
 ///
-/// Sits at `bottom: 16`, below `PathOverlay` (which uses `bottom: 64`), so
-/// both can be shown at once without overlapping.
+/// Sits at `bottom: 16`. When the clock or weather pill occupies that corner,
+/// [raised] lifts the caption above it (`bottom: 64`).
 class CaptionOverlay extends StatelessWidget {
-  const CaptionOverlay({super.key, required this.text});
+  const CaptionOverlay({super.key, required this.text, this.raised = false});
 
   final String text;
+
+  /// Place the caption above the bottom-left clock/weather pill.
+  final bool raised;
 
   @override
   Widget build(BuildContext context) {
     return Positioned(
       left: 16,
-      bottom: 16,
+      bottom: raised ? 64 : 16,
       child: IgnorePointer(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

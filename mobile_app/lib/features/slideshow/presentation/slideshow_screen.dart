@@ -1001,7 +1001,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                 if (settings.showCaptionOverlay &&
                     !settings.showImageDetails &&
                     item != null)
-                  CaptionOverlay(text: captionTextFor(item)),
+                  CaptionOverlay(
+                    text: captionTextFor(item),
+                    // Weather is always bottom-left; the clock only when it
+                    // is not moved to the top.
+                    raised: settings.weatherEnabled ||
+                        (settings.showClock && !settings.clockAtTop),
+                  ),
                 // Clock and weather share the bottom-left corner: shown
                 // combined in one pill when both are enabled, otherwise
                 // whichever one is enabled renders alone. See

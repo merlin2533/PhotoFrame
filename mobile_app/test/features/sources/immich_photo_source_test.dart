@@ -9,6 +9,7 @@ import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_folder.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/immich/immich_config_form_model.dart';
+import 'package:mobile_app/core/utils/private_host.dart';
 import 'package:mobile_app/features/sources/immich/immich_photo_source.dart';
 import 'package:test/test.dart';
 
