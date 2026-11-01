@@ -335,6 +335,37 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+      'with preparation off the start does not wait for prepared copies',
+      (tester) async {
+    final source = _mockWithOneSavedItem();
+    final starts = <int>[];
+    await tester.pumpWidget(_screenWith(
+      source,
+      _PreparationOffSettings.new,
+      savedItems: _savedItemsOf(source),
+      // Default wait limit (3 minutes): reaching the engine within the loop
+      // below proves the start did not wait for prepared copies.
+      worker: () => _StartCountingWorker(starts),
+    ));
+    for (var i = 0;
+        i < 100 && find.byType(SlideRenderer).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    // Let the background refresh (which would start the worker) run too.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+
+    expect(find.byType(SlideRenderer), findsWidgets);
+    expect(find.byType(PreparingView), findsNothing);
+    expect(find.byType(EmptyStateView), findsNothing);
+    expect(starts, isEmpty);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('clearNetworkCache keeps a recently modified download', () async {
     final dir = await Directory.systemTemp.createTemp('cache_cleanup_test_');
     addTearDown(() => dir.delete(recursive: true));
@@ -420,6 +451,16 @@ class _TwoPhotoSelection extends AppSettingsController {
         transition: SlideshowTransition.fade,
         intervalSeconds: 1,
         selectionCount: 2,
+      );
+}
+
+/// Preparation switched off: raw downloads are shown, one slide per second.
+class _PreparationOffSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        intervalSeconds: 1,
+        smallPhotoPreparation: false,
       );
 }
 
@@ -531,6 +572,21 @@ class _NoWorker extends SmallPhotoWorker {
     List<PhotoItem> items,
     Map<String, PhotoSource> sourcesById,
   ) async {}
+}
+
+/// Like [_NoWorker], but records the size of every queue handed to [start].
+class _StartCountingWorker extends _NoWorker {
+  _StartCountingWorker(this.starts);
+
+  final List<int> starts;
+
+  @override
+  Future<void> start(
+    List<PhotoItem> items,
+    Map<String, PhotoSource> sourcesById,
+  ) async {
+    starts.add(items.length);
+  }
 }
 
 /// A mock source for the start-path tests; nothing in it is ever prepared.

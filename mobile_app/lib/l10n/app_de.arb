@@ -1,4 +1,8 @@
 {
+  "smallPhotoPreparationTitle": "Vorbereitung (Verkleinerung) aktiv",
+  "@smallPhotoPreparationTitle": {"description": "Schalter in den Diashow-Einstellungen: Vorbereitung der verkleinerten Kopien an oder aus."},
+  "smallPhotoPreparationSubtitle": "Aus: Fotos werden unverkleinert gezeigt; die Diashow nutzt dann weniger Speicher-Verarbeitung im Hintergrund.",
+  "@smallPhotoPreparationSubtitle": {"description": "Untertitel des Schalters Vorbereitung (Verkleinerung) aktiv."},
   "settingsLogTitle": "Protokoll",
   "@settingsLogTitle": {"description": "Titel des Einstellungseintrags, der das Protokoll öffnet."},
   "settingsLogSubtitle": "Letzte Hinweise und Fehler der App ansehen",

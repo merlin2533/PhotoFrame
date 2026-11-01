@@ -9,6 +9,13 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get smallPhotoPreparationTitle => 'Preparation (downscaling) enabled';
+
+  @override
+  String get smallPhotoPreparationSubtitle =>
+      'Off: photos are shown unscaled; the slideshow then uses less background processing and memory.';
+
+  @override
   String get settingsLogTitle => 'Log';
 
   @override

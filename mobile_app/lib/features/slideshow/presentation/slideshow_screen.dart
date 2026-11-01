@@ -479,10 +479,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (!mounted || _engine != engine || eligible.isEmpty) return;
 
       // Prepare a small, screen-sized copy of every photo in small batches.
-      unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
-        (List<PhotoItem>.of(eligible)..shuffle()),
-        {for (final s in sources) s.id: s},
-      ));
+      if (settings.preparationEnabled) {
+        unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
+          (List<PhotoItem>.of(eligible)..shuffle()),
+          {for (final s in sources) s.id: s},
+        ));
+      }
 
       final fresh = await _preferPrepared(
         await _todaysSelection(eligible, settings.selectionCount),
@@ -547,6 +549,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   /// on screen, so the next network photo is already in the cache when it is
   /// due. Local photos need no download and are skipped.
   void _prefetchNext() {
+    // Prefetching goes through the worker too, so it is skipped with it.
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+    if (!settings.preparationEnabled) return;
     final candidates = _itemsByKey.values.where((item) {
       final source = _sourcesById[item.sourceId];
       return source != null &&
@@ -578,14 +583,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   ///
   /// Without an [index] only steps 1 and 3 apply, for [items]. Raw downloads
   /// are used only when `onlyPreparedPhotos` is off: then the photos of [items]
-  /// are returned when nothing is prepared anywhere.
+  /// are returned when nothing is prepared anywhere. Preparation off counts as
+  /// `onlyPreparedPhotos` off (see `AppSettings.onlyPreparedRuleActive`).
   Future<List<PhotoItem>> _preferPrepared(
     List<PhotoItem> items, {
     List<PhotoItem> index = const [],
   }) async {
     final cache = ref.read(smallPhotoCacheProvider);
+    // False while preparation is off: raw downloads are then shown, and the
+    // start does not wait for prepared copies.
     final onlyPrepared =
-        ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
+        (ref.read(settingsProvider).value ?? const AppSettings())
+            .onlyPreparedRuleActive;
     Future<List<PhotoItem>> preparedIn(List<PhotoItem> candidates) async {
       final list = <PhotoItem>[];
       for (final item in candidates) {

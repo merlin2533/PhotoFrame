@@ -9,6 +9,13 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get smallPhotoPreparationTitle => 'Vorbereitung (Verkleinerung) aktiv';
+
+  @override
+  String get smallPhotoPreparationSubtitle =>
+      'Aus: Fotos werden unverkleinert gezeigt; die Diashow nutzt dann weniger Speicher-Verarbeitung im Hintergrund.';
+
+  @override
   String get settingsLogTitle => 'Protokoll';
 
   @override

@@ -124,7 +124,14 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     if (small != null) {
       return (result: Result<File>.ok(small), notPreparedYet: false);
     }
-    if (hadFile) {
+    // Wait for the settings instead of reading `.value`, which is still null on
+    // the first frame and would wrongly fall back to the default.
+    final settings = await ref
+        .read(settingsProvider.future)
+        .catchError((Object _) => const AppSettings());
+    // Re-preparing a damaged copy is a preparation job, so it is skipped while
+    // preparation is off.
+    if (hadFile && settings.preparationEnabled) {
       unawaited(ref
           .read(smallPhotoWorkerProvider.notifier)
           .reprepare(widget.item, widget.source)
@@ -132,13 +139,8 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     }
     // Raw downloads can be damaged (truncated or garbled), so by default only
     // checked small copies are shown; the photo is skipped until one exists.
-    // Wait for the settings instead of reading `.value`, which is still null on
-    // the first frame and would wrongly fall back to the default.
-    final settings = await ref
-        .read(settingsProvider.future)
-        .catchError((Object _) => const AppSettings());
-    final onlyPrepared = settings.onlyPreparedPhotos;
-    if (onlyPrepared) {
+    // With preparation off, the raw download is shown instead.
+    if (settings.onlyPreparedRuleActive) {
       return (
         result: Result<File>.err(
             const NotFound('Verkleinerte Kopie noch nicht fertig')),
