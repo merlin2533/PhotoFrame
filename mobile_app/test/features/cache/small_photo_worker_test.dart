@@ -18,10 +18,16 @@ class _FakeCache extends SmallPhotoCache {
 
   final Set<String> failing;
   final List<String> calls = [];
+  final List<DateTime> callTimes = [];
 
   @override
-  Future<File?> ensure(PhotoSource source, PhotoItem item) async {
+  Future<File?> ensure(
+    PhotoSource source,
+    PhotoItem item, {
+    Future<void> Function()? beforeScale,
+  }) async {
     calls.add(item.id);
+    callTimes.add(DateTime.now());
     return failing.contains(item.id) ? null : File('${item.id}.jpg');
   }
 }
@@ -57,7 +63,8 @@ void main() {
     final cache = _FakeCache();
     final container = _container(cache);
     final worker = container.read(smallPhotoWorkerProvider.notifier);
-    final source = MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
+    final source =
+        MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
     final a = _item('a');
     final b = _item('b');
 
@@ -71,11 +78,38 @@ void main() {
     expect(status.done, 2);
   });
 
+  test('the worker pauses between two items, not only between batches',
+      () async {
+    final cache = _FakeCache();
+    final container = _container(cache);
+    final worker = container.read(smallPhotoWorkerProvider.notifier);
+    final source =
+        MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
+
+    await worker.start(
+      [_item('a'), _item('b'), _item('c')],
+      {source.id: source},
+    );
+
+    expect(cache.calls, hasLength(3));
+    // Tolerance for timer rounding; the pause itself is 1500 ms.
+    const tolerance = Duration(milliseconds: 20);
+    for (var i = 1; i < cache.callTimes.length; i++) {
+      final gap = cache.callTimes[i].difference(cache.callTimes[i - 1]);
+      expect(
+        gap,
+        greaterThanOrEqualTo(SmallPhotoWorker.itemPause - tolerance),
+        reason: 'pause before item ${i + 1}',
+      );
+    }
+  });
+
   test('a failed photo is not retried within the hour', () async {
     final cache = _FakeCache(failing: {'bad'});
     final container = _container(cache);
     final worker = container.read(smallPhotoWorkerProvider.notifier);
-    final source = MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
+    final source =
+        MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
     final bad = _item('bad');
 
     await worker.start([bad], {source.id: source});
