@@ -188,6 +188,30 @@ abstract class AppLocalizations {
   /// **'Fotos werden vorbereitet…'**
   String get preparingProgressUnknown;
 
+  /// Zeile mit Fortschritt und Warteschlange in der Vorbereitungsansicht, wenn die Anzahl bekannt ist.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total} Fotos vorbereitet · {waiting} in Warteschlange'**
+  String preparingProgressQueue(int done, int total, int waiting);
+
+  /// Zeile der Vorbereitungsansicht mit den bisher heruntergeladenen Bytes, z. B. '12.3 MB heruntergeladen'.
+  ///
+  /// In de, this message translates to:
+  /// **'{size} heruntergeladen'**
+  String preparingDownloaded(String size);
+
+  /// Zeile der Vorbereitungsansicht mit der aktuellen Download-Geschwindigkeit, z. B. 'Geschwindigkeit: 0 MB/s'.
+  ///
+  /// In de, this message translates to:
+  /// **'Geschwindigkeit: {rate}'**
+  String preparingRate(String rate);
+
+  /// Zeile der Vorbereitungsansicht mit der Anzahl offener Skalier- und Prüfvorgänge.
+  ///
+  /// In de, this message translates to:
+  /// **'Offene Konvertierungen: {count}'**
+  String preparingConversions(int count);
+
   /// Generische Fehleranzeige mit eingebetteter Fehlermeldung.
   ///
   /// In de, this message translates to:

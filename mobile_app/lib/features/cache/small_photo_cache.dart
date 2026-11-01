@@ -12,6 +12,8 @@ import '../../core/utils/app_log.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
+import '../sources/local/local_folder_source.dart';
+import 'download_rate_meter.dart';
 
 /// Keeps a small, screen-sized JPEG of every photo on the device. The slideshow
 /// shows these files, so a photo from a network share is read once and then
@@ -42,6 +44,19 @@ class SmallPhotoCache {
   /// next job, which is accepted.
   Future<void> _queueTail = Future<void>.value();
 
+  /// Jobs of the shared queue that are running or waiting for their turn.
+  int _openConversions = 0;
+
+  /// Scaling and verification jobs that are running or waiting in the shared
+  /// queue right now.
+  int get openConversions => _openConversions;
+
+  /// Bytes downloaded by [ensure] since this cache was created. A cache hit
+  /// and a local source (which returns the original file) add nothing.
+  int _downloadedBytes = 0;
+
+  int get downloadedBytes => _downloadedBytes;
+
   /// After this duration a queued job counts as failed and the lock is
   /// released.
   static const scaleTimeout = Duration(seconds: 45);
@@ -50,9 +65,13 @@ class SmallPhotoCache {
     final done = Completer<void>();
     final previous = _queueTail;
     _queueTail = done.future;
+    _openConversions++;
     return previous
         .then((_) => job().timeout(scaleTimeout))
-        .whenComplete(() => done.complete());
+        .whenComplete(() {
+      _openConversions--;
+      done.complete();
+    });
   }
 
   /// Runs [job] through the shared queue, exactly like the internal jobs do.
@@ -293,11 +312,13 @@ class SmallPhotoCache {
     if (have != null) return have;
     try {
       var full = (await source.fetchToCache(item)).valueOrNull;
+      await _countDownload(source, full);
       // A download that is cut off (network share hiccup) must never become a
       // small copy: check it is complete, and try once more if not.
       if (full != null && !await looksComplete(full, 0)) {
         await _deleteIfTemp(full);
         full = (await source.fetchToCache(item)).valueOrNull;
+        await _countDownload(source, full);
         if (full != null && !await looksComplete(full, 0)) {
           await _deleteIfTemp(full);
           return null;
@@ -341,6 +362,17 @@ class SmallPhotoCache {
       );
       return null;
     }
+  }
+
+  /// Adds the size of [file], as returned by [PhotoSource.fetchToCache], to
+  /// [downloadedBytes]. Local folder sources return the original file, which
+  /// was not downloaded, so they add nothing. A file whose length cannot be
+  /// read counts as 0.
+  Future<void> _countDownload(PhotoSource source, File? file) async {
+    if (file == null || source is LocalFolderSource) return;
+    try {
+      _downloadedBytes += await file.length();
+    } catch (_) {}
   }
 
   Future<void> _deleteIfTemp(File file) async {
@@ -613,6 +645,9 @@ class SmallPhotoStatus {
     this.total = 0,
     this.running = false,
     this.waiting = 0,
+    this.downloadedBytes = 0,
+    this.downloadRate = 0,
+    this.openConversions = 0,
   });
 
   final int done;
@@ -621,6 +656,17 @@ class SmallPhotoStatus {
 
   /// Photos still waiting in the queue behind the one being prepared.
   final int waiting;
+
+  /// Bytes downloaded by the current run so far.
+  final int downloadedBytes;
+
+  /// Download speed in bytes per second, averaged over the last ~10 seconds.
+  /// `0` when nothing is downloaded.
+  final double downloadRate;
+
+  /// Scaling and verification jobs open right now (running or waiting for the
+  /// shared queue).
+  final int openConversions;
 }
 
 /// Prepares the screen-sized copies in batches (size from the settings), one batch after
@@ -646,6 +692,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 
   /// When each photo last failed to prepare.
   final Map<String, DateTime> _failedAt = {};
+
+  /// Download speed of the current run, sampled by [_run]'s publish step.
+  final DownloadRateMeter _rateMeter = DownloadRateMeter();
 
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
@@ -708,6 +757,25 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     if (_running || _queued.isEmpty) return;
     _running = true;
     final cache = ref.read(smallPhotoCacheProvider);
+    _rateMeter.reset();
+    final bytesAtStart = cache.downloadedBytes;
+
+    // Publishes the live counters. Called after every photo and by the timer
+    // below, so the download rate moves while a large photo is downloading.
+    void publish() {
+      _rateMeter.add(DateTime.now(), cache.downloadedBytes);
+      state = SmallPhotoStatus(
+        done: _done,
+        total: _total,
+        running: true,
+        waiting: _queued.length,
+        downloadedBytes: cache.downloadedBytes - bytesAtStart,
+        downloadRate: _rateMeter.bytesPerSecond,
+        openConversions: cache.openConversions,
+      );
+    }
+
+    final ticker = Timer.periodic(const Duration(seconds: 1), (_) => publish());
     try {
       while (_queued.isNotEmpty) {
         final batchSize =
@@ -732,18 +800,14 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
             }
           }
           _done++;
-          state = SmallPhotoStatus(
-            done: _done,
-            total: _total,
-            running: true,
-            waiting: _queued.length,
-          );
+          publish();
         }
         // Give the UI and the slideshow room between batches.
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
       state = SmallPhotoStatus(done: _done, total: _total);
     } finally {
+      ticker.cancel();
       _running = false;
     }
   }

@@ -280,7 +280,10 @@ void main() {
     ));
     await _pumpUntilPreparing(tester);
 
-    expect(find.text('2 von 5 Fotos vorbereitet'), findsOneWidget);
+    expect(
+      find.text('2 von 5 Fotos vorbereitet · 3 in Warteschlange'),
+      findsOneWidget,
+    );
     final bar = tester
         .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator));
     expect(bar.value, closeTo(0.4, 1e-9));
