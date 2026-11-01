@@ -48,6 +48,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appTitle => 'PhotoFrame';
 
   @override
+  String get preparingTitle => 'Diashow wird vorbereitet';
+
+  @override
+  String preparingProgress(int done, int total) {
+    return '$done von $total Fotos vorbereitet';
+  }
+
+  @override
+  String get preparingProgressUnknown => 'Fotos werden vorbereitet…';
+
+  @override
   String commonError(String message) {
     return 'Fehler: $message';
   }

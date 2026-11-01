@@ -39,6 +39,7 @@ import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
 import 'widgets/path_overlay.dart';
+import 'widgets/preparing_view.dart';
 import 'widgets/slide_renderer.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
@@ -114,7 +115,16 @@ Future<void> clearNetworkCache({
 /// is out of scope for this milestone. `SlideshowEngine` itself is reused
 /// unchanged.
 class SlideshowScreen extends ConsumerStatefulWidget {
-  const SlideshowScreen({super.key});
+  const SlideshowScreen({
+    super.key,
+    this.preparedWaitLimit = defaultPreparedWaitLimit,
+  });
+
+  /// How long the start waits for the first prepared small copies before the
+  /// engine starts anyway (see `_preferPrepared`). Only tests pass another value.
+  final Duration preparedWaitLimit;
+
+  static const defaultPreparedWaitLimit = Duration(minutes: 3);
 
   @override
   ConsumerState<SlideshowScreen> createState() => _SlideshowScreenState();
@@ -125,6 +135,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   bool _paused = false;
   bool _loading = true;
   Object? _loadError;
+  // True only while the start path waits in `_preferPrepared` for the first
+  // prepared copies and no engine exists yet. `build` shows `PreparingView`
+  // then. Set and cleared by `_awaitPreparedAtStart`, which clears it on every
+  // exit (success, error, early return), and also in `dispose`.
+  bool _awaitingPrepared = false;
   // Minute timer for the night/dim overlays. Only runs while a night schedule
   // or the ambient dim window is configured (see `_syncMinuteTimer`). It bumps
   // `_minuteTick` instead of calling `setState`, so only the dim layers rebuild.
@@ -222,6 +237,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
   @override
   void dispose() {
+    _awaitingPrepared = false;
     _nightTick?.cancel();
     _minuteTick.dispose();
     _ambientSub?.cancel();
@@ -568,15 +584,38 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     var list = await prepared();
     if (!onlyPrepared) return list.isEmpty ? items : list;
     // Only checked small copies are shown. While none exists yet, wait for the
-    // worker to finish the first ones (up to 3 minutes) instead of showing
-    // raw downloads.
-    final deadline = DateTime.now().add(const Duration(minutes: 3));
+    // worker to finish the first ones (up to `preparedWaitLimit`, 3 minutes by
+    // default) instead of showing raw downloads.
+    final deadline = DateTime.now().add(widget.preparedWaitLimit);
     while (list.isEmpty && mounted && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(seconds: 3));
       final status = ref.read(smallPhotoWorkerProvider);
       if (status.done > 0 || !status.running) list = await prepared();
     }
     return list;
+  }
+
+  /// Runs [_preferPrepared] for the start path with [_awaitingPrepared] set, so
+  /// the preparing view shows while the start waits. The flag is cleared in
+  /// `finally`, so it is reset whether the wait returns, throws, or the screen
+  /// is already gone. The engine is not built yet at this point, so the screen
+  /// keeps its loading state until the engine is set.
+  Future<List<PhotoItem>> _awaitPreparedAtStart(List<PhotoItem> items) async {
+    _setAwaitingPrepared(true);
+    try {
+      return await _preferPrepared(items);
+    } finally {
+      _setAwaitingPrepared(false);
+    }
+  }
+
+  void _setAwaitingPrepared(bool value) {
+    if (_awaitingPrepared == value) return;
+    if (mounted) {
+      setState(() => _awaitingPrepared = value);
+    } else {
+      _awaitingPrepared = value;
+    }
   }
 
   /// Handles a photo that cannot be shown.
@@ -643,7 +682,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           .toList();
       final List<PhotoItem> eligibleItems;
       if (indexed.isNotEmpty) {
-        eligibleItems = await _preferPrepared(await _todaysSelection(
+        eligibleItems = await _awaitPreparedAtStart(await _todaysSelection(
           _applyFavoritesFilter(indexed, settings, favorites),
           settings.selectionCount,
         ));
@@ -907,7 +946,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsProvider);
 
-    if (_loading) {
+    // While the start waits for prepared copies, the engine-null branch below
+    // shows the preparing view (with the same action buttons) instead.
+    if (_loading && !_awaitingPrepared) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
@@ -973,7 +1014,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       return Stack(
         fit: StackFit.expand,
         children: [
-          const EmptyStateView(),
+          // Same action buttons either way; only the content changes.
+          _awaitingPrepared ? const PreparingView() : const EmptyStateView(),
           Positioned(
             top: 0,
             right: 0,

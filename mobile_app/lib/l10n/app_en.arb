@@ -26,6 +26,9 @@
 
   "appTitle": "PhotoFrame",
 
+  "preparingTitle": "Preparing slideshow",
+  "preparingProgress": "{done} of {total} photos prepared",
+  "preparingProgressUnknown": "Preparing photos…",
   "commonError": "Error: {message}",
   "commonCancel": "Cancel",
   "commonBack": "Back",
