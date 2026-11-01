@@ -241,8 +241,9 @@ void main() {
   });
 
   group('Daily swap', () {
-    test('a 100-photo pool swaps 20 photos, the default share', () {
-      expect(rotationSwapSize(100), 20);
+    test('a 100-photo pool swaps 10 photos by default, 20 at 20 percent', () {
+      expect(rotationSwapSize(100), 10);
+      expect(rotationSwapSize(100, percent: 20), 20);
       expect(rotationSwapSize(100, percent: 5), 5);
       expect(rotationSwapSize(100, percent: 50), 50);
       expect(rotationSwapSize(1), 0);
@@ -277,7 +278,7 @@ void main() {
             _entryOn(i, DateTime(2026, 10, 1).add(Duration(days: i ~/ 10))));
       }
 
-      final removed = swapOutOldest(pool, rotationSwapSize(100));
+      final removed = swapOutOldest(pool, rotationSwapSize(100, percent: 20));
 
       expect(removed, hasLength(20));
       expect(removed.map((e) => e.itemId).toSet(), {
@@ -323,7 +324,8 @@ void main() {
       await engine.start();
 
       final victims = {
-        for (final e in swapOutOldest(fixture.pool, rotationSwapSize(100)))
+        for (final e
+            in swapOutOldest(fixture.pool, rotationSwapSize(100, percent: 20)))
           e.itemId,
       };
       engine.refreshPool(fixture.pool);

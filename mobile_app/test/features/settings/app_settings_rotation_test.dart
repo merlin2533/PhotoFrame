@@ -3,9 +3,9 @@ import 'package:test/test.dart';
 
 void main() {
   group('Rotation settings', () {
-    test('defaults are a daily swap of 20 percent and a 7 day renewal', () {
+    test('defaults are a daily swap of 10 percent and a 7 day renewal', () {
       const settings = AppSettings();
-      expect(settings.rotationSwapPercent, 20);
+      expect(settings.rotationSwapPercent, 10);
       expect(settings.rotationRenewalDays, 7);
     });
 
@@ -19,7 +19,7 @@ void main() {
 
     test('the defaults are written and read back unchanged', () {
       final back = AppSettings.fromJson(const AppSettings().toJson());
-      expect(back.rotationSwapPercent, 20);
+      expect(back.rotationSwapPercent, 10);
       expect(back.rotationRenewalDays, 7);
     });
   });

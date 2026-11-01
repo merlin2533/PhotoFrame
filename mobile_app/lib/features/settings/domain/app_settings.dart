@@ -63,7 +63,7 @@ class AppSettings {
     this.selectionCount = 1000,
     this.smallPhotoBatchSize = 5,
     this.poolNewImageQuota = 0.2,
-    this.rotationSwapPercent = 20,
+    this.rotationSwapPercent = 10,
     this.rotationRenewalDays = 7,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
@@ -497,7 +497,7 @@ class AppSettings {
       selectionCount: json['selectionCount'] as int? ?? 1000,
       smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
-      rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 20,
+      rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 10,
       rotationRenewalDays: json['rotationRenewalDays'] as int? ?? 7,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
