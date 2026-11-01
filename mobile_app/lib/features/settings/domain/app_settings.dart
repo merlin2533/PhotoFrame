@@ -438,7 +438,7 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
-      intervalSeconds: json['intervalSeconds'] as int? ?? 10,
+      intervalSeconds: json['intervalSeconds'] as int? ?? 30,
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
       showCaptionOverlay: json['showCaptionOverlay'] as bool? ?? false,
       showImageDetails: json['showImageDetails'] as bool? ?? true,
