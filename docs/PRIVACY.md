@@ -71,13 +71,17 @@ Dieser Abschnitt betrifft die **Android-/iOS-App** (Companion-App auf dem Fotora
 **Was vor dem Senden entfernt wird:**
 
 - Die Standardangaben zu Person und Gerät werden nicht gesendet (`sendDefaultPii` ist aus). Dazu gehören IP-Adresse und Benutzerkennung.
-- Breadcrumbs (Verlaufsspuren der Bedienschritte), Benutzerdaten und Request-Daten werden vollständig entfernt. Der Gerätename wird entfernt.
-- Jeder Text im Ereignis (Meldung, Fehlertext, Stapelrahmen-Pfade, Zusatzdaten, Tags) wird bereinigt. Ersetzt wird durch `[redacted]`:
+- Breadcrumbs (Verlaufsspuren der Bedienschritte), Benutzerdaten, Request-Daten und Debug-Image-Liste werden vollständig entfernt. Der Gerätename, die Geräte-ID und der App-Hash werden entfernt.
+- Jeder Text im Ereignis (Meldung, Fehlertext und Fehlertyp, Stapelrahmen-Pfade, Zusatzdaten, Tags, Kontexte) wird bereinigt. Ersetzt wird durch `[redacted]`:
   - URLs mit beliebigem Schema (http, https, file, content, smb usw.), damit Quell-Hosts und Pfade das Gerät nicht verlassen,
-  - Windows- und POSIX-Dateipfade sowie UNC-Pfade,
-  - Dateinamen von Fotos und Videos (z. B. `IMG_1234.heic`),
-  - E-Mail-Adressen,
-  - IPv4-Adressen, Hostnamen (z. B. `nas.local`) und `localhost`.
+  - Windows-, POSIX- und UNC-Pfade, auch mit Leerzeichen bis zum Dateinamen (z. B. `C:\Users\Name\Bilder\Urlaub 2023\a b.jpg`),
+  - Pfade mit Trennzeichen in Anführungszeichen (z. B. `"Urlaub 2023/Italien/IMG_1.jpg"`) und unquotierte Pfade mit Leerzeichen, die auf eine Bilddatei enden,
+  - Dateinamen von Fotos und Videos an beliebiger Stelle (z. B. `IMG_1234.heic`),
+  - E-Mail-Adressen und `Benutzer@Host`-Angaben,
+  - IPv4- und IPv6-Adressen, Hostnamen (z. B. `nas.local`) und `localhost`,
+  - Hostnamen nach den Stichwörtern `zu`, `to`, `for`, `von`, `host`, `server`, `address` und `adresse` (in Anführungszeichen, z. B. `Verbindung zu "nas"`, sowie `address = nas`).
+- Nicht erfasst sind freistehende Hostnamen ohne Stichwort und ohne Punkt, etwa ein Wort `nas` in einem Satz ohne die genannten Formulierungen. Solche Angaben enthalten die Meldungen der App nach heutigem Stand nicht.
+- Pfade mit Trennzeichen, die keine Quelldatei sind (z. B. `Immich/Alben`), werden ebenfalls entfernt. Code-Verweise wie `lib/core/x.dart:42` bleiben lesbar, damit Stapelrahmen auswertbar sind.
 
 **Was niemals gesendet wird:** Fotos, Bildinhalte, Dateinamen, Ordnerpfade, Zugangsdaten und Quell-Hosts (NAS-, Nextcloud-, Immich- oder SMB-Adressen). Das Umgebungsfeld ist `debug` bzw. `release`. Gerätemodell, Betriebssystemversion und App-Version werden als SDK-Standard mitgesendet. Die App setzt keine Nutzerkennung.
 

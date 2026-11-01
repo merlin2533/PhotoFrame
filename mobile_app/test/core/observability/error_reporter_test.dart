@@ -65,8 +65,136 @@ void main() {
     });
 
     test('keeps ordinary text, versions and code file names readable', () {
-      const text = 'Version 0.1.0+13 in main.dart, Fehler bei 1/2 und and/or';
+      const text =
+          'Version 0.1.0+13 in main.dart, Fehler bei 1/2 am 12/05/2026';
       expect(scrubSensitiveText(text), text);
+      expect(
+        scrubSensitiveText(
+            'Fehler in lib/core/x.dart:42 und package:app/y.dart'),
+        'Fehler in lib/core/x.dart:42 und package:app/y.dart',
+      );
+    });
+
+    test('redacts relative paths with spaces in quotes', () {
+      expect(
+        scrubSensitiveText('Foto "Urlaub 2023/Italien/IMG_1.jpg"'),
+        'Foto "[redacted]"',
+      );
+      expect(
+        scrubSensitiveText(r'Ordner "Fotos\Urlaub 2023" fehlt'),
+        r'Ordner "[redacted]" fehlt',
+      );
+    });
+
+    test('redacts unquoted relative paths with spaces ending in a photo', () {
+      expect(
+        scrubSensitiveText('Datei Urlaub 2023/Italien/IMG_1.jpg fehlt'),
+        '[redacted] fehlt',
+      );
+    });
+
+    test('redacts Windows paths with spaces up to the file name', () {
+      expect(
+        scrubSensitiveText(r'C:\Users\John Smith\Pictures\Urlaub 2023\a b.jpg'),
+        '[redacted]',
+      );
+    });
+
+    test('redacts POSIX paths with spaces up to the file name', () {
+      expect(
+        scrubSensitiveText(
+            "path = '/data/user/0/app/files/My Photos/a.jpg' ok"),
+        "path = '[redacted]' ok",
+      );
+      expect(
+        scrubSensitiveText('path = /data/user/0/My Photos/a b.jpg ok'),
+        'path = [redacted] ok',
+      );
+    });
+
+    test('redacts a bare host after zu, host, server and address keywords', () {
+      expect(
+        scrubSensitiveText('Verbindung zu "nas" dauert zu lange'),
+        'Verbindung zu "[redacted]" dauert zu lange',
+      );
+      expect(
+        scrubSensitiveText('SMB authentication failed for "nas"'),
+        'SMB authentication failed for "[redacted]"',
+      );
+      expect(
+        scrubSensitiveText('Could not connect to SMB host "nas"'),
+        'Could not connect to SMB host "[redacted]"',
+      );
+      expect(
+        scrubSensitiveText('SMB-Host "nas" ist nicht erreichbar'),
+        'SMB-Host "[redacted]" ist nicht erreichbar',
+      );
+      expect(
+        scrubSensitiveText("Server 'nas' antwortet nicht"),
+        "Server '[redacted]' antwortet nicht",
+      );
+      expect(
+        scrubSensitiveText('address = nas, port = 445'),
+        'address = [redacted], port = 445',
+      );
+      expect(
+        scrubSensitiveText('host: nas'),
+        'host: [redacted]',
+      );
+      expect(
+        scrubSensitiveText('Host Nas-Synology'),
+        'Host [redacted]',
+      );
+    });
+
+    test('redacts user@host pairs', () {
+      expect(scrubSensitiveText('Login user@nas fehlgeschlagen'),
+          'Login [redacted] fehlgeschlagen');
+    });
+
+    test('redacts IPv6 addresses', () {
+      expect(scrubSensitiveText('Ziel fe80::1 offline'),
+          'Ziel [redacted] offline');
+      expect(scrubSensitiveText('Ziel 2001:db8::1 offline'),
+          'Ziel [redacted] offline');
+      expect(scrubSensitiveText('Ziel [fe80::1]:445 offline'),
+          'Ziel [[redacted]]:445 offline');
+    });
+
+    test('redacts realistic app messages', () {
+      expect(
+        scrubSensitiveText(
+            'Verbindung zu "nas" dauert zu lange – Netzwerk oder Host prüfen'),
+        'Verbindung zu "[redacted]" dauert zu lange – Netzwerk oder Host prüfen',
+      );
+      expect(
+        scrubSensitiveText(r'Connected to \\nas\fotos'),
+        'Connected to [redacted]',
+      );
+      expect(
+        scrubSensitiveText(
+            'Quelle übersprungen: Datei "Urlaub 2023/Italien/IMG_1.jpg" nicht lesbar'),
+        'Quelle übersprungen: Datei "[redacted]" nicht lesbar',
+      );
+      expect(
+        scrubSensitiveText(
+            'Immich-Server antwortet nicht: http://192.168.1.20:2283/api'),
+        'Immich-Server antwortet nicht: [redacted]',
+      );
+      expect(
+        scrubSensitiveText('Fehler beim Skalieren von IMG_1234.heic'),
+        'Fehler beim Skalieren von [redacted]',
+      );
+      expect(
+        scrubSensitiveText(
+            'Nextcloud: Verbindungstest zu "cloud.example.org" hat zu lange gedauert'),
+        'Nextcloud: Verbindungstest zu "[redacted]" hat zu lange gedauert',
+      );
+      expect(
+        scrubSensitiveText(
+            'Konnte /storage/emulated/0/My Photos/a b.jpg nicht lesen'),
+        'Konnte [redacted] nicht lesen',
+      );
     });
 
     test('leaves text without sensitive data unchanged', () {
@@ -123,6 +251,83 @@ void main() {
       // ignore: deprecated_member_use
       expect(redacted.extra, {'file': '[redacted]', 'count': 3});
       expect(redacted.tags, {'source': '[redacted]'});
+    });
+
+    test('scrubs an exception value that contains a path with spaces',
+        () async {
+      final event = SentryEvent(
+        exceptions: [
+          SentryException(
+            type: 'FileSystemException',
+            value:
+                r'cannot open C:\Users\John Smith\Pictures\Urlaub 2023\a b.jpg',
+          ),
+          SentryException(
+            type: 'FileSystemException',
+            value: 'cannot read /data/user/0/My Photos/a b.jpg',
+          ),
+        ],
+      );
+
+      final redacted = (await redactSentryEvent(event, Hint()))!;
+
+      expect(redacted.exceptions?[0].value, 'cannot open [redacted]');
+      expect(redacted.exceptions?[1].value, 'cannot read [redacted]');
+      expect(redacted.exceptions?[0].type, 'FileSystemException');
+    });
+
+    test('scrubs string and map values in contexts and clears identifiers',
+        () async {
+      final event = buildEvent()
+        ..contexts['recovered'] = <String, String>{
+          'message': 'Foto "Urlaub 2023/Italien/IMG_1.jpg" fehlt',
+        }
+        ..contexts['source'] = {'server': 'https://nas.local/dav'}
+        ..contexts.device = SentryDevice(
+          name: 'Markus Pixel',
+          model: 'Pixel 8',
+          deviceUniqueIdentifier: 'abc-123',
+        );
+
+      final redacted = (await redactSentryEvent(event, Hint()))!;
+
+      expect(
+        redacted.contexts['recovered'],
+        {'message': 'Foto "[redacted]" fehlt'},
+      );
+      expect(redacted.contexts['source'], {'server': '[redacted]'});
+      expect(redacted.contexts.device?.name, isNull);
+      expect(redacted.contexts.device?.deviceUniqueIdentifier, isNull);
+      expect(redacted.contexts.device?.model, 'Pixel 8');
+    });
+
+    test('drops debug images and scrubs stack frame paths', () async {
+      final event = SentryEvent(
+        threads: [
+          SentryThread(
+            stacktrace: SentryStackTrace(
+              frames: [
+                SentryStackFrame(
+                  absPath: '/data/user/0/My Photos/a.dart',
+                  fileName: 'main.dart',
+                  function: 'load',
+                ),
+              ],
+            ),
+          ),
+        ],
+        debugMeta: DebugMeta(
+          images: [DebugImage(type: 'elf', name: '/data/app/lib.so')],
+        ),
+      );
+
+      final redacted = (await redactSentryEvent(event, Hint()))!;
+      final frame = redacted.threads!.single.stacktrace!.frames.single;
+
+      expect(redacted.debugMeta, isNull);
+      expect(frame.absPath, '[redacted]');
+      expect(frame.fileName, 'main.dart');
+      expect(frame.function, 'load');
     });
 
     test('drops every event while error reporting is switched off', () async {
