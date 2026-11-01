@@ -346,12 +346,13 @@ class SmallPhotoCache {
         await small.rename(target.path);
       } finally {
         if (await temp.exists()) await temp.delete();
-        // Downloads of network sources sit in the temp directory; local
-        // sources return the original file, which must never be deleted.
-        if (full.parent.path == Directory.systemTemp.path &&
-            await full.exists()) {
-          await full.delete();
-        }
+        // Runs on success and when scaling returns null (an undecodable
+        // download included), so the next attempt downloads the photo again
+        // instead of reusing the broken file. Downloads of network sources sit
+        // in the temp directory and are deleted; local sources return the
+        // original file, which is not in the temp directory and so stays
+        // (same rule as before, see [_deleteIfTemp]).
+        await _deleteIfTemp(full);
       }
       return target;
     } catch (e, st) {
@@ -552,27 +553,23 @@ class SmallPhotoCache {
   /// Fallback scaler using Flutter's own decoder (correct colours for every
   /// format it can read), re-encoded as JPEG to keep storage small.
   Future<File?> _scaleWithFlutter(File source, File temp) async {
-    ui.Codec? codec;
     try {
       final bytes = await source.readAsBytes();
-      // The size is read from the header only (no full decode), and the
-      // image is then decoded once, already scaled.
       final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      final ui.Image image;
       try {
-        final w = descriptor.width, h = descriptor.height;
-        final longest = w > h ? w : h;
-        codec = longest > 2048
-            ? await descriptor.instantiateCodec(
-                targetWidth: w >= h ? 2048 : null,
-                targetHeight: h > w ? 2048 : null,
-              )
-            : await descriptor.instantiateCodec();
+        image = await _decodeScaled(buffer);
+      } catch (e) {
+        // Flutter cannot read the bytes: a truncated download or not an image
+        // at all. This is expected for broken downloads, so it is not thrown.
+        // Returning null lets [ensure] treat the photo as "could not be
+        // prepared" and remove the temp download. No stack trace: the cause
+        // is the bytes, not a code path.
+        logRecoverableError('Photo is not a decodable image', error: e);
+        return null;
       } finally {
-        descriptor.dispose();
         buffer.dispose();
       }
-      final image = (await codec.getNextFrame()).image;
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
       if (data == null) return null;
@@ -594,8 +591,29 @@ class SmallPhotoCache {
         stackTrace: st,
       );
       return null;
+    }
+  }
+
+  /// Decodes the first frame of [buffer], already scaled so that the longest
+  /// side is at most 2048 px. The size is read from the header only (no full
+  /// decode), and the image is decoded once, already scaled. Throws when
+  /// Flutter cannot read the bytes ("Invalid image data").
+  static Future<ui.Image> _decodeScaled(ui.ImmutableBuffer buffer) async {
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
+    ui.Codec? codec;
+    try {
+      final w = descriptor.width, h = descriptor.height;
+      final longest = w > h ? w : h;
+      codec = longest > 2048
+          ? await descriptor.instantiateCodec(
+              targetWidth: w >= h ? 2048 : null,
+              targetHeight: h > w ? 2048 : null,
+            )
+          : await descriptor.instantiateCodec();
+      return (await codec.getNextFrame()).image;
     } finally {
       codec?.dispose();
+      descriptor.dispose();
     }
   }
 }

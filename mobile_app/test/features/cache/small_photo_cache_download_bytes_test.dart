@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/core/utils/app_log_buffer.dart';
 import 'package:mobile_app/core/utils/cancellation_token.dart';
 import 'package:mobile_app/core/utils/result.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
@@ -100,5 +101,63 @@ void main() {
 
     expect(original.existsSync(), isTrue);
     expect(cache.downloadedBytes, 0);
+  });
+
+  group('a download that is not an image', () {
+    File tempFile(List<int> bytes) {
+      // Directly in the system temp directory, where the downloads of network
+      // sources are stored and where ensure() may delete them.
+      final name = 'photoframe_undecodable_${DateTime.now().microsecondsSinceEpoch}.jpg';
+      return File('${Directory.systemTemp.path}${Platform.pathSeparator}$name')
+        ..writeAsBytesSync(bytes);
+    }
+
+    for (final entry in <String, List<int>>{
+      'text': 'this is not a picture at all'.codeUnits,
+      // Has JPEG markers, so the completeness check passes, but holds no image.
+      'JPEG markers only': [0xFF, 0xD8, 1, 2, 3, 0xFF, 0xD9],
+    }.entries) {
+      testWidgets('(${entry.key}) returns null, logs a plain message and is '
+          'deleted from the temp directory', (tester) async {
+        await tester.runAsync(() async {
+          final cache = SmallPhotoCache(directory: () async => dir);
+          final item = _item('dl', 'junk-${entry.key.hashCode}');
+          final download = tempFile(entry.value);
+          final source = _FixedDownloadSource(download);
+
+          // No exception escapes: the photo is simply "could not be prepared".
+          expect(await cache.ensure(source, item), isNull);
+
+          expect(download.existsSync(), isFalse,
+              reason: 'the broken temp download must be removed');
+          final logged = appLogBuffer.entries.where(
+            (e) => e.message == 'Photo is not a decodable image',
+          );
+          expect(logged, isNotEmpty);
+          expect(logged.last.errorText, isNotNull);
+          expect(
+            await cache.fileFor(item).then((f) => f.existsSync()),
+            isFalse,
+            reason: 'no small file may be left behind',
+          );
+        });
+      });
+    }
+
+    testWidgets('a local original that is not an image is never deleted',
+        (tester) async {
+      await tester.runAsync(() async {
+        final cache = SmallPhotoCache(directory: () async => dir);
+        final item = _item('dl', 'original');
+        // Not in the temp directory: the local original must stay.
+        final original = File('${dir.path}/original.jpg')
+          ..writeAsBytesSync('not an image'.codeUnits);
+        final source = _FixedDownloadSource(original);
+
+        expect(await cache.ensure(source, item), isNull);
+
+        expect(original.existsSync(), isTrue);
+      });
+    });
   });
 }
