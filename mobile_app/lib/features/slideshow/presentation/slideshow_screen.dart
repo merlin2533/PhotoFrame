@@ -996,7 +996,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
-                if (settings.showCaptionOverlay && item != null)
+                // The path overlay already shows the date, so the caption is only
+                // needed when the path overlay is off.
+                if (settings.showCaptionOverlay &&
+                    !settings.showImageDetails &&
+                    item != null)
                   CaptionOverlay(text: captionTextFor(item)),
                 // Clock and weather share the bottom-left corner: shown
                 // combined in one pill when both are enabled, otherwise

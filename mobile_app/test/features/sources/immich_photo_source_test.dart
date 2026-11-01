@@ -84,6 +84,7 @@ ImmichPhotoSource _source({
 }
 
 void main() {
+  certificateHostTests();
   group('ImmichPhotoSource connection', () {
     test('testConnection reports server version and album count', () async {
       final adapter = _FakeAdapter()
@@ -378,6 +379,28 @@ void main() {
       expect(restored.albumId, 'album-1');
       expect(restored.albumName, 'Urlaub');
       expect(restored.apiKey, 'secret');
+    });
+  });
+}
+
+void certificateHostTests() {
+  group('isPrivateHost', () {
+    test('accepts local network hosts', () {
+      for (final h in [
+        'localhost',
+        'nas.local',
+        '192.168.1.5',
+        '10.0.0.2',
+        '172.16.3.4',
+        '127.0.0.1',
+      ]) {
+        expect(isPrivateHost(h), isTrue, reason: h);
+      }
+    });
+    test('rejects public hosts', () {
+      for (final h in ['immich.example.com', '8.8.8.8', '172.32.0.1']) {
+        expect(isPrivateHost(h), isFalse, reason: h);
+      }
     });
   });
 }
