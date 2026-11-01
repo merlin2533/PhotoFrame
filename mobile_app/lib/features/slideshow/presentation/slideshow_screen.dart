@@ -152,7 +152,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   String? _transitionItemId;
   SlideshowTransition _transitionPick = SlideshowTransition.fade;
 
-  SlideshowTransition _transitionFor(SlideshowTransition chosen, String? itemId) {
+  SlideshowTransition _transitionFor(
+      SlideshowTransition chosen, String? itemId) {
     if (chosen != SlideshowTransition.random) return chosen;
     if (itemId != _transitionItemId) {
       _transitionItemId = itemId;
@@ -964,7 +965,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   transitionBuilder: (child, animation) {
                     switch (effective.transition) {
                       case SlideshowTransition.random:
-                        // Resolved to a concrete effect in _transitionFor.
+                      // Resolved to a concrete effect in _transitionFor.
                       case SlideshowTransition.none:
                         // Instant swap, no animated transition at all.
                         return child;

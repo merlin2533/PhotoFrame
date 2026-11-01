@@ -5,7 +5,16 @@ import '../../slideshow/domain/slideshow_config.dart';
 /// Visual transition played between slideshow items.
 /// [random] picks one of the animated effects per slide, never the same one twice
 /// in a row - see TransitionPicker.
-enum SlideshowTransition { fade, slide, zoom, slideUp, blurFade, flip, random, none }
+enum SlideshowTransition {
+  fade,
+  slide,
+  zoom,
+  slideUp,
+  blurFade,
+  flip,
+  random,
+  none
+}
 
 /// How many photos are shown on screen at once.
 enum SlideLayout { single, grid2x2 }
