@@ -9,6 +9,7 @@ import '../../../settings/domain/app_settings.dart';
 import '../../../settings/state/settings_providers.dart';
 import '../../domain/daily_selection.dart';
 import '../../domain/rotation_swap.dart';
+import '../daily_swap_text.dart';
 
 /// Whether the daily swap already ran today, from the day stored under
 /// [rotationSwapDayPrefsKey].
@@ -67,7 +68,6 @@ class PreparingView extends ConsumerWidget {
     final swappedCount = pool != null && swappedToday
         ? rotationSwapSize(pool, percent: percent)
         : 0;
-    final perDay = pool == null ? 0 : rotationSwapSize(pool, percent: percent);
 
     return Scaffold(
       body: Center(
@@ -115,9 +115,7 @@ class PreparingView extends ConsumerWidget {
                   textAlign: TextAlign.center,
                 ),
               Text(
-                pool == null
-                    ? l10n.preparingSwapDailyPercent(percent)
-                    : l10n.preparingSwapDailyCount(percent, perDay),
+                dailySwapLine(l10n, percent: percent, poolSize: pool),
                 textAlign: TextAlign.center,
               ),
             ],

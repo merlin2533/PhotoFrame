@@ -12,10 +12,13 @@ import '../features/cache/prepared_count_provider.dart';
 import '../features/cache/small_photo_cache.dart';
 import '../features/cache/small_photo_usage_provider.dart';
 import '../features/index/photo_index_store.dart';
+import '../features/settings/domain/app_settings.dart';
 import '../features/settings/state/settings_providers.dart';
+import '../features/slideshow/presentation/daily_swap_text.dart';
 import '../features/sources/domain/photo_item.dart';
 import '../features/sources/domain/photo_source.dart';
 import '../features/sources/state/sources_providers.dart';
+import '../l10n/app_localizations.dart';
 
 /// Start screen: a background photo from the index, the current status of
 /// sources, index and preparation, and the main actions.
@@ -103,8 +106,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value ?? const <PhotoSource>[];
-    final disabled = ref.watch(settingsProvider).value?.disabledSourceIds ??
-        const <String>[];
+    final settings = ref.watch(settingsProvider).value ?? const AppSettings();
+    final disabled = settings.disabledSourceIds;
     final index = ref.watch(indexSnapshotProvider);
     final background = ref.watch(_backgroundPhotoProvider);
     final worker = ref.watch(smallPhotoWorkerProvider);
@@ -181,6 +184,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     value: usage.value == null
                         ? '…'
                         : '${usage.value!.count} Fotos',
+                  ),
+                  // The daily swap, without the pool size: the pool lives in
+                  // the slideshow, so only the percent is known here.
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32, bottom: 6),
+                    child: Text(
+                      dailySwapLine(
+                        AppLocalizations.of(context),
+                        percent: settings.rotationSwapPercent,
+                      ),
+                      style: const TextStyle(color: Colors.white54),
+                    ),
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,

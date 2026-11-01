@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
@@ -8,6 +9,7 @@ import 'package:mobile_app/features/settings/domain/app_settings.dart';
 import 'package:mobile_app/features/settings/state/settings_providers.dart';
 import 'package:mobile_app/features/sources/domain/photo_source.dart';
 import 'package:mobile_app/features/sources/state/sources_providers.dart';
+import 'package:mobile_app/l10n/app_localizations.dart';
 import 'package:mobile_app/screens/home_screen.dart';
 
 /// Usage of a cache with [count] photos on disk.
@@ -35,7 +37,70 @@ class _FakeWorker extends SmallPhotoWorker {
   void finishOne() => state = SmallPhotoStatus(done: state.done + 1);
 }
 
+/// The start screen in German, with the app's localization delegates.
+Widget _app() => const MaterialApp(
+      locale: Locale('de'),
+      localizationsDelegates: [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: HomeScreen(),
+    );
+
+/// Preparation off, with the daily swap of [percent].
+class _SwapPercentSettings extends AppSettingsController {
+  _SwapPercentSettings(this.percent);
+
+  final int percent;
+
+  @override
+  Future<AppSettings> build() async => AppSettings(
+        smallPhotoPreparation: false,
+        rotationSwapPercent: percent,
+      );
+}
+
 void main() {
+  testWidgets('shows the daily swap percent under the downloaded counter',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        sourcesProvider.overrideWith(_NoSourcesController.new),
+        settingsProvider.overrideWith(() => _SwapPercentSettings(5)),
+        photoIndexStoreProvider.overrideWithValue(
+          PhotoIndexStore(read: () async => null, write: (_) async {}),
+        ),
+        smallPhotoCacheUsageProvider.overrideWith((ref) async => _usage(7)),
+        smallPhotoWorkerProvider.overrideWith(_FakeWorker.new),
+      ],
+      child: _app(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Täglicher Austausch: 5 %'), findsOneWidget);
+  });
+
+  testWidgets('a daily swap of 0 percent shows 0 %', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        sourcesProvider.overrideWith(_NoSourcesController.new),
+        settingsProvider.overrideWith(() => _SwapPercentSettings(0)),
+        photoIndexStoreProvider.overrideWithValue(
+          PhotoIndexStore(read: () async => null, write: (_) async {}),
+        ),
+        smallPhotoCacheUsageProvider.overrideWith((ref) async => _usage(7)),
+        smallPhotoWorkerProvider.overrideWith(_FakeWorker.new),
+      ],
+      child: _app(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Täglicher Austausch: 0 %'), findsOneWidget);
+  });
+
   testWidgets('shows the number of downloaded photos and updates it live',
       (tester) async {
     var cachedPhotos = 7;
@@ -50,7 +115,7 @@ void main() {
             .overrideWith((ref) async => _usage(cachedPhotos)),
         smallPhotoWorkerProvider.overrideWith(_FakeWorker.new),
       ],
-      child: const MaterialApp(home: HomeScreen()),
+      child: _app(),
     ));
     await tester.pumpAndSettle();
 
@@ -87,7 +152,7 @@ void main() {
         }),
         smallPhotoWorkerProvider.overrideWith(_FakeWorker.new),
       ],
-      child: const MaterialApp(home: HomeScreen()),
+      child: _app(),
     ));
     await tester.pumpAndSettle();
     expect(find.text('3 Fotos'), findsOneWidget);
