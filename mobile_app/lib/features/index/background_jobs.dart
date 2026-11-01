@@ -57,9 +57,8 @@ class BackgroundJobs extends Notifier<bool> {
               Duration(hours: settings.indexRefreshHours);
       if (due) {
         for (final source in enabled) {
-          await _refreshSource(source, store);
+          snapshot = await _refreshSource(source, store, snapshot);
         }
-        snapshot = await store.load();
         unawaited(
             _prepareSmallPhotos(_enabledItems(snapshot, enabled), enabled));
       }
@@ -82,15 +81,21 @@ class BackgroundJobs extends Notifier<bool> {
         .toList();
   }
 
-  /// Replaces the photos of one source in the saved index.
-  Future<void> _refreshSource(PhotoSource source, PhotoIndexStore store) async {
+  /// Replaces the photos of one source in the saved index. Returns the index
+  /// after the replacement, or [current] when the crawl failed.
+  Future<IndexSnapshot> _refreshSource(
+    PhotoSource source,
+    PhotoIndexStore store,
+    IndexSnapshot current,
+  ) async {
     try {
       final items = await crawlSource(source);
-      await store.merge(items, replacing: {source.id});
+      return await store.merge(items, replacing: {source.id});
     } catch (e, st) {
       // A failing source keeps its saved photos; the other sources still run.
       logRecoverableError('Crawl of source ${source.id} failed',
           error: e, stackTrace: st);
+      return current;
     }
   }
 

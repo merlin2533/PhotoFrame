@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -46,12 +47,16 @@ class PhotoIndexStore {
     try {
       raw = await _read();
     } catch (e, st) {
-      logRecoverableError('Photo index could not be read', error: e, stackTrace: st);
+      logRecoverableError('Photo index could not be read',
+          error: e, stackTrace: st);
       return IndexSnapshot.empty;
     }
     if (raw == null) return IndexSnapshot.empty;
+    final text = raw;
     try {
-      final map = jsonDecode(raw) as Map<String, dynamic>;
+      // Decoding a large index on the UI isolate causes visible jank.
+      final map =
+          await Isolate.run(() => jsonDecode(text)) as Map<String, dynamic>;
       final items = [
         for (final e in map['items'] as List)
           _itemFromJson(e as Map<String, dynamic>),
@@ -73,10 +78,12 @@ class PhotoIndexStore {
 
   Future<void> save(List<PhotoItem> items, {DateTime? savedAt}) async {
     try {
-      await _write(jsonEncode({
+      final payload = {
         'savedAt': (savedAt ?? DateTime.now()).millisecondsSinceEpoch,
         'items': [for (final i in items) _itemToJson(i)],
-      }));
+      };
+      // Encoding runs off the UI isolate, see `load`.
+      await _write(await Isolate.run(() => jsonEncode(payload)));
     } catch (e, st) {
       // Best effort: the index is rebuilt by the next crawl anyway.
       logRecoverableError('Photo index could not be saved',
@@ -91,8 +98,9 @@ class PhotoIndexStore {
 
   /// Replaces the saved photos of the sources in [replacing] with [fresh] and
   /// keeps everything else. The saved date is kept, so the refresh schedule is
-  /// unchanged, unless the index was empty before.
-  Future<void> merge(
+  /// unchanged, unless the index was empty before. Returns the merged index,
+  /// so callers do not have to load it again.
+  Future<IndexSnapshot> merge(
     List<PhotoItem> fresh, {
     required Set<String> replacing,
   }) {
@@ -103,10 +111,11 @@ class PhotoIndexStore {
         for (final i in kept) '${i.sourceId}::${i.id}': i,
         for (final i in fresh) '${i.sourceId}::${i.id}': i,
       };
-      await save(
-        merged.values.toList(),
-        savedAt: snapshot.items.isEmpty ? DateTime.now() : snapshot.savedAt,
-      );
+      final items = merged.values.toList();
+      final savedAt =
+          snapshot.items.isEmpty ? DateTime.now() : snapshot.savedAt;
+      await save(items, savedAt: savedAt);
+      return IndexSnapshot(items: items, savedAt: savedAt);
     });
     _queue = run.then<void>((_) {}, onError: (Object _) {});
     return run;
