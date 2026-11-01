@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
-import type { DatabaseSync } from 'node:sqlite';
 import { getDb } from '../db';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from './jwt';
 
@@ -20,22 +19,11 @@ export class AuthError extends Error {
   }
 }
 
-// In-memory store of valid refresh-token ids (jti) per user, backed by a
-// lightweight table so tokens survive restarts and can be revoked.
-function ensureRefreshTable(db: DatabaseSync) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS refresh_tokens (
-      jti TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-      revoked_at TEXT
-    );
-  `);
-}
+// Valid refresh-token ids (jti) per user live in the refresh_tokens table
+// (created by migration 004), so tokens survive restarts and can be revoked.
 
 export function registerUser(username: string, password: string): User {
   const db = getDb();
-  ensureRefreshTable(db);
 
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (existing) {
@@ -70,7 +58,6 @@ export interface TokenPair {
 
 export function issueTokenPair(userId: string): TokenPair {
   const db = getDb();
-  ensureRefreshTable(db);
 
   const jti = uuidv4();
   db.prepare('INSERT INTO refresh_tokens (jti, user_id) VALUES (?, ?)').run(jti, userId);
@@ -83,7 +70,6 @@ export function issueTokenPair(userId: string): TokenPair {
 
 export function refreshTokenPair(refreshToken: string): TokenPair {
   const db = getDb();
-  ensureRefreshTable(db);
 
   let payload;
   try {
@@ -110,7 +96,6 @@ export function refreshTokenPair(refreshToken: string): TokenPair {
 
 export function revokeRefreshToken(jti: string): void {
   const db = getDb();
-  ensureRefreshTable(db);
   db.prepare('UPDATE refresh_tokens SET revoked_at = strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') WHERE jti = ?').run(jti);
 }
 

@@ -1,6 +1,7 @@
 import { getDb, runInTransaction } from '../db';
 import { issueDeviceToken, revokeAllTokensForFrame, type IssuedDeviceToken } from './deviceTokens';
 import { deriveKeyFingerprint } from './keyFingerprint';
+import { disconnectFrameSockets } from '../realtime/socket';
 
 export class RecoveryError extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -82,6 +83,9 @@ export function recoverFrame(
     // acting as this frame.
     revokeAllTokensForFrame(frameId);
   });
+
+  // Sockets opened with the revoked tokens must not keep their room access.
+  disconnectFrameSockets(frameId);
 
   const deviceToken = issueDeviceToken(frameId);
 

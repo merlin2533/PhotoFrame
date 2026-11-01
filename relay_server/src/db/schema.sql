@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_device_tokens_frame_id ON device_tokens(frame_id);
-CREATE INDEX IF NOT EXISTS idx_device_tokens_token_hash ON device_tokens(token_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_token_hash ON device_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS pairings (
   id TEXT PRIMARY KEY,
@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_pairing_id ON pairing_codes(pairing_id);
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_expires_at ON pairing_codes(expires_at);
+
 CREATE TABLE IF NOT EXISTS config_pushes (
   id TEXT PRIMARY KEY,
   target_frame_id TEXT NOT NULL REFERENCES frames(id) ON DELETE CASCADE,
@@ -74,6 +77,7 @@ CREATE TABLE IF NOT EXISTS config_pushes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_config_pushes_target ON config_pushes(target_frame_id, applied_at, rejected_at);
+CREATE INDEX IF NOT EXISTS idx_config_pushes_sender_frame_id ON config_pushes(sender_frame_id);
 
 -- blobs: explicit refcount table backing the content-addressed store,
 -- instead of COUNT(*) over images (cheap reads, no race on delete).
@@ -102,6 +106,7 @@ CREATE TABLE IF NOT EXISTS images (
 CREATE INDEX IF NOT EXISTS idx_images_pairing_id ON images(pairing_id, uploaded_at);
 CREATE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_images_upload_scope ON images(uploaded_by_frame_id, client_upload_id);
+CREATE INDEX IF NOT EXISTS idx_images_uploaded_by_frame_id ON images(uploaded_by_frame_id);
 
 CREATE TABLE IF NOT EXISTS image_hidden (
   image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
@@ -109,6 +114,8 @@ CREATE TABLE IF NOT EXISTS image_hidden (
   hidden_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   PRIMARY KEY (image_id, frame_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_image_hidden_frame_id ON image_hidden(frame_id);
 
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
@@ -119,6 +126,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reports_image_id ON reports(image_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter_frame_id ON reports(reporter_frame_id);
 
 CREATE TABLE IF NOT EXISTS admin_audit (
   id TEXT PRIMARY KEY,
@@ -128,3 +136,15 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   target_id TEXT,
   at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit(at);
+
+-- refresh_tokens: created by migration 004 (previously ad hoc in auth/userAuth.ts).
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  jti TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  revoked_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);

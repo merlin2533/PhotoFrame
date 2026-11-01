@@ -32,17 +32,21 @@ export interface BlobConsistencyReport {
 export function runBlobConsistencyCheck(): BlobConsistencyReport {
   const db = getDb();
 
-  const blobs = db.prepare('SELECT hash, refcount FROM blobs').all() as {
-    hash: string;
-    refcount: number;
-  }[];
+  // One LEFT JOIN + GROUP BY computes every blob's actual reference count in
+  // a single pass, instead of one COUNT(*) query per blob.
+  const blobs = db
+    .prepare(
+      `SELECT b.hash AS hash, b.refcount AS refcount, COUNT(i.id) AS actualRefcount
+       FROM blobs b
+       LEFT JOIN images i ON i.content_hash = b.hash
+       GROUP BY b.hash, b.refcount`,
+    )
+    .all() as { hash: string; refcount: number; actualRefcount: number }[];
 
   const mismatches: BlobRefcountMismatch[] = [];
 
-  const countStmt = db.prepare('SELECT COUNT(*) AS count FROM images WHERE content_hash = ?');
-
   for (const blob of blobs) {
-    const { count: actualRefcount } = countStmt.get(blob.hash) as { count: number };
+    const actualRefcount = blob.actualRefcount;
 
     if (actualRefcount !== blob.refcount) {
       const mismatch: BlobRefcountMismatch = {

@@ -8,6 +8,10 @@ import { getDb } from '../db';
  * SHA-256 hash so a DB leak does not expose usable tokens.
  */
 
+// last_seen_at is only written when the stored value is older than this, so
+// a frame polling every few seconds does not cause a write per request.
+const LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
+
 function hashToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
@@ -48,12 +52,15 @@ export function verifyDeviceToken(rawToken: string): DeviceTokenRow | null {
 
   if (!row || row.revoked_at) return null;
 
-  db.prepare(
-    'UPDATE device_tokens SET last_seen_at = strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') WHERE id = ?',
-  ).run(row.id);
-  db.prepare(
-    'UPDATE frames SET last_seen_at = strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') WHERE id = ?',
-  ).run(row.frame_id);
+  const lastSeenMs = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
+  if (Date.now() - lastSeenMs >= LAST_SEEN_WRITE_INTERVAL_MS) {
+    db.prepare(
+      'UPDATE device_tokens SET last_seen_at = strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') WHERE id = ?',
+    ).run(row.id);
+    db.prepare(
+      'UPDATE frames SET last_seen_at = strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') WHERE id = ?',
+    ).run(row.frame_id);
+  }
 
   return row;
 }

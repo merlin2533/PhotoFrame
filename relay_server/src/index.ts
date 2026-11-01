@@ -4,9 +4,11 @@ import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { env } from './config/env';
-import { getDb } from './db';
+import { corsOrigin } from './config/cors';
+import { closeDb, getDb } from './db';
 import { ensureStorageDirs } from './storage/contentAddressedStore';
-import { initSocket } from './realtime/socket';
+import { getIo, initSocket } from './realtime/socket';
+import { startMaintenanceJobs } from './maintenance';
 
 import { authRouter } from './routes/auth';
 import { framesRouter } from './routes/frames';
@@ -29,7 +31,7 @@ function createApp() {
   }
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(cors());
+  app.use(cors({ origin: corsOrigin() }));
   app.use(express.json({ limit: '1mb' }));
   app.use(enforceMaxUploadSize);
 
@@ -75,10 +77,32 @@ function main() {
     console.log(`Public URL: ${env.PUBLIC_URL}`);
   });
 
+  const maintenanceTimer = startMaintenanceJobs();
+
+  let shuttingDown = false;
   const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log('Shutting down...');
-    server.close(() => process.exit(0));
+    if (maintenanceTimer) clearInterval(maintenanceTimer);
+
+    // If in-flight requests or keep-alive connections do not finish in time,
+    // exit anyway. SQLite's WAL keeps committed data durable regardless.
     setTimeout(() => process.exit(1), 10_000).unref();
+
+    const finish = () => {
+      closeDb();
+      process.exit(0);
+    };
+    // io.close() also closes the underlying HTTP server and disconnects all
+    // Socket.IO clients. Without a Socket.IO server, close the HTTP server
+    // directly.
+    const io = getIo();
+    if (io) {
+      io.close(() => finish());
+    } else {
+      server.close(() => finish());
+    }
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);

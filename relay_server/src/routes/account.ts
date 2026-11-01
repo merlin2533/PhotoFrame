@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb, runInTransaction } from '../db';
 import { requireUserAuth } from '../middleware/authGuard';
 import { releaseBlobRef } from '../storage/contentAddressedStore';
+import { disconnectFrameSockets } from '../realtime/socket';
 
 export const accountRouter = Router();
 
@@ -54,5 +55,6 @@ accountRouter.delete('/', (req, res) => {
     db.prepare('DELETE FROM users WHERE id = ?').run(req.userId!);
   });
 
+  for (const frame of frames) disconnectFrameSockets(frame.id);
   res.json({ ok: true });
 });

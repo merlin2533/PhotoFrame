@@ -431,16 +431,25 @@ Nach der Umsetzung wurde – analog zum Architektur-Review – der tatsächlich 
 3. Fehlendes `app.set('trust proxy', ...)` hätte hinter einem Reverse-Proxy alle Clients auf einen gemeinsamen Rate-Limit-Bucket kollabieren lassen (Ein-Klick-Lockout aller Nutzer) – jetzt über den neuen, explizit zu setzenden `TRUST_PROXY`-Env-Var steuerbar (Default `false`, da ein unbedacht aktiviertes Trust-Proxy ohne echten vorgeschalteten Proxy das Rate-Limiting umgekehrt spoofbar machen würde).
 4. `DELETE /images/:imageId` erlaubte jedem Pairing-Mitglied das Löschen fremder Bilder (PLAN.md verlangt Uploader-oder-owner); `POST /:imageId/{hide,unhide}` hatte gar keine Mitgliedschaftsprüfung – beides behoben.
 
-**Noch offen** (bewusst nicht in dieser Runde behoben, da über den "vor jedem – auch internen – Deploy zwingend"-Umfang hinausgehend; vor einem externen/Store-Release oder Aktivierung der Fernkonfiguration zwingend nachzuholen):
+**Noch offen** (Stand nach der Relay-Optimierungsrunde, jeder Punkt gegen den Code geprüft; vor einem externen/Store-Release nachzuziehen):
 
-- **Blocker 1 aus dem Architektur-Review ist im Code nicht umgesetzt**: Es gibt keinerlei Key-Fingerprint/TOFU-Mechanismus für den Config-Push-Flow (weder serverseitig im Pairing-Code-Response noch clientseitig). Der Schutz gegen einen bösartigen Relay-Betreiber, der Zugangsdaten per Key-Substitution mitlesen könnte, existiert nur im Plan. Empfehlung: `configPush` bis zur Implementierung deaktiviert lassen bzw. UI-seitig als "experimentell, Betreiber muss vertraut sein" kennzeichnen.
-- **Blocker 2 nur zur Hälfte umgesetzt**: Melde-Funktion (`reports`-Tabelle/Route) existiert, aber es gibt keinen Endpunkt, um ein Pairing-Mitglied zu entfernen/zu blockieren (nur Selbst-Verlassen und komplettes Pairing-Löschen) – für die Store-UGC-Pflicht (Apple Guideline 1.2) fehlt damit die eigentliche Block-Funktion.
-- Blob-Refcount-Lecks bei Pairing-Löschung (`ON DELETE CASCADE` dekrementiert `blobs.refcount` nicht) und beim Admin-User-Löschen; `commitBlob()` wird außerhalb der vorgesehenen Transaktion aufgerufen (Absturzfenster erzeugt verwaiste Refcounts).
-- `client_upload_id` ist global statt pro Frame/Pairing eindeutig (theoretisches Cross-Tenant-ID-Leck/Upload-Blockade bei Kollision).
-- `storage_used_bytes` wird bei keinem Löschpfad dekrementiert (Einweg-Zähler, blockiert Nutzer dauerhaft nach Erreichen der Quota).
-- Live-Updates sind nicht verdrahtet: `album:updated`/`album:imageDeleted` werden nie über Socket.IO gesendet, der `pairing:<id>`-Raum ist aktuell funktionslos.
-- `config_pushes` haben keine Größenbegrenzung/Retention/Rate-Limit (Storage-DoS-Potenzial) und keinen Reject-Endpunkt (`rejected_at` wird nie durch den Nutzer gesetzt).
-- Socket-Mitgliedschaft wird nur beim Join geprüft, nicht erneut bei Entzug/Token-Widerruf während einer laufenden Verbindung.
-- Fehlende HTTP-/Route-Level-Tests: alle 18 Tests sind Unit-Tests auf Hilfsfunktionen; die komplette Autorisierungsschicht (`authGuard`, Membership-Checks) ist ungetestet – genau dort saßen die oben behobenen Findings 4.
+- `config_pushes` haben keine Retention: erledigte oder abgelehnte Pushes werden nie gelöscht. Ein Rate-Limit pro Frame fehlt ebenfalls (Relay-Optimierungsplan, Punkt 3, bewusst nicht umgesetzt).
+- `PAIRING_CODE_PEPPER` fällt ohne eigene Variable auf `JWT_SECRET` zurück, sodass beide Secrets gekoppelt sind.
+- Blob-Verzeichnis ist flach (`blobs/<hash>.orig`/`.thumb`) statt sharded (`ab/cd/<hash>`). Bei sehr vielen Blobs wird das für Dateisysteme und Backups unhandlich.
+- Redeem-Attempt-Zähler (`pairing_codes.attempt_count`) zählt erst nach einem Hash-Treffer hoch. Gegen Code-Raten schützt nur `pairingRedeemRateLimiter`.
+- `enforceMaxUploadSize` verlässt sich auf den fälschbaren `Content-Length`-Header. Die harte Grenze ist multers `limits.fileSize`, dessen Fehler noch nicht auf 413 abgebildet wird (Relay-Optimierungsplan, Punkt 9, bewusst nicht umgesetzt).
 - `WorkingSetPool` in `mobile_app` ist bewusst nur Scaffolding (keine echte Admission-/Eviction-Logik, keine Tests) – siehe Ordnerstruktur/Meilensteine oben.
-- Kleinere Punkte: Pairing-Code-TTL im Code 10 statt der geplanten 15 Minuten; Redeem-Attempt-Zähler schützt nicht gegen Code-Guessing (zählt erst nach erfolgreichem Hash-Treffer hoch); `PAIRING_CODE_PEPPER`-Fallback auf `JWT_SECRET` koppelt beide Secrets; `enforceMaxUploadSize` verlässt sich auf den (fälschbaren) `Content-Length`-Header statt sich allein auf multers `limits.fileSize` zu stützen; Blob-Verzeichnis ist flach statt wie geplant sharded (`ab/cd/<hash>`); `backup.ts` bricht ab, falls ein Unterverzeichnis im Backup-Ordner liegt.
+
+**Erledigt** (aus der Liste entfernt, im Code verifiziert):
+
+- Blocker 1 (Key-Fingerprint/TOFU): serverseitig in der Pairing-Antwort und den Mitgliedern (`auth/keyFingerprint.ts`), clientseitig in der App (`fingerprint_mismatch_warning.dart`).
+- Blocker 2 (Mitglied entfernen): `DELETE /api/v1/pairing/:pairingId/members/:frameId` (owner-only).
+- Blob-Refcount-Lecks bei Pairing- und Admin-Löschung: `releaseImageAccounting` läuft vor dem Cascade. `commitBlob` läuft im Upload zusammen mit dem `images`-INSERT in einer Transaktion.
+- `client_upload_id` ist pro Frame eindeutig (Migration 002).
+- `storage_used_bytes` wird beim Löschen dekrementiert (`storage/imageCleanup.ts`).
+- Live-Updates: `album:updated` und `album:imageDeleted` werden über Socket.IO gesendet.
+- `config_pushes`: Größenlimit (65536 Zeichen) und Reject-Endpunkt vorhanden.
+- Socket-Mitgliedschaft: Entfernen, Verlassen, Pairing-Löschung, Frame-/Konto-Löschung und Recovery schließen die betroffenen Sockets bzw. verlassen den Raum (`realtime/socket.ts`). Ein periodischer Recheck existiert nicht, ist aber für diese Pfade nicht nötig.
+- Route-Level-Tests: `test/http/` deckt Authentifizierung, Membership-Checks, Config-Push, Frames/Recovery, Refresh, Konto-Löschung, Reports, Uploads, Datei-Auslieferung, Paging und Socket-Join ab.
+- Pairing-Code-TTL ist 15 Minuten (Test in `test/http/pairing.http.test.ts`).
+- `backup.ts`: Nicht-Dateien im Backup-Ordner werden übersprungen, das Pruning bricht nicht mehr ab.

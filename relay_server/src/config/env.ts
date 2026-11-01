@@ -49,6 +49,20 @@ const envSchema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(15 * 1024 * 1024),
   MAX_IMAGES_PER_PAIRING: z.coerce.number().int().positive().default(5000),
   MAX_STORAGE_BYTES_PER_USER: z.coerce.number().int().positive().default(5 * 1024 * 1024 * 1024),
+  // How many uploads may be decoded/re-encoded at the same time. Each one
+  // holds several full-size decoded frames in memory, so this is a memory
+  // bound more than a throughput setting.
+  MAX_CONCURRENT_UPLOADS: z.coerce.number().int().min(1).default(2),
+
+  // Interval for the background maintenance job (blob GC, refcount check,
+  // stale temp files, expired pairing codes, revoked refresh tokens).
+  // 0 disables the job.
+  MAINTENANCE_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+
+  // Comma-separated browser origins allowed for CORS (HTTP and Socket.IO).
+  // Empty = no cross-origin browser access in production; in development and
+  // test, http(s)://localhost:<port> is allowed so local web clients work.
+  CORS_ORIGINS: z.string().optional().default(''),
 
   BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
 });

@@ -22,8 +22,18 @@ export function getDb(): DatabaseSync {
   return db;
 }
 
+/**
+ * Closes the connection after folding the WAL back into the main database
+ * file, so a clean shutdown leaves no large -wal file behind and the next
+ * start begins from a complete database file.
+ */
 export function closeDb(): void {
   if (dbInstance) {
+    try {
+      dbInstance.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (err) {
+      console.warn('[db] WAL checkpoint on shutdown failed:', err);
+    }
     dbInstance.close();
     dbInstance = null;
   }
