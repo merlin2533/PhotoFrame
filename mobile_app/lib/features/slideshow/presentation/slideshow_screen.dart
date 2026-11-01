@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/app_log.dart';
 import '../../../services/ambient/ambient_dim_controller.dart';
 import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
@@ -28,6 +29,7 @@ import '../../sources/state/sources_providers.dart';
 import '../domain/always_on_controller.dart';
 import '../domain/daily_selection.dart';
 import '../domain/effective_visual_settings.dart';
+import '../domain/night_schedule.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../state/slideshow_providers.dart';
@@ -98,7 +100,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   bool _paused = false;
   bool _loading = true;
   Object? _loadError;
+  // Minute timer for the night/dim overlays. Only runs while a night schedule
+  // or the ambient dim window is configured (see `_syncMinuteTimer`). It bumps
+  // `_minuteTick` instead of calling `setState`, so only the dim layers rebuild.
   Timer? _nightTick;
+  final ValueNotifier<int> _minuteTick = ValueNotifier<int>(0);
   Timer? _refreshTimer;
   StreamSubscription<PhotoItem?>? _prefetchSub;
   final math.Random _prefetchRandom = math.Random();
@@ -154,13 +160,24 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _refreshTimer = Timer.periodic(
         _refreshInterval, (_) => unawaited(_backgroundRefresh()));
-    _nightTick =
-        Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
+  }
+
+  /// Starts or stops the minute timer for the night/dim overlays. Called from
+  /// `build`: it only starts or cancels a timer, so it never calls `setState`.
+  void _syncMinuteTimer(bool needed) {
+    if (needed && _nightTick == null) {
+      _nightTick = Timer.periodic(
+          const Duration(minutes: 1), (_) => _minuteTick.value++);
+    } else if (!needed && _nightTick != null) {
+      _nightTick?.cancel();
+      _nightTick = null;
+    }
   }
 
   @override
   void dispose() {
     _nightTick?.cancel();
+    _minuteTick.dispose();
     _ambientSub?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
@@ -310,8 +327,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         final map = jsonDecode(raw) as Map<String, dynamic>;
         savedDay = map['day'] as String?;
         savedKeys = (map['keys'] as List).cast<String>();
-      } catch (_) {
+      } catch (e, st) {
         // Corrupt value: treat as no saved selection.
+        logRecoverableError('Saved daily selection is corrupt',
+            error: e, stackTrace: st);
       }
     }
     final chosen = DailySelection.pick<PhotoItem>(
@@ -714,6 +733,48 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
+  /// Night dimming and the ambient time-window dim. Evaluated against the
+  /// current time on every minute tick (see `_minuteTick`).
+  Widget _buildDimLayers(AppSettings settings) {
+    final now = DateTime.now();
+    final isNight = settings.nightSchedule.isNightAt(now);
+    final inDimWindow = isWithinDimWindow(
+      now,
+      startMinutes: settings.dimStartMinutes,
+      endMinutes: settings.dimEndMinutes,
+    );
+    final hasLightSensor = _ambientSource is! NoopAmbientLightSource;
+    final ambientDimOpacity = !inDimWindow
+        ? 0.0
+        : hasLightSensor
+            ? _sensorDimOpacity
+            : _fixedAmbientDimOpacity;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Ambient dimming: black overlay inside the configured time window.
+        // Without a light sensor the fixed opacity applies; with one, the
+        // lux-based opacity is used instead. The AnimatedOpacity fades in and
+        // out over the whole window edge.
+        if (settings.ambientDimEnabled)
+          IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: ambientDimOpacity,
+              duration: const Duration(seconds: 2),
+              child: const ColoredBox(color: Colors.black),
+            ),
+          ),
+        if (isNight)
+          IgnorePointer(
+            child: Container(
+              color: Colors.black
+                  .withValues(alpha: settings.nightSchedule.dimAmount),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsProvider);
@@ -812,18 +873,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
 
     final settings = settingsAsync.value ?? const AppSettings();
-    final isNight = settings.nightSchedule.isNightAt(DateTime.now());
-    final inDimWindow = isWithinDimWindow(
-      DateTime.now(),
-      startMinutes: settings.dimStartMinutes,
-      endMinutes: settings.dimEndMinutes,
+    _syncMinuteTimer(
+      settings.nightSchedule.mode != NightScheduleMode.disabled ||
+          settings.ambientDimEnabled,
     );
-    final hasLightSensor = _ambientSource is! NoopAmbientLightSource;
-    final ambientDimOpacity = !inDimWindow
-        ? 0.0
-        : hasLightSensor
-            ? _sensorDimOpacity
-            : _fixedAmbientDimOpacity;
     final favorites = ref.watch(favoritesStoreProvider);
 
     return Scaffold(
@@ -1039,21 +1092,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                 // window. Without a light sensor the fixed opacity applies;
                 // with one, the lux-based opacity is used instead. The
                 // AnimatedOpacity fades in and out over the whole window edge.
-                if (settings.ambientDimEnabled)
+                if (settings.ambientDimEnabled ||
+                    settings.nightSchedule.mode != NightScheduleMode.disabled)
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: AnimatedOpacity(
-                        opacity: ambientDimOpacity,
-                        duration: const Duration(seconds: 2),
-                        child: const ColoredBox(color: Colors.black),
-                      ),
-                    ),
-                  ),
-                if (isNight)
-                  IgnorePointer(
-                    child: Container(
-                      color: Colors.black
-                          .withValues(alpha: settings.nightSchedule.dimAmount),
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _minuteTick,
+                      builder: (context, _, __) => _buildDimLayers(settings),
                     ),
                   ),
               ],

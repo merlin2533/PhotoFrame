@@ -22,15 +22,28 @@ class _ClockTextState extends State<ClockText> {
   void initState() {
     super.initState();
     _now = DateTime.now();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
+    _scheduleNextMinute();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  /// The display only shows hours, minutes and the date, so it changes at
+  /// most once per minute. A one-shot timer aligned to the next minute
+  /// boundary avoids waking the UI thread every second.
+  void _scheduleNextMinute() {
+    final now = DateTime.now();
+    final msIntoMinute = now.second * 1000 + now.millisecond;
+    // Small margin so the timer does not fire just before the boundary.
+    final delay = Duration(milliseconds: 60000 - msIntoMinute + 20);
+    _timer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      _scheduleNextMinute();
+    });
   }
 
   @override
@@ -41,24 +54,27 @@ class _ClockTextState extends State<ClockText> {
     const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     final date =
         '${dayNames[_now.weekday - 1]}, ${_now.day.toString().padLeft(2, '0')}.${_now.month.toString().padLeft(2, '0')}.';
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 34,
-            fontWeight: FontWeight.w300,
-            height: 1.0,
+    // Isolates the clock's repaints from the rest of the slideshow layers.
+    return RepaintBoundary(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.w300,
+              height: 1.0,
+            ),
           ),
-        ),
-        Text(
-          date,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
-        ),
-      ],
+          Text(
+            date,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }

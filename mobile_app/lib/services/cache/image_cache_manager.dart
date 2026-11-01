@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/app_log.dart';
 import '../../features/sources/domain/cache_lease.dart';
 
 /// Fallback free-space figure used when the real platform query fails or
@@ -328,9 +329,11 @@ class ImageCacheManager {
       if (await file.exists()) {
         await file.delete();
       }
-    } catch (_) {
+    } catch (e, st) {
       // Best-effort: a failed delete shouldn't crash cache bookkeeping. The
       // entry is already removed from tracking either way.
+      logRecoverableError('Cache file could not be deleted',
+          error: e, stackTrace: st);
     }
   }
 

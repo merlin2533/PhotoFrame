@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/result.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../cache/small_photo_cache.dart';
 import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
@@ -175,12 +177,19 @@ class _PhotoImage extends StatelessWidget {
     // otherwise takes ~48 MB of memory on the frame.
     final screenWidth = MediaQuery.sizeOf(context).width *
         MediaQuery.devicePixelRatioOf(context);
+    final l10n = AppLocalizations.of(context);
     return Image.file(
       file!,
       fit: fit,
       cacheWidth: screenWidth.round(),
-      errorBuilder: (context, err, stackTrace) =>
-          _PlaceholderBox(item: item, reason: 'Nicht dekodierbar: $err'),
+      errorBuilder: (context, err, stackTrace) => _PlaceholderBox(
+        item: item,
+        // The raw exception is only useful while developing; on the frame
+        // only the translated reason is shown.
+        reason: kDebugMode
+            ? '${l10n.slideDecodeFailed}: $err'
+            : l10n.slideDecodeFailed,
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/app_log.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
@@ -46,7 +47,10 @@ class SmallPhotoCache {
         '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
     try {
       if (await old.exists()) await old.delete(recursive: true);
-    } catch (_) {}
+    } catch (e, st) {
+      logRecoverableError('Old small photo folder could not be removed',
+          error: e, stackTrace: st);
+    }
   }
 
   /// Name of the folder used before colours were checked (see above).
@@ -71,7 +75,8 @@ class SmallPhotoCache {
     try {
       final file = await _fileFor(item);
       return await file.exists() ? file : null;
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Small photo lookup failed', error: e, stackTrace: st);
       return null;
     }
   }
@@ -106,7 +111,9 @@ class SmallPhotoCache {
         }
       }
       return target;
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Small photo could not be prepared',
+          error: e, stackTrace: st);
       return null;
     }
   }
@@ -171,6 +178,8 @@ class SmallPhotoCache {
           [for (final v in sums[k]) v / (counts[k] == 0 ? 1 : counts[k])],
       ];
     } catch (_) {
+      // Undecodable file: expected for some formats, so this is not logged
+      // as an error. The caller falls back to the placeholder.
       return null;
     } finally {
       codec?.dispose();
@@ -229,7 +238,9 @@ class SmallPhotoCache {
         format: CompressFormat.jpeg,
       );
       return await temp.writeAsBytes(jpeg, flush: true);
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Fallback photo scaling failed',
+          error: e, stackTrace: st);
       return null;
     } finally {
       codec?.dispose();

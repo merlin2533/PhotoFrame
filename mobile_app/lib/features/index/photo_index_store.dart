@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/app_log.dart';
 import '../sources/domain/media_type.dart';
 import '../sources/domain/photo_item.dart';
 
@@ -41,9 +42,15 @@ class PhotoIndexStore {
   /// Loads the saved index. An empty snapshot (no items, epoch time) means
   /// "no index yet".
   Future<IndexSnapshot> load() async {
+    final String? raw;
     try {
-      final raw = await _read();
-      if (raw == null) return IndexSnapshot.empty;
+      raw = await _read();
+    } catch (e, st) {
+      logRecoverableError('Photo index could not be read', error: e, stackTrace: st);
+      return IndexSnapshot.empty;
+    }
+    if (raw == null) return IndexSnapshot.empty;
+    try {
       final map = jsonDecode(raw) as Map<String, dynamic>;
       final items = [
         for (final e in map['items'] as List)
@@ -53,7 +60,13 @@ class PhotoIndexStore {
         items: items,
         savedAt: DateTime.fromMillisecondsSinceEpoch(map['savedAt'] as int),
       );
-    } catch (_) {
+    } catch (e, st) {
+      // The file is damaged (for example cut off by a crash while writing).
+      // Clearing it turns the next load into a clean full crawl instead of
+      // failing again on every start.
+      logRecoverableError('Photo index is corrupt, rebuilding it',
+          error: e, stackTrace: st);
+      await clear();
       return IndexSnapshot.empty;
     }
   }
@@ -64,8 +77,10 @@ class PhotoIndexStore {
         'savedAt': (savedAt ?? DateTime.now()).millisecondsSinceEpoch,
         'items': [for (final i in items) _itemToJson(i)],
       }));
-    } catch (_) {
+    } catch (e, st) {
       // Best effort: the index is rebuilt by the next crawl anyway.
+      logRecoverableError('Photo index could not be saved',
+          error: e, stackTrace: st);
     }
   }
 

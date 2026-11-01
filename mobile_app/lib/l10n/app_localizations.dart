@@ -625,6 +625,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Neue SMB-Quelle von {senderLabel} übernehmen?'**
   String configPushConfirmSmbTitle(String senderLabel);
+
+  /// Platzhaltertext auf einer Folie, wenn das Foto nicht dekodiert werden kann.
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht dekodierbar'**
+  String get slideDecodeFailed;
 }
 
 class _AppLocalizationsDelegate

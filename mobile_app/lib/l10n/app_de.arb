@@ -194,5 +194,8 @@
   "@configPushConfirmSmbTitle": {
     "description": "Bestätigungsfrage auf der Config-Push-Bestätigungsseite für eine empfangene SMB-Quelle.",
     "placeholders": {"senderLabel": {"type": "String"}}
-  }
+  },
+
+  "slideDecodeFailed": "Nicht dekodierbar",
+  "@slideDecodeFailed": {"description": "Platzhaltertext auf einer Folie, wenn das Foto nicht dekodiert werden kann."}
 }
