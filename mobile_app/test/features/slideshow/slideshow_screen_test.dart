@@ -202,7 +202,9 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     expect(find.byType(EmptyStateView), findsNothing);
-    expect(find.byType(SlideRenderer), findsOneWidget);
+    // During a fade two slides can be mounted at once, so only require that a
+    // slide is shown, not exactly one.
+    expect(find.byType(SlideRenderer), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
