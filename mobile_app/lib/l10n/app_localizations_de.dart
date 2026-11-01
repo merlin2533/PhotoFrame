@@ -9,6 +9,42 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get settingsLogTitle => 'Protokoll';
+
+  @override
+  String get settingsLogSubtitle =>
+      'Letzte Hinweise und Fehler der App ansehen';
+
+  @override
+  String get settingsErrorReportsTitle => 'Fehlerberichte senden';
+
+  @override
+  String get settingsErrorReportsSubtitle =>
+      'Anonymisierte Fehlerberichte helfen bei der Fehlersuche. Fotos und Dateinamen werden nie gesendet.';
+
+  @override
+  String get logScreenTitle => 'Protokoll';
+
+  @override
+  String get logEmptyState => 'Noch keine Einträge.';
+
+  @override
+  String get logCopyAction => 'Kopieren';
+
+  @override
+  String get logClearAction => 'Leeren';
+
+  @override
+  String get logClearConfirmTitle => 'Protokoll leeren?';
+
+  @override
+  String get logClearConfirmBody =>
+      'Alle Einträge im Protokoll werden entfernt.';
+
+  @override
+  String get logCopiedMessage => 'Protokoll in die Zwischenablage kopiert.';
+
+  @override
   String get appTitle => 'PhotoFrame';
 
   @override

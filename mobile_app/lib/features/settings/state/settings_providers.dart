@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/observability/error_reporter.dart';
 import '../../../services/cache/image_cache_manager.dart';
 import '../../../services/weather/weather_client.dart';
 import '../domain/app_settings.dart';
@@ -16,6 +17,21 @@ const String _prefsKey = 'app_settings_v1';
 final Provider<Future<SharedPreferences>> sharedPreferencesProvider =
     Provider<Future<SharedPreferences>>(
         (ref) => SharedPreferences.getInstance());
+
+/// Reads the persisted "Fehlerberichte senden" switch synchronously from
+/// already-loaded [prefs]. Used by `main.dart` before the Riverpod tree
+/// exists, so that error reporting honours the switch from the first error.
+/// Falls back to the default (on) for missing or unreadable settings.
+bool readSendErrorReportsSetting(SharedPreferences prefs) {
+  final raw = prefs.getString(_prefsKey);
+  if (raw == null) return const AppSettings().sendErrorReports;
+  try {
+    return AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>)
+        .sendErrorReports;
+  } on Object {
+    return const AppSettings().sendErrorReports;
+  }
+}
 
 /// Owns the persisted [AppSettings] and exposes mutation helpers. Backed by
 /// a single JSON blob in `shared_preferences` (see [AppSettings] doc
@@ -40,6 +56,7 @@ class AppSettingsController extends AsyncNotifier<AppSettings> {
 
   Future<void> _persist(AppSettings settings) async {
     state = AsyncValue.data(settings);
+    setErrorReportingEnabled(settings.sendErrorReports);
     SharedPreferences prefs;
     final cached = _prefs;
     if (cached != null) {

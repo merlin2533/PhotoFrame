@@ -10,6 +10,7 @@ import '../../features/settings/presentation/autostart_help_screen.dart';
 import '../../features/settings/presentation/cache_settings_screen.dart';
 import '../../features/settings/presentation/kiosk_settings_screen.dart';
 import '../../features/settings/presentation/language_settings_screen.dart';
+import '../../features/settings/presentation/log_screen.dart';
 import '../../features/settings/presentation/night_mode_settings_screen.dart';
 import '../../features/settings/presentation/pool_settings_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -153,6 +154,11 @@ GoRouter buildAppRouter({required String initialLocation}) {
             path: 'kiosk',
             name: 'settings-kiosk',
             builder: (context, state) => const KioskSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'log',
+            name: 'settings-log',
+            builder: (context, state) => const LogScreen(),
           ),
           GoRoute(
             path: 'sources',

@@ -9,6 +9,40 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get settingsLogTitle => 'Log';
+
+  @override
+  String get settingsLogSubtitle => 'View recent notices and errors of the app';
+
+  @override
+  String get settingsErrorReportsTitle => 'Send error reports';
+
+  @override
+  String get settingsErrorReportsSubtitle =>
+      'Anonymous error reports help find problems. Photos and file names are never sent.';
+
+  @override
+  String get logScreenTitle => 'Log';
+
+  @override
+  String get logEmptyState => 'No entries yet.';
+
+  @override
+  String get logCopyAction => 'Copy';
+
+  @override
+  String get logClearAction => 'Clear';
+
+  @override
+  String get logClearConfirmTitle => 'Clear log?';
+
+  @override
+  String get logClearConfirmBody => 'All entries in the log will be removed.';
+
+  @override
+  String get logCopiedMessage => 'Log copied to the clipboard.';
+
+  @override
   String get appTitle => 'PhotoFrame';
 
   @override

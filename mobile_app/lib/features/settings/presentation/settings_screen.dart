@@ -1,18 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../domain/app_settings.dart';
+import '../state/settings_providers.dart';
 
 /// Top-level settings hub. Each row navigates to a focused sub-screen
 /// rather than cramming every setting into one long list (per the M6 task:
 /// "mehrere Unterseiten, nicht eine riesige Liste").
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final settingsAsync = ref.watch(settingsProvider);
+    // Until the persisted settings have loaded, show the default (on).
+    final sendErrorReports = settingsAsync.value?.sendErrorReports ??
+        const AppSettings().sendErrorReports;
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.settingsScreenTitle),
@@ -113,6 +122,24 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => context.push('/settings/kiosk'),
           ),
           ListTile(
+            leading: const Icon(Icons.article_outlined),
+            title: Text(l10n.settingsLogTitle),
+            subtitle: Text(l10n.settingsLogSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/log'),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.bug_report_outlined),
+            title: Text(l10n.settingsErrorReportsTitle),
+            subtitle: Text(l10n.settingsErrorReportsSubtitle),
+            value: sendErrorReports,
+            onChanged: settingsAsync.hasValue
+                ? (value) => unawaited(ref
+                    .read(settingsProvider.notifier)
+                    .updateSettings((s) => s.copyWith(sendErrorReports: value)))
+                : null,
+          ),
+          ListTile(
             leading: const Icon(Icons.language_outlined),
             title: Text(l10n.settingsLanguageTitle),
             subtitle: Text(l10n.settingsLanguageSubtitle),
@@ -202,6 +229,7 @@ class _SettingsSearchDelegate extends SearchDelegate<void> {
     ('Teilen', '/settings/sharing'),
     ('Barrierefreiheit', '/settings/accessibility'),
     ('Autostart', '/settings/autostart-help'),
+    ('Protokoll', '/settings/log'),
     ('Kiosk-Modus', '/settings/kiosk'),
     ('Sprache', '/settings/language'),
     ('Setup-Guide', '/onboarding'),

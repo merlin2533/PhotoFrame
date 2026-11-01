@@ -82,6 +82,8 @@ class AppSettings {
     this.weatherLatitude,
     this.weatherLongitude,
     this.weatherLocationLabel,
+    // Error reporting (GlitchTip)
+    this.sendErrorReports = true,
   });
 
   // --- Slideshow ------------------------------------------------------
@@ -253,6 +255,12 @@ class AppSettings {
   /// from raw coordinates.
   final String? weatherLocationLabel;
 
+  // --- Error reporting ----------------------------------------------------
+  /// Whether recovered and uncaught errors are sent to GlitchTip (see
+  /// `core/observability/error_reporter.dart` and docs/PRIVACY.md). On by
+  /// default; when off, the reporter sends nothing.
+  final bool sendErrorReports;
+
   Duration get interval => Duration(seconds: intervalSeconds);
 
   SlideshowConfig toSlideshowConfig() => SlideshowConfig(
@@ -307,6 +315,7 @@ class AppSettings {
     double? weatherLongitude,
     String? weatherLocationLabel,
     bool clearWeatherLocation = false,
+    bool? sendErrorReports,
   }) {
     return AppSettings(
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
@@ -360,6 +369,7 @@ class AppSettings {
       weatherLocationLabel: clearWeatherLocation
           ? null
           : (weatherLocationLabel ?? this.weatherLocationLabel),
+      sendErrorReports: sendErrorReports ?? this.sendErrorReports,
     );
   }
 
@@ -404,6 +414,7 @@ class AppSettings {
         'weatherLatitude': weatherLatitude,
         'weatherLongitude': weatherLongitude,
         'weatherLocationLabel': weatherLocationLabel,
+        'sendErrorReports': sendErrorReports,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -466,6 +477,7 @@ class AppSettings {
       weatherLatitude: (json['weatherLatitude'] as num?)?.toDouble(),
       weatherLongitude: (json['weatherLongitude'] as num?)?.toDouble(),
       weatherLocationLabel: json['weatherLocationLabel'] as String?,
+      sendErrorReports: json['sendErrorReports'] as bool? ?? true,
     );
   }
 }

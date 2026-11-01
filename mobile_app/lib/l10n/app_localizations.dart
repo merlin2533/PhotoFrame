@@ -98,6 +98,72 @@ abstract class AppLocalizations {
     Locale('en')
   ];
 
+  /// Titel des Einstellungseintrags, der das Protokoll öffnet.
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll'**
+  String get settingsLogTitle;
+
+  /// Untertitel des Protokoll-Eintrags in den Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Letzte Hinweise und Fehler der App ansehen'**
+  String get settingsLogSubtitle;
+
+  /// Titel des Schalters für die Fehlerberichte an GlitchTip.
+  ///
+  /// In de, this message translates to:
+  /// **'Fehlerberichte senden'**
+  String get settingsErrorReportsTitle;
+
+  /// Untertitel des Schalters Fehlerberichte senden.
+  ///
+  /// In de, this message translates to:
+  /// **'Anonymisierte Fehlerberichte helfen bei der Fehlersuche. Fotos und Dateinamen werden nie gesendet.'**
+  String get settingsErrorReportsSubtitle;
+
+  /// Titel der Protokoll-Seite.
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll'**
+  String get logScreenTitle;
+
+  /// Hinweistext, wenn das Protokoll leer ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Einträge.'**
+  String get logEmptyState;
+
+  /// Beschriftung der Aktion, das gesamte Protokoll in die Zwischenablage zu kopieren.
+  ///
+  /// In de, this message translates to:
+  /// **'Kopieren'**
+  String get logCopyAction;
+
+  /// Beschriftung der Aktion, das Protokoll zu leeren.
+  ///
+  /// In de, this message translates to:
+  /// **'Leeren'**
+  String get logClearAction;
+
+  /// Titel der Rückfrage vor dem Leeren des Protokolls.
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll leeren?'**
+  String get logClearConfirmTitle;
+
+  /// Text der Rückfrage vor dem Leeren des Protokolls.
+  ///
+  /// In de, this message translates to:
+  /// **'Alle Einträge im Protokoll werden entfernt.'**
+  String get logClearConfirmBody;
+
+  /// Bestätigung nach dem Kopieren des Protokolls.
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll in die Zwischenablage kopiert.'**
+  String get logCopiedMessage;
+
   /// Name der App, z. B. im Fenster-/Task-Titel.
   ///
   /// In de, this message translates to:
