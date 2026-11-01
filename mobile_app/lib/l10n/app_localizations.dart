@@ -817,6 +817,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Nicht dekodierbar'**
   String get slideDecodeFailed;
+
+  /// Schieberegler in den Diashow-Einstellungen: Anteil des Rotations-Pools, der jeden Tag ausgetauscht wird.
+  ///
+  /// In de, this message translates to:
+  /// **'Täglich getauschter Anteil: {percent} %'**
+  String rotationSwapPercentLabel(int percent);
+
+  /// Schieberegler in den Diashow-Einstellungen: Tage, bis der ganze Rotations-Pool erneuert ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Ganzer Pool erneuert sich nach {days} Tagen'**
+  String rotationRenewalDaysLabel(int days);
 }
 
 class _AppLocalizationsDelegate

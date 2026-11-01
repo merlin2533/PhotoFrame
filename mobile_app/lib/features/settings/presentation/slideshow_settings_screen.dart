@@ -34,6 +34,28 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(intervalSeconds: v.round())),
             ),
+            Text(l10n.rotationSwapPercentLabel(settings.rotationSwapPercent),
+                style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              value: settings.rotationSwapPercent.toDouble(),
+              min: 5,
+              max: 50,
+              divisions: 9,
+              label: '${settings.rotationSwapPercent} %',
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(rotationSwapPercent: v.round())),
+            ),
+            Text(l10n.rotationRenewalDaysLabel(settings.rotationRenewalDays),
+                style: Theme.of(context).textTheme.titleMedium),
+            Slider(
+              value: settings.rotationRenewalDays.toDouble(),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              label: '${settings.rotationRenewalDays}',
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(rotationRenewalDays: v.round())),
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(l10n.smallPhotoPreparationTitle),
