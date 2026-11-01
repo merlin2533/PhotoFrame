@@ -132,6 +132,11 @@ class SlideshowSettingsScreen extends ConsumerWidget {
                   ),
                   RadioListTile<SlideshowTransition>(
                     contentPadding: EdgeInsets.zero,
+                    title: Text('Zufall (jeweils ein anderer)'),
+                    value: SlideshowTransition.random,
+                  ),
+                  RadioListTile<SlideshowTransition>(
+                    contentPadding: EdgeInsets.zero,
                     title: Text('Kein Übergang'),
                     value: SlideshowTransition.none,
                   ),

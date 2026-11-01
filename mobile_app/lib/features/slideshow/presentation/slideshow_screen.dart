@@ -32,6 +32,7 @@ import '../domain/effective_visual_settings.dart';
 import '../domain/night_schedule.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
+import '../domain/transition_picker.dart';
 import '../state/slideshow_providers.dart';
 import 'widgets/caption_overlay.dart';
 import 'widgets/clock_overlay.dart';
@@ -144,6 +145,22 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   // Needed so `SlideRenderer` can call `source.fetchToCache(item)` on the
   // right source for the currently displayed item - see _buildEngine().
   Map<String, PhotoSource> _sourcesById = const {};
+
+  // Transition for the "random" setting. Picked once per slide, so rebuilds
+  // within the same slide keep the same effect.
+  final _transitionPicker = TransitionPicker();
+  String? _transitionItemId;
+  SlideshowTransition _transitionPick = SlideshowTransition.fade;
+
+  SlideshowTransition _transitionFor(
+      SlideshowTransition chosen, String? itemId) {
+    if (chosen != SlideshowTransition.random) return chosen;
+    if (itemId != _transitionItemId) {
+      _transitionItemId = itemId;
+      _transitionPick = _transitionPicker.next();
+    }
+    return _transitionPick;
+  }
 
   @override
   void initState() {
@@ -923,8 +940,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
             // transition=none and Ken Burns off regardless of the user's
             // settings - see EffectiveVisualSettings' doc comment.
             final reduceMotion = MediaQuery.of(context).disableAnimations;
-            final effective = EffectiveVisualSettings.fromSettings(
-              settings,
+            final effective = EffectiveVisualSettings.resolve(
+              transition: _transitionFor(settings.transition, item?.id),
+              kenBurnsEnabled: settings.kenBurnsEnabled,
               reduceMotion: reduceMotion,
             );
 
@@ -963,6 +981,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                       : const Duration(milliseconds: 600),
                   transitionBuilder: (child, animation) {
                     switch (effective.transition) {
+                      case SlideshowTransition.random:
+                      // Resolved to a concrete effect in _transitionFor.
                       case SlideshowTransition.none:
                         // Instant swap, no animated transition at all.
                         return child;
