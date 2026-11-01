@@ -1,0 +1,36 @@
+# PhotoFrame – Android release via fastlane.
+#
+#   fastlane android build     builds build/app/outputs/bundle/release/app-release.aab
+#   fastlane android release   builds and uploads to the internal test track
+#
+# Upload needs a Play service account JSON, given by path in the environment:
+#   PLAY_JSON_KEY_PATH=~/Documents/PhotoFrame-keys/play-service-account.json
+# The JSON is never stored in the repo.
+
+default_platform(:android)
+
+PROJECT_ROOT = File.expand_path("../..", __dir__)
+AAB_PATH = File.join(PROJECT_ROOT, "build/app/outputs/bundle/release/app-release.aab")
+
+platform :android do
+  desc "Build the release app bundle (signed with android/key.properties)"
+  lane :build do
+    sh("cd '#{PROJECT_ROOT}' && flutter build appbundle --release")
+    UI.success("AAB: #{AAB_PATH}")
+  end
+
+  desc "Build and upload to the Play internal test track"
+  lane :release do
+    json_key = ENV["PLAY_JSON_KEY_PATH"]
+    UI.user_error!("Set PLAY_JSON_KEY_PATH to the service account JSON") if json_key.nil? || json_key.empty?
+    build
+    upload_to_play_store(
+      json_key: File.expand_path(json_key),
+      aab: AAB_PATH,
+      track: "internal",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

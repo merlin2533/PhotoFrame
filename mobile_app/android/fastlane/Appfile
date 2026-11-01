@@ -1,0 +1,2 @@
+# Google Play package name (must match the app in the Play Console).
+package_name("com.photoframe.mobileApp")
