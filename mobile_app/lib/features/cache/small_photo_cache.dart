@@ -14,6 +14,7 @@ import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
 import '../sources/local/local_folder_source.dart';
 import 'download_rate_meter.dart';
+import 'slideshow_busy.dart';
 
 /// Keeps a small, screen-sized JPEG of every photo on the device. The slideshow
 /// shows these files, so a photo from a network share is read once and then
@@ -305,7 +306,15 @@ class SmallPhotoCache {
   /// Makes sure the small file exists: downloads the photo if needed, scales it
   /// down and removes the full-size download. Returns `null` when the photo
   /// cannot be read.
-  Future<File?> ensure(PhotoSource source, PhotoItem item) async {
+  ///
+  /// [beforeScale] is awaited after the download and before the scaling job
+  /// is queued. The worker uses it to hold back scaling while the slideshow is
+  /// busy; downloads are never held.
+  Future<File?> ensure(
+    PhotoSource source,
+    PhotoItem item, {
+    Future<void> Function()? beforeScale,
+  }) async {
     final have = await existing(item);
     if (have != null) return have;
     try {
@@ -337,8 +346,12 @@ class SmallPhotoCache {
       );
       File? small;
       try {
+        // Held back while the slideshow is busy. Waiting happens before the
+        // job takes its place in the shared queue, so a slideshow decode is
+        // never stuck behind a waiting scale.
+        await beforeScale?.call();
         // Scaling and its colour checks run as one job of the shared queue.
-        small = await _serial(() => _scale(download, temp));
+        small = await _serial(() => scaleCopy(download, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
@@ -444,6 +457,12 @@ class SmallPhotoCache {
     }
     return false;
   }
+
+  /// Scales [full] into [temp]: the scaling step of [ensure]. Only called as a
+  /// job of the shared queue. Overridable so tests can observe when scaling
+  /// starts.
+  @visibleForTesting
+  Future<File?> scaleCopy(File full, File temp) => _scale(full, temp);
 
   /// Runs only as a job of the shared queue (see [ensure]). Native scaling,
   /// the colour checks and the Flutter fallback all happen in this one job.
@@ -689,6 +708,18 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// is tried again.
   static const retryAfter = Duration(hours: 1);
 
+  /// Pause between two items of the queue. Downloads and scaling never run
+  /// back-to-back, and the slideshow gets idle time in between.
+  static const itemPause = Duration(milliseconds: 1500);
+
+  /// How often the worker checks [slideshowBusyProvider] while it waits to
+  /// scale a photo.
+  static const busyPollInterval = Duration(milliseconds: 300);
+
+  /// Longest wait for the slideshow to become idle before a scaling starts
+  /// anyway (per item).
+  static const maxBusyWait = Duration(seconds: 30);
+
   bool _running = false;
   int _done = 0;
   int _total = 0;
@@ -759,6 +790,23 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     await _run();
   }
 
+  /// Waits while the slideshow is busy (see [slideshowBusyProvider]), polling
+  /// every [busyPollInterval]. Gives up after [maxBusyWait] and returns, so the
+  /// preparation cannot stall for good. Uses only timers (no clock), so it
+  /// works under fake async in tests.
+  Future<void> _waitForSlideshow() async {
+    var waited = Duration.zero;
+    final busy = ref.read(slideshowBusyProvider);
+    while (busy.busy && waited < maxBusyWait) {
+      await Future<void>.delayed(busyPollInterval);
+      waited += busyPollInterval;
+    }
+  }
+
+  /// Runs [_waitForSlideshow] for tests.
+  @visibleForTesting
+  Future<void> waitForSlideshowForTest() => _waitForSlideshow();
+
   /// Works through the queue batch by batch until it is empty. Does nothing
   /// when a run is already going: that run picks up what was queued meanwhile.
   Future<void> _run() async {
@@ -784,6 +832,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     }
 
     final ticker = Timer.periodic(const Duration(seconds: 1), (_) => publish());
+    // False until the first item of this run has started, so the pause below
+    // sits between two items only (also across batches).
+    var anyItemStarted = false;
     try {
       while (_queued.isNotEmpty) {
         final batchSize =
@@ -792,14 +843,24 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                 .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
+          if (anyItemStarted) {
+            // Give the UI and the slideshow room between two items.
+            await Future<void>.delayed(itemPause);
+          }
+          anyItemStarted = true;
           _queued.remove(item.stableId);
           final source = _sources[item.sourceId];
           // A stalled network read must not stop the whole preparation: after a
-          // minute the photo is skipped and the next one starts.
+          // minute the photo is skipped and the next one starts. The wait for an
+          // idle slideshow ([maxBusyWait]) is added to that minute, so a photo
+          // that waited for the slideshow is not counted as stalled.
           if (source != null) {
             final file = await cache
-                .ensure(source, item)
-                .timeout(const Duration(seconds: 60), onTimeout: () => null);
+                .ensure(source, item, beforeScale: _waitForSlideshow)
+                .timeout(
+                  const Duration(seconds: 60) + maxBusyWait,
+                  onTimeout: () => null,
+                );
             if (file != null) {
               _doneKeys.add(item.stableId);
               _failedAt.remove(item.stableId);
@@ -810,8 +871,6 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           _done++;
           publish();
         }
-        // Give the UI and the slideshow room between batches.
-        await Future<void>.delayed(const Duration(milliseconds: 200));
       }
       state = SmallPhotoStatus(done: _done, total: _total);
     } finally {

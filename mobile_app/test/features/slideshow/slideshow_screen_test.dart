@@ -174,7 +174,9 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // Fixed time instead of pumpAndSettle: the background timers of the
+    // slideshow never let the tree settle, but the first slide is ready here.
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.byType(EmptyStateView), findsNothing);
     // During a fade two slides can be mounted at once, so only require that a

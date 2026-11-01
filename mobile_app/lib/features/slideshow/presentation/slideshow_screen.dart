@@ -15,6 +15,7 @@ import '../../../core/utils/result.dart';
 import '../../../services/ambient/ambient_dim_controller.dart';
 import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
+import '../../cache/slideshow_busy.dart';
 import '../../cache/small_photo_cache.dart';
 import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
@@ -212,6 +213,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   late final AlwaysOnController _alwaysOnController;
   late final KioskModeController _kioskModeController;
 
+  // Priority gate for the small-photo worker (see `_markSlideChange`). The
+  // controller is resolved in `initState` for the same reason as above.
+  late final SlideshowBusyFlag _busy;
+  Timer? _busyTimer;
+  // True while this screen holds the busy flag (set in `_markSlideChange`).
+  bool _busyOn = false;
+
+  /// How long the slideshow counts as busy after the frame that shows a new
+  /// slide, so the decoding of that photo is covered as well.
+  static const _busyHoldAfterFrame = Duration(milliseconds: 1500);
+
   // Needed so `SlideRenderer` can call `source.fetchToCache(item)` on the
   // right source for the currently displayed item - see _buildEngine().
   Map<String, PhotoSource> _sourcesById = const {};
@@ -240,6 +252,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // the field-level doc comment above for why that ordering matters.
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
+    _busy = ref.read(slideshowBusyProvider);
     _ambientSource = ref.read(ambientLightSourceProvider);
     _ambientSub = _ambientSource.lux.listen(_onAmbientLux);
     unawaited(_buildEngine());
@@ -261,9 +274,33 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
+  /// Marks a slide change as busy for the small-photo worker: the flag is set
+  /// now and cleared [_busyHoldAfterFrame] after the next frame has been drawn.
+  /// A second change in the meantime restarts the hold.
+  void _markSlideChange() {
+    _busyOn = true;
+    _busy.busy = true;
+    _busyTimer?.cancel();
+    _busyTimer = null;
+    unawaited(WidgetsBinding.instance.endOfFrame.then((_) {
+      if (!mounted) return;
+      _busyTimer?.cancel();
+      _busyTimer = Timer(_busyHoldAfterFrame, () {
+        _busyTimer = null;
+        _busyOn = false;
+        _busy.busy = false;
+      });
+    }));
+  }
+
   @override
   void dispose() {
     _awaitingPrepared = false;
+    _busyTimer?.cancel();
+    // Only clears a flag this screen set, so a closed slideshow never leaves
+    // the worker waiting for it.
+    if (_busyOn) _busy.busy = false;
+    _busyOn = false;
     _nightTick?.cancel();
     _minuteTick.dispose();
     _ambientSub?.cancel();
@@ -914,6 +951,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         // `engine.start()` before this listener exists); each one raises the
         // prefetch count by one ramp step.
         _prefetchSub = engine.currentItemChanges.listen((item) {
+          _markSlideChange();
           if (item != null) _shownSinceEngineBuilt++;
           _prefetchNext();
         });
@@ -921,7 +959,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _loading = false;
       });
       // The first item is already shown, so prepare its successors now rather
-      // than on the first advance.
+      // than on the first advance. Its decode counts as a slide change.
+      _markSlideChange();
       _prefetchNext();
       if (settings.preparationEnabled) {
         _markPreparedInBackground(itemsByKey.values);
