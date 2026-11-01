@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,30 +20,45 @@ import '../sources/domain/photo_source.dart';
 /// Files live in the app support directory and are not cleared on reload.
 class SmallPhotoCache {
   SmallPhotoCache({required Future<Directory> Function() directory})
-    : _directory = directory;
+      : _directory = directory;
 
   final Future<Directory> Function() _directory;
 
-  /// Scaling runs strictly one photo at a time. The lock is taken before the
-  /// job starts, and the timeout ([scaleTimeout]) applies to the job only, not
-  /// to the wait for the previous job, so a queued photo never times out while
-  /// it is still waiting. A stuck native call that exceeds the timeout still
-  /// runs in the background and may overlap with the next scaling, which is
-  /// accepted.
-  Future<void> _scalingTail = Future<void>.value();
+  /// The one shared FIFO queue for ALL heavy image work of this cache: decoding
+  /// for checks ([verify], [colorGrid]), scaling (native and Flutter) and the
+  /// colour comparison after scaling. At most one such job runs at a time, and
+  /// jobs run in the order they were queued. Entry points that take the queue:
+  /// [verifiedExisting] (the verify step) and [ensure] (the scaling step, which
+  /// includes its colour checks).
+  ///
+  /// Jobs run inside the queue must NOT call [_serial] again: the inner call
+  /// would wait for the job that is waiting for it. [colorGrid], [verify] and
+  /// [looksLikeOriginal] are plain functions for that reason.
+  ///
+  /// The lock is taken before the job starts, and the timeout ([scaleTimeout])
+  /// applies to the job only, not to the wait for the previous job, so a queued
+  /// job never times out while it is still waiting. A stuck native call that
+  /// exceeds the timeout still runs in the background and may overlap with the
+  /// next job, which is accepted.
+  Future<void> _queueTail = Future<void>.value();
 
-  /// After this duration a scaling job counts as failed and the lock is
+  /// After this duration a queued job counts as failed and the lock is
   /// released.
   static const scaleTimeout = Duration(seconds: 45);
 
   Future<T> _serial<T>(Future<T> Function() job) {
     final done = Completer<void>();
-    final previous = _scalingTail;
-    _scalingTail = done.future;
+    final previous = _queueTail;
+    _queueTail = done.future;
     return previous
         .then((_) => job().timeout(scaleTimeout))
-        .whenComplete(done.complete);
+        .whenComplete(() => done.complete());
   }
+
+  /// Runs [job] through the shared queue, exactly like the internal jobs do.
+  /// Only for tests, to occupy the queue with a controllable job.
+  @visibleForTesting
+  Future<T> runInQueueForTest<T>(Future<T> Function() job) => _serial(job);
 
   /// Keeps the temporary file names of concurrent calls apart.
   int _tempCounter = 0;
@@ -217,6 +233,10 @@ class SmallPhotoCache {
   /// The small file of [item], but only if it exists AND is intact (complete
   /// JPEG/PNG that decodes fully). A damaged file is deleted so it is
   /// prepared again, and `null` is returned.
+  ///
+  /// The stamp is checked before the queue, so a repeat check of a verified
+  /// file returns at once even while a scaling runs. The decoding check itself
+  /// waits in the shared queue (see [_serial]).
   Future<File?> verifiedExisting(PhotoItem item) async {
     final file = await existing(item);
     if (file == null) return null;
@@ -224,7 +244,13 @@ class SmallPhotoCache {
       final stat = await file.stat();
       final stamp = '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
       if (_verified[file.path] == stamp) return file;
-      if (await verify(file)) {
+      // The stamp is checked again inside the queue: another call may have
+      // verified the same file while this one was waiting.
+      final ok = await _serial(() async {
+        if (_verified[file.path] == stamp) return true;
+        return verify(file);
+      });
+      if (ok) {
         _verified[file.path] = stamp;
         return file;
       }
@@ -237,6 +263,8 @@ class SmallPhotoCache {
   }
 
   /// `true` when [file] is a complete image that decodes without error.
+  /// A plain function: [verifiedExisting] runs it inside the shared queue, so
+  /// it must not take the queue itself.
   static Future<bool> verify(File file) async {
     if (!await looksComplete(file, 0)) return false;
     return await colorGrid(file) != null;
@@ -290,6 +318,7 @@ class SmallPhotoCache {
       );
       File? small;
       try {
+        // Scaling and its colour checks run as one job of the shared queue.
         small = await _serial(() => _scale(download, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
@@ -384,6 +413,8 @@ class SmallPhotoCache {
     return false;
   }
 
+  /// Runs only as a job of the shared queue (see [ensure]). Native scaling,
+  /// the colour checks and the Flutter fallback all happen in this one job.
   Future<File?> _scale(File full, File temp) async {
     File? small;
     final result = await FlutterImageCompress.compressAndGetFile(
@@ -414,6 +445,10 @@ class SmallPhotoCache {
   /// of [file], decoded small by Flutter's own codec (a full decode of the
   /// data, so truncated or broken files fail here). `null` when the file
   /// cannot be decoded.
+  ///
+  /// A plain function that does not take the queue lock: it is only called
+  /// from jobs that already run inside the shared queue ([verify] via
+  /// [verifiedExisting], and [_scale] via [ensure]).
   static Future<List<List<double>>?> colorGrid(File file) async {
     ui.Codec? codec;
     try {
@@ -456,6 +491,8 @@ class SmallPhotoCache {
   /// colour is close and no single cell of the grid differs strongly. If the
   /// original itself cannot be decoded by Flutter there is nothing to compare
   /// against, so the scaled file is accepted when it decodes.
+  /// Plain function: only called from [_scale], which runs inside the shared
+  /// queue, so it must not take the queue itself.
   static Future<bool> looksLikeOriginal(File original, File scaled) async {
     final b = await colorGrid(scaled);
     if (b == null) return false;
@@ -523,8 +560,8 @@ class SmallPhotoCache {
   }
 }
 
-final Provider<SmallPhotoCache>
-smallPhotoCacheProvider = Provider<SmallPhotoCache>(
+final Provider<SmallPhotoCache> smallPhotoCacheProvider =
+    Provider<SmallPhotoCache>(
   (ref) => SmallPhotoCache(
     directory: () async {
       final base = await getApplicationSupportDirectory();
@@ -713,6 +750,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 }
 
 final NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>
-smallPhotoWorkerProvider = NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(
+    smallPhotoWorkerProvider =
+    NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(
   SmallPhotoWorker.new,
 );
