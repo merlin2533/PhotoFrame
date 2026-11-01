@@ -132,6 +132,12 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
+/// Short git commit hash the app was built from. Injected at build time with
+/// `--dart-define=GIT_COMMIT=$(git rev-parse --short HEAD)`; builds without
+/// the define (for example `flutter run`) show the fallback text.
+const String buildGitCommit =
+    String.fromEnvironment('GIT_COMMIT', defaultValue: 'unbekannt');
+
 /// Reads `pubspec.yaml`'s `version:` (e.g. `1.2.3+45`) via `package_info_plus`
 /// at build time - no manual wiring needed when the version is bumped
 /// (including by the repo's own pre-commit hook, see CHANGELOG.md /
@@ -151,7 +157,8 @@ class _AppVersionFooter extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Center(
             child: Text(
-              '${info.appName} ${info.version}+${info.buildNumber}',
+              '${info.appName} ${info.version}+${info.buildNumber} · '
+              '$buildGitCommit',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
