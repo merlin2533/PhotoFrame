@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/app_log.dart';
+import '../../../core/utils/cancellation_token.dart';
 import '../../../services/ambient/ambient_dim_controller.dart';
 import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
@@ -147,7 +148,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final ValueNotifier<int> _minuteTick = ValueNotifier<int>(0);
   Timer? _refreshTimer;
   StreamSubscription<PhotoItem?>? _prefetchSub;
-  final math.Random _prefetchRandom = math.Random();
+  // Raw downloads started by `_prefetchNext` while preparation is off, by
+  // `stableId`. Cancelled in `dispose`, so closing the slideshow stops them.
+  final Map<String, CancellationTokenSource> _rawPrefetches = {};
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
@@ -243,6 +246,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _ambientSub?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
+    for (final token in _rawPrefetches.values) {
+      token.cancel();
+    }
+    _rawPrefetches.clear();
     _refreshTimer?.cancel();
     _retryTimer?.cancel();
     final engine = _engine;
@@ -545,31 +552,54 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     await _buildEngine();
   }
 
-  /// Downloads one more photo from a network source while the current one is
-  /// on screen, so the next network photo is already in the cache when it is
-  /// due. Local photos need no download and are skipped.
+  /// Prepares the next [upcomingPhotoCount] photos of the engine's order from a
+  /// network source, so they are already in the cache when they are shown.
+  /// Local photos need no download and are skipped. Runs on every advance.
+  ///
+  /// With preparation on, the photos go through the worker's `prioritize`
+  /// queue. With preparation off, the raw download is started with
+  /// `source.fetchToCache` instead. Failures are ignored: a photo is fetched
+  /// again when it is shown.
   void _prefetchNext() {
-    // Prefetching goes through the worker too, so it is skipped with it.
+    final engine = _engine;
+    if (engine == null) return;
     final settings = ref.read(settingsProvider).value ?? const AppSettings();
-    if (!settings.preparationEnabled) return;
-    final candidates = _itemsByKey.values.where((item) {
-      final source = _sourcesById[item.sourceId];
-      return source != null &&
-          (source.type == SourceType.smb ||
-              source.type == SourceType.nextcloud ||
-              source.type == SourceType.immich);
-    }).toList();
-    if (candidates.isEmpty) return;
-    final item = candidates[_prefetchRandom.nextInt(candidates.length)];
-    final source = _sourcesById[item.sourceId];
-    if (source == null) return;
-    // Goes through the worker's queue (at the front), so it never runs in
-    // parallel with the worker's own scaling. Failures are ignored: the photo
-    // is fetched again when it is shown.
-    unawaited(ref
-        .read(smallPhotoWorkerProvider.notifier)
-        .prioritize(item, source)
-        .then<void>((_) {}, onError: (Object _) {}));
+    final upcoming = <(PhotoItem, PhotoSource)>[];
+    for (final entry in engine.upcomingEntries(upcomingPhotoCount)) {
+      final item = _itemsByKey['${entry.sourceId}::${entry.itemId}'];
+      final source = item == null ? null : _sourcesById[item.sourceId];
+      if (item == null || source == null) continue;
+      if (source.type != SourceType.smb &&
+          source.type != SourceType.nextcloud &&
+          source.type != SourceType.immich) {
+        continue;
+      }
+      upcoming.add((item, source));
+    }
+    if (settings.preparationEnabled) {
+      // Each `prioritize` call moves its photo to the front of the worker's
+      // queue, so the calls run from the farthest to the nearest photo.
+      for (final (item, source) in upcoming.reversed) {
+        unawaited(ref
+            .read(smallPhotoWorkerProvider.notifier)
+            .prioritize(item, source)
+            .then<void>((_) {}, onError: (Object _) {}));
+      }
+      return;
+    }
+    for (final (item, source) in upcoming) {
+      if (_rawPrefetches.containsKey(item.stableId)) continue;
+      final token = CancellationTokenSource();
+      _rawPrefetches[item.stableId] = token;
+      unawaited(source
+          .fetchToCache(item, token: token.token)
+          .then<void>((_) {}, onError: (Object _) {})
+          .whenComplete(() {
+        if (identical(_rawPrefetches[item.stableId], token)) {
+          _rawPrefetches.remove(item.stableId);
+        }
+      }));
+    }
   }
 
   /// Picks the photos to start with, in this order:
@@ -776,6 +806,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _sourcesById = sourcesById;
         _loading = false;
       });
+      // The first item is already shown, so prepare its successors now rather
+      // than on the first advance.
+      _prefetchNext();
       // A reload from the empty state replaces a running engine.
       unawaited(previous?.dispose());
       // Read the remaining photos in the background; the pool is merged in
