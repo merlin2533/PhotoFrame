@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../index/background_jobs.dart';
 import '../domain/photo_source.dart';
 import '../nextcloud/nextcloud_folder_picker.dart';
 import '../state/sources_providers.dart';
@@ -248,6 +249,7 @@ class _SmbConfigFormScreenState extends ConsumerState<SmbConfigFormScreen> {
             await store.write(id, 'password', config.password);
           }
           await ref.read(sourcesProvider.notifier).add(source);
+          unawaited(ref.read(backgroundJobsProvider.notifier).runOnce());
         }
       }
     } catch (e) {
