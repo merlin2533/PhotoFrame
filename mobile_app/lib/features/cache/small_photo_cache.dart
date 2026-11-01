@@ -132,28 +132,44 @@ class SmallPhotoCache {
     return small ?? await _scaleWithFlutter(full, temp);
   }
 
-  /// Average colour (r, g, b) of [file] decoded at a tiny size by Flutter's own
-  /// codec, or `null` when it cannot be decoded.
-  static Future<List<double>?> averageColor(File file) async {
+  /// Grid size of the colour comparison: the picture is split into
+  /// [gridSize] x [gridSize] cells so damage in one part of the picture (for
+  /// example a garbled left third) is noticed, not averaged away.
+  static const gridSize = 6;
+
+  /// Average colour (r, g, b) of every cell of a [gridSize] x [gridSize] grid
+  /// of [file], decoded small by Flutter's own codec (a full decode of the
+  /// data, so truncated or broken files fail here). `null` when the file
+  /// cannot be decoded.
+  static Future<List<List<double>>?> colorGrid(File file) async {
     ui.Codec? codec;
     try {
       codec = await ui.instantiateImageCodec(
         await file.readAsBytes(),
-        targetWidth: 16,
+        targetWidth: gridSize * 8,
       );
       final image = (await codec.getNextFrame()).image;
+      final w = image.width, h = image.height;
       final data = await image.toByteData();
       image.dispose();
-      if (data == null) return null;
-      final sum = [0.0, 0.0, 0.0];
-      final pixels = data.lengthInBytes ~/ 4;
-      if (pixels == 0) return null;
-      for (var i = 0; i < pixels; i++) {
-        for (var c = 0; c < 3; c++) {
-          sum[c] += data.getUint8(i * 4 + c);
+      if (data == null || w < gridSize || h < gridSize) return null;
+      final sums = List.generate(gridSize * gridSize, (_) => [0.0, 0.0, 0.0]);
+      final counts = List.filled(gridSize * gridSize, 0);
+      for (var y = 0; y < h; y++) {
+        final row = (y * gridSize ~/ h) * gridSize;
+        for (var x = 0; x < w; x++) {
+          final cell = row + (x * gridSize ~/ w);
+          final o = (y * w + x) * 4;
+          for (var c = 0; c < 3; c++) {
+            sums[cell][c] += data.getUint8(o + c);
+          }
+          counts[cell]++;
         }
       }
-      return [for (final v in sum) v / pixels];
+      return [
+        for (var k = 0; k < sums.length; k++)
+          [for (final v in sums[k]) v / (counts[k] == 0 ? 1 : counts[k])],
+      ];
     } catch (_) {
       return null;
     } finally {
@@ -161,19 +177,24 @@ class SmallPhotoCache {
     }
   }
 
-  /// `true` when [scaled] decodes and its average colour is close to that of
-  /// [original]. If the original itself cannot be decoded by Flutter there is
-  /// nothing to compare against, so the scaled file is accepted when it
-  /// decodes.
+  /// `true` when [scaled] decodes and matches [original]: the overall average
+  /// colour is close and no single cell of the grid differs strongly. If the
+  /// original itself cannot be decoded by Flutter there is nothing to compare
+  /// against, so the scaled file is accepted when it decodes.
   static Future<bool> looksLikeOriginal(File original, File scaled) async {
-    final b = await averageColor(scaled);
+    final b = await colorGrid(scaled);
     if (b == null) return false;
-    final a = await averageColor(original);
+    final a = await colorGrid(original);
     if (a == null) return true;
-    for (var c = 0; c < 3; c++) {
-      if ((a[c] - b[c]).abs() > 30) return false;
+    final mean = [0.0, 0.0, 0.0];
+    for (var k = 0; k < a.length; k++) {
+      for (var c = 0; c < 3; c++) {
+        final d = (a[k][c] - b[k][c]).abs();
+        if (d > 60) return false; // one cell clearly wrong
+        mean[c] += (a[k][c] - b[k][c]) / a.length;
+      }
     }
-    return true;
+    return mean.every((m) => m.abs() <= 30);
   }
 
   /// Fallback scaler using Flutter's own decoder (correct colours for every
