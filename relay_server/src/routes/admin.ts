@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { getDb, runInTransaction } from '../db';
+import { buildPage, keysetClause, resolvePage } from '../util/pagination';
 import { requireAdminAuth } from '../middleware/adminGuard';
 import { signAdminToken, verifyAdminCredentials } from '../auth/adminAuth';
 import { authRateLimiter } from '../middleware/rateLimit';
@@ -50,34 +51,66 @@ function audit(actor: string, action: string, targetType?: string, targetId?: st
   ).run(uuidv4(), actor, action, targetType ?? null, targetId ?? null);
 }
 
-adminRouter.get('/users', (_req, res) => {
-  const db = getDb();
-  const users = db
-    .prepare('SELECT id, username, storage_used_bytes, created_at FROM users ORDER BY created_at DESC')
-    .all();
-  res.json({ users });
-});
+// Admin lists are paged with the same keyset cursor as the pairing image list
+// (see util/pagination.ts). Without `limit`/`cursor` the first ADMIN_LIST_LIMIT
+// rows are returned, plus `nextCursor` (null when there is nothing more).
+const ADMIN_LIST_LIMIT = 1000;
 
-adminRouter.get('/frames', (_req, res) => {
-  const db = getDb();
-  const frames = db
+/**
+ * Runs a paged, newest-first listing over `table`. Returns null (after
+ * writing a 400) when the query parameters are malformed.
+ */
+function pagedList<T extends { id: string; created_at: string }>(
+  table: string,
+  columns: string,
+  query: Record<string, unknown>,
+  res: Response,
+): { items: T[]; nextCursor: string | null } | null {
+  const page = resolvePage(query, ADMIN_LIST_LIMIT, ADMIN_LIST_LIMIT);
+  if (!page) {
+    res.status(400).json({ error: 'invalid pagination parameters' });
+    return null;
+  }
+
+  const keyset = keysetClause('created_at', 'id', page.cursor);
+  const rows = getDb()
     .prepare(
-      'SELECT id, user_id, display_name, created_at, last_seen_at, deleted_at FROM frames ORDER BY created_at DESC',
+      `SELECT ${columns} FROM ${table} WHERE 1 = 1 ${keyset.sql}
+       ORDER BY created_at DESC, id DESC LIMIT ?`,
     )
-    .all();
-  res.json({ frames });
+    .all(...keyset.params, page.limit + 1) as unknown as T[];
+
+  return buildPage(rows, page.limit, (r) => r.created_at);
+}
+
+adminRouter.get('/users', (req, res) => {
+  const page = pagedList<{ id: string; created_at: string }>(
+    'users',
+    'id, username, storage_used_bytes, created_at',
+    req.query,
+    res,
+  );
+  if (page) res.json({ users: page.items, nextCursor: page.nextCursor });
 });
 
-adminRouter.get('/pairings', (_req, res) => {
-  const db = getDb();
-  const pairings = db.prepare('SELECT * FROM pairings ORDER BY created_at DESC').all();
-  res.json({ pairings });
+adminRouter.get('/frames', (req, res) => {
+  const page = pagedList<{ id: string; created_at: string }>(
+    'frames',
+    'id, user_id, display_name, created_at, last_seen_at, deleted_at',
+    req.query,
+    res,
+  );
+  if (page) res.json({ frames: page.items, nextCursor: page.nextCursor });
 });
 
-adminRouter.get('/reports', (_req, res) => {
-  const db = getDb();
-  const reports = db.prepare('SELECT * FROM reports ORDER BY created_at DESC').all();
-  res.json({ reports });
+adminRouter.get('/pairings', (req, res) => {
+  const page = pagedList<{ id: string; created_at: string }>('pairings', '*', req.query, res);
+  if (page) res.json({ pairings: page.items, nextCursor: page.nextCursor });
+});
+
+adminRouter.get('/reports', (req, res) => {
+  const page = pagedList<{ id: string; created_at: string }>('reports', '*', req.query, res);
+  if (page) res.json({ reports: page.items, nextCursor: page.nextCursor });
 });
 
 /**

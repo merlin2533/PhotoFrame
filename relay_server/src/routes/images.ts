@@ -12,6 +12,7 @@ import { getIo } from '../realtime/socket';
 import { commitBlob, originalPath, thumbPath } from '../storage/contentAddressedStore';
 import { releaseImageAccounting } from '../storage/imageCleanup';
 import { processImage } from '../storage/thumbnails';
+import { buildPage, keysetClause, resolvePage } from '../util/pagination';
 
 export const imagesRouter = Router();
 
@@ -157,18 +158,38 @@ imagesRouter.post('/', upload.single('file'), async (req, res, next) => {
   }
 });
 
+/**
+ * Lists the images of a pairing, newest first. Without `limit`/`cursor` the
+ * response is the full list (bounded by MAX_IMAGES_PER_PAIRING, the same cap
+ * the upload quota enforces), so existing clients keep working. Clients that
+ * want pages pass `limit` and follow `nextCursor` until it is null.
+ */
 imagesRouter.get('/pairing/:pairingId', requirePairingMembership, (req, res) => {
+  const page = resolvePage(req.query, env.MAX_IMAGES_PER_PAIRING, env.MAX_IMAGES_PER_PAIRING);
+  if (!page) {
+    res.status(400).json({ error: 'invalid pagination parameters' });
+    return;
+  }
+
   const db = getDb();
-  const images = db
+  const keyset = keysetClause('i.uploaded_at', 'i.id', page.cursor);
+  const rows = db
     .prepare(
       `SELECT i.id, i.uploaded_by_frame_id, i.uploaded_at, i.width, i.height, i.content_hash
        FROM images i
        WHERE i.pairing_id = ?
          AND NOT EXISTS (SELECT 1 FROM image_hidden h WHERE h.image_id = i.id AND h.frame_id = ?)
-       ORDER BY i.uploaded_at DESC`,
+         ${keyset.sql}
+       ORDER BY i.uploaded_at DESC, i.id DESC
+       LIMIT ?`,
     )
-    .all(req.params.pairingId, req.frameId!);
-  res.json({ images });
+    .all(req.params.pairingId, req.frameId!, ...keyset.params, page.limit + 1) as {
+    id: string;
+    uploaded_at: string;
+  }[];
+
+  const { items, nextCursor } = buildPage(rows, page.limit, (r) => r.uploaded_at);
+  res.json({ images: items, nextCursor });
 });
 
 /** Loads an image row and 403s unless the calling frame is a member of its pairing. */
