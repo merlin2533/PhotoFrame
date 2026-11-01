@@ -15,7 +15,12 @@ AAB_PATH = File.join(PROJECT_ROOT, "build/app/outputs/bundle/release/app-release
 platform :android do
   desc "Build the release app bundle (signed with android/key.properties)"
   lane :build do
-    sh("cd '#{PROJECT_ROOT}' && flutter build appbundle --release")
+    # versionCode = number of commits on HEAD. It only grows on main, so every
+    # upload gets a higher build number without a manual bump. Overrides the
+    # +N part of pubspec.yaml.
+    build_number = `git -C '#{PROJECT_ROOT}' rev-list --count HEAD`.strip
+    UI.user_error!("Could not read build number") if build_number.empty?
+    sh("cd '#{PROJECT_ROOT}' && flutter build appbundle --release --build-number=#{build_number}")
     UI.success("AAB: #{AAB_PATH}")
   end
 
