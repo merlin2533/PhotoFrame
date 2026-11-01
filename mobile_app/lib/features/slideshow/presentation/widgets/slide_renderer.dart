@@ -93,8 +93,18 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
 
   /// A prepared small file wins over a fresh download (see SmallPhotoCache).
   Future<Result<File>> _resolve() async {
-    final small = await ref.read(smallPhotoCacheProvider).existing(widget.item);
+    // The file is checked again every time before it is shown; a damaged one
+    // is deleted and prepared again.
+    final cache = ref.read(smallPhotoCacheProvider);
+    final hadFile = await cache.existing(widget.item) != null;
+    final small = await cache.verifiedExisting(widget.item);
     if (small != null) return Result.ok(small);
+    if (hadFile) {
+      unawaited(ref
+          .read(smallPhotoWorkerProvider.notifier)
+          .reprepare(widget.item, widget.source)
+          .then<void>((_) {}, onError: (Object _) {}));
+    }
     // Raw downloads can be damaged (truncated or garbled), so by default only
     // checked small copies are shown; the photo is skipped until one exists.
     final onlyPrepared =

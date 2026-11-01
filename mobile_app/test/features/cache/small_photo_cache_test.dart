@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/settings/domain/app_settings.dart';
+import 'package:mobile_app/features/sources/domain/media_type.dart';
+import 'package:mobile_app/features/sources/domain/photo_item.dart';
 
 Future<File> _solidPng(Directory dir, String name, ui.Color color) async {
   final recorder = ui.PictureRecorder();
@@ -95,6 +97,33 @@ void main() {
     final off = AppSettings.fromJson(
         const AppSettings().copyWith(onlyPreparedPhotos: false).toJson());
     expect(off.onlyPreparedPhotos, isFalse);
+  });
+
+  testWidgets('verifiedExisting returns intact files and deletes damaged ones',
+      (tester) async {
+    await tester.runAsync(() async {
+      final cache = SmallPhotoCache(directory: () async => dir);
+      PhotoItem item(String id) => PhotoItem(
+            id: id,
+            sourceId: 's',
+            folderId: 'f',
+            name: id,
+            mediaType: MediaType.image,
+            size: 1,
+            mtime: DateTime(2024),
+          );
+      final good = item('good.jpg');
+      final bad = item('bad.jpg');
+      final png = await _solidPng(dir, 'tmp.png', const ui.Color(0xFF30A030));
+      await png.copy((await cache.fileFor(good)).path);
+      // Starts like a JPEG but is cut off.
+      await (await cache.fileFor(bad))
+          .writeAsBytes([0xFF, 0xD8, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+      expect(await cache.verifiedExisting(good), isNotNull);
+      expect(await cache.verifiedExisting(bad), isNull);
+      expect(await (await cache.fileFor(bad)).exists(), isFalse);
+    });
   });
 
   test('clear removes the prepared copies', () async {
