@@ -405,6 +405,28 @@ Passend zur Entscheidung "perspektivisch über Play Store/App Store": Fastlane a
 
 **Auf Nutzerwunsch nach v1 vorgezogen** (drei ursprünglich hier gelistete Punkte – siehe Detailbeschreibung in den jeweiligen Abschnitten oben): Frame-Fernkonfiguration über den Relay-Account, mDNS/NetBIOS-SMB-Discovery, Frame-Online-Status im Pairing-Screen.
 
+## Backlog aus Konkurrenzvergleich (Arbeitspakete, noch nicht begonnen)
+
+### AP-K8: Ort und Datum als Overlay (aus EXIF/GPS)
+
+Ziel: Dia zeigt automatisch „Paris, Juni 2024“ aus `taken_at` und GPS-Koordinaten, ergänzend zur manuellen Bildunterschrift.
+
+- **Datenquelle**: `taken_at` ist bereits im Index (`media_index_entry`). GPS-Koordinaten müssen zusätzlich beim Indexieren gelesen und gespeichert werden (neue Spalten `lat`/`lon`). Die Auslesung läuft im Crawl, nicht beim Anzeigen.
+- **Einschränkung Relay**: `thumbnails.ts` entfernt EXIF-GPS beim Upload in die Shared Alben (Datenschutz, siehe Ablaufpunkt 4). Für geteilte Alben gibt es damit keinen Ort, solange diese Entscheidung gilt. Ort-Overlay wirkt nur für lokale, SMB-, Nextcloud- und Immich-Quellen. Das ist eine bewusste Abwägung und muss mit dem Nutzer bestätigt werden, bevor GPS in Shared Alben übertragen wird.
+- **Reverse-Geocoding**: Öffentliche Dienste (z. B. Nominatim) würden Koordinaten an Dritte senden. Bevorzugt: Offline-Ortsdatenbank auf dem Gerät, oder Immich-Reverse-Geocoding über dessen eigene API, wenn die Quelle Immich ist. Nominatim nur mit Opt-in und Hinweis in `docs/PRIVACY.md`.
+- **Anzeige**: Eigene Einstellung „Ort und Datum anzeigen“ (aus / nur Datum / Ort und Datum), Platzierung analog zur Bildunterschrift. Fehlt der Ort, wird nur das Datum gezeigt, nie ein leerer Platzhalter.
+- **Offen**: Genauigkeit (Stadt vs. Stadtteil), Verhalten bei Fotos ohne GPS, Sprache der Ortsnamen.
+
+### AP-K9: Push-Benachrichtigung bei neuen Fotos gepaarter Frames
+
+Ziel: Der Frame wird informiert, wenn ein gepaartes Mitglied ein Foto hochlädt, oder der Nutzer wird informiert, wenn ein Frame etwas empfängt oder offline geht.
+
+- **Ist-Stand**: Live-Updates laufen über Socket.IO (`album:updated`, `album:imageDeleted`, ADR-008). Das funktioniert nur, solange die App im Vordergrund läuft. In der Kiosk-Diashow ist das meistens der Fall, auf dem Handy des Nutzers dagegen nicht.
+- **Problem**: Echte Hintergrund-Push brauchen APNs (iOS) und FCM oder UnifiedPush (Android). ADR-001 hat Firebase/BaaS bewusst ausgeschlossen (Vendor-Lock-in, DSGVO). Ein Kompromiss wäre FCM nur als reiner Wake-up-Kanal ohne Inhalt, oder UnifiedPush als datenschutzfreundlichere Variante. Das braucht eine neue ADR.
+- **Datenschutz**: Push-Payloads ohne Bild- oder Personeninformationen, nur „Neues Foto von {Name}“ oder generisch. Tokens sind Gerätedaten und gehören in `devices` mit Löschung beim Pairing-Austritt.
+- **Offen**: Welche Ereignisse lösen Push aus (Upload, Frame offline, Config-Push empfangen, Recovery), Opt-in pro Ereignistyp, Frame-Seite (Kiosk) braucht keinen Push, wenn der Socket aktiv ist.
+- **Vorarbeit**: ADR-Entscheidung zu Push-Transport, dann Relay-Endpunkt zur Token-Registrierung, dann Client-Berechtigungsdialog (iOS fragt aktiv, Android ab 13 ebenfalls).
+
 ## Google Drive – zurückgestellt
 
 Zwei Optionen für eine spätere Runde, sobald der Vertriebsweg konkreter ist:
