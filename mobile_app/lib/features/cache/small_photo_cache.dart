@@ -180,6 +180,41 @@ class SmallPhotoCache {
     return deleted;
   }
 
+  /// Path of the small file of [item] (it may not exist).
+  Future<File> fileFor(PhotoItem item) => _fileFor(item);
+
+  /// Files that passed [verify], keyed by path and remembered with their size
+  /// and modification time so a good file is not decoded again on every show.
+  final Map<String, String> _verified = {};
+
+  /// The small file of [item], but only if it exists AND is intact (complete
+  /// JPEG/PNG that decodes fully). A damaged file is deleted so it is
+  /// prepared again, and `null` is returned.
+  Future<File?> verifiedExisting(PhotoItem item) async {
+    final file = await existing(item);
+    if (file == null) return null;
+    try {
+      final stat = await file.stat();
+      final stamp = '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+      if (_verified[file.path] == stamp) return file;
+      if (await verify(file)) {
+        _verified[file.path] = stamp;
+        return file;
+      }
+    } catch (_) {}
+    _verified.remove(file.path);
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+    return null;
+  }
+
+  /// `true` when [file] is a complete image that decodes without error.
+  static Future<bool> verify(File file) async {
+    if (!await looksComplete(file, 0)) return false;
+    return await colorGrid(file) != null;
+  }
+
   /// The small file if it exists already.
   Future<File?> existing(PhotoItem item) async {
     try {
@@ -501,6 +536,14 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   void reset() {
     _doneKeys.clear();
     _failedAt.clear();
+  }
+
+  /// Forgets that [item] was prepared (its small file turned out damaged), so
+  /// it is prepared again at the front of the queue.
+  Future<void> reprepare(PhotoItem item, PhotoSource source) {
+    _doneKeys.remove(item.stableId);
+    _failedAt.remove(item.stableId);
+    return prioritize(item, source);
   }
 
   bool _failedRecently(PhotoItem item) {
