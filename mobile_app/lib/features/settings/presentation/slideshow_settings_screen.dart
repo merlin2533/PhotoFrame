@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../slideshow/domain/slideshow_config.dart';
 import '../domain/app_settings.dart';
 import '../state/settings_providers.dart';
@@ -12,6 +13,7 @@ class SlideshowSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Diashow')),
@@ -31,6 +33,14 @@ class SlideshowSettingsScreen extends ConsumerWidget {
               label: '${settings.intervalSeconds} s',
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(intervalSeconds: v.round())),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.smallPhotoPreparationTitle),
+              subtitle: Text(l10n.smallPhotoPreparationSubtitle),
+              value: settings.smallPhotoPreparation,
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(smallPhotoPreparation: v)),
             ),
             const Divider(height: 32),
             Text('Overlays', style: Theme.of(context).textTheme.titleMedium),

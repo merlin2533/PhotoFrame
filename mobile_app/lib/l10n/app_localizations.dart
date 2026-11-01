@@ -98,6 +98,18 @@ abstract class AppLocalizations {
     Locale('en')
   ];
 
+  /// Schalter in den Diashow-Einstellungen: Vorbereitung der verkleinerten Kopien an oder aus.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorbereitung (Verkleinerung) aktiv'**
+  String get smallPhotoPreparationTitle;
+
+  /// Untertitel des Schalters Vorbereitung (Verkleinerung) aktiv.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus: Fotos werden unverkleinert gezeigt; die Diashow nutzt dann weniger Speicher-Verarbeitung im Hintergrund.'**
+  String get smallPhotoPreparationSubtitle;
+
   /// Titel des Einstellungseintrags, der das Protokoll öffnet.
   ///
   /// In de, this message translates to:
