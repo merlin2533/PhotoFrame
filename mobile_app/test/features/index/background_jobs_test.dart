@@ -129,8 +129,9 @@ void main() {
 
     await container.read(settingsProvider.future);
     // The background run only works while the slideshow is shown.
-    container.read(slideshowVisibleProvider.notifier).setVisible(true);
+    // The job must exist before the slideshow turns visible: it runs on the change.
     container.read(backgroundJobsProvider);
+    container.read(slideshowVisibleProvider.notifier).setVisible(true);
     // Wait until the run has saved the index and has finished.
     await _waitUntil(() =>
         container.read(backgroundJobsProvider) == false && stored != null);
