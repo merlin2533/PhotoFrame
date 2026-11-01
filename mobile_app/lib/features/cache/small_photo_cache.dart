@@ -417,21 +417,29 @@ class SmallPhotoCache {
   /// the colour checks and the Flutter fallback all happen in this one job.
   Future<File?> _scale(File full, File temp) async {
     File? small;
-    final result = await FlutterImageCompress.compressAndGetFile(
-      full.path,
-      temp.path,
-      // Sized for a full-screen tablet (about 2K); larger originals are
-      // scaled down, smaller ones stay as they are. Keeps storage small.
-      minWidth: 2048,
-      minHeight: 2048,
-      quality: 90,
-    );
-    if (result != null) {
-      final out = File(result.path);
-      // The native scaler mishandles some files (CMYK, odd colour profiles)
-      // and produces a purple/colour-cast picture. Compare the average colour
-      // with the original and reject such results.
-      if (await looksLikeOriginal(full, out)) small = out;
+    try {
+      final result = await FlutterImageCompress.compressAndGetFile(
+        full.path,
+        temp.path,
+        // Sized for a full-screen tablet (about 2K); larger originals are
+        // scaled down, smaller ones stay as they are. Keeps storage small.
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 90,
+      );
+      if (result != null) {
+        final out = File(result.path);
+        // The native scaler mishandles some files (CMYK, odd colour profiles)
+        // and produces a purple/colour-cast picture. Compare the average colour
+        // with the original and reject such results.
+        if (await looksLikeOriginal(full, out)) small = out;
+      }
+    } catch (e, st) {
+      // The native plugin throws on some files (a null reference inside the
+      // plugin). That must not fail the photo: the Flutter path below can
+      // still scale it.
+      logRecoverableError('Native photo scaling failed, using the fallback',
+          error: e, stackTrace: st);
     }
     return small ?? await _scaleWithFlutter(full, temp);
   }
