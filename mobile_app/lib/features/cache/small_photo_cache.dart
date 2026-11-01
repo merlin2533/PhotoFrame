@@ -28,11 +28,20 @@ class SmallPhotoCache {
   /// two scalings never overlap.
   Future<void> _scalingTail = Future<void>.value();
 
+  /// A native scaling that never returns must not block every photo after it:
+  /// after [scaleTimeout] the job counts as failed and the lock is released.
+  /// The native call itself cannot be cancelled, so an overlap with one such
+  /// stuck call is accepted over a slideshow that stops preparing photos.
+  static const scaleTimeout = Duration(seconds: 45);
+
   Future<T> _serial<T>(Future<T> Function() job) {
     final done = Completer<void>();
     final previous = _scalingTail;
     _scalingTail = done.future;
-    return previous.then((_) => job()).whenComplete(done.complete);
+    return previous
+        .then((_) => job())
+        .timeout(scaleTimeout)
+        .whenComplete(done.complete);
   }
 
   bool _purgedOldVersion = false;
