@@ -3,7 +3,9 @@ import '../../slideshow/domain/night_schedule.dart';
 import '../../slideshow/domain/slideshow_config.dart';
 
 /// Visual transition played between slideshow items.
-enum SlideshowTransition { fade, slide, zoom, slideUp, blurFade, flip, none }
+/// [random] picks one of the animated effects per slide, never the same one twice
+/// in a row - see TransitionPicker.
+enum SlideshowTransition { fade, slide, zoom, slideUp, blurFade, flip, random, none }
 
 /// How many photos are shown on screen at once.
 enum SlideLayout { single, grid2x2 }
@@ -28,7 +30,7 @@ class AppSettings {
     this.showClock = true,
     this.clockAtTop = true,
     this.displayMode = DisplayMode.blurredBackdrop,
-    this.transition = SlideshowTransition.fade,
+    this.transition = SlideshowTransition.random,
     this.kenBurnsEnabled = false,
     this.portraitPairLayoutEnabled = false,
     // Always-on / Dauer-Modus
@@ -406,7 +408,7 @@ class AppSettings {
       ),
       transition: SlideshowTransition.values.firstWhere(
         (t) => t.name == json['transition'],
-        orElse: () => SlideshowTransition.fade,
+        orElse: () => SlideshowTransition.random,
       ),
       kenBurnsEnabled: json['kenBurnsEnabled'] as bool? ?? false,
       portraitPairLayoutEnabled:
