@@ -177,7 +177,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(EmptyStateView), findsNothing);
-    expect(find.byType(SlideRenderer), findsOneWidget);
+    // During a fade two slides can be mounted at once, so only require that a
+    // slide is shown.
+    expect(find.byType(SlideRenderer), findsWidgets);
     // SlideRenderer's placeholder (see its doc comment on why it can't
     // decode MockPhotoSource's non-image bytes) still renders the item's
     // real name, so this confirms the *actual* resolved PhotoItem reached
