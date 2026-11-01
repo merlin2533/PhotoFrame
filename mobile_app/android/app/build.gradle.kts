@@ -35,7 +35,7 @@ android {
         applicationId = "com.photoframe.mobileApp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26 // sentry_flutter requires API 26 (Android 8)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
