@@ -120,24 +120,6 @@ final Provider<ImageCacheManager> imageCacheManagerProvider =
   return manager;
 });
 
-/// Snapshot of cache usage shown in the cache-management settings page.
-///
-/// Reads real numbers from [imageCacheManagerProvider] - note this only
-/// reflects what has actually been stored in the manager via `put()`/
-/// `recordSuccessfullyDisplayed()`. As of this change no fetch pipeline
-/// calls into `ImageCacheManager` yet (see that class's doc comment), so
-/// `usedBytes` legitimately reads 0 until a source's `fetchToCache()`
-/// result is routed through it - that wiring is a separate, later step.
-class CacheInfo {
-  const CacheInfo({required this.usedBytes, required this.limitBytes});
-
-  final int usedBytes;
-  final int limitBytes;
-
-  double get usedFraction =>
-      limitBytes <= 0 ? 0 : (usedBytes / limitBytes).clamp(0, 1).toDouble();
-}
-
 // --- Weather ---------------------------------------------------------------
 
 /// Single, app-lifetime [WeatherClient] instance so its in-memory
@@ -147,15 +129,4 @@ class CacheInfo {
 final Provider<WeatherClient> weatherClientProvider =
     Provider<WeatherClient>((ref) {
   return WeatherClient();
-});
-
-final Provider<CacheInfo> cacheInfoProvider = Provider<CacheInfo>((ref) {
-  final settings = ref.watch(settingsProvider).value ?? const AppSettings();
-  final manager = ref.watch(imageCacheManagerProvider);
-  final usedBytes = manager.currentSizeBytes(CacheTier.thumbnail) +
-      manager.currentSizeBytes(CacheTier.full);
-  return CacheInfo(
-    usedBytes: usedBytes,
-    limitBytes: settings.cacheLimitBytes,
-  );
 });

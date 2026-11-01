@@ -168,6 +168,50 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cacheClearedSnackbar => 'Cache geleert';
 
   @override
+  String cacheImageCount(int count) {
+    return '$count Bilder gecacht';
+  }
+
+  @override
+  String get cacheBySourceTitle => 'Nach Quelle';
+
+  @override
+  String cacheSourceUsage(int count, String size) {
+    return '$count Bilder · $size';
+  }
+
+  @override
+  String get cacheUnknownSource => 'Unbekannte Quelle';
+
+  @override
+  String get cacheUnknownSourceHint =>
+      'Dias von Quellen, die nicht mehr eingerichtet sind';
+
+  @override
+  String get cacheDeleteSourceTooltip => 'Cache dieser Quelle löschen';
+
+  @override
+  String get cacheDeleteSourceTitle => 'Cache löschen?';
+
+  @override
+  String cacheDeleteSourceBody(int count, String source) {
+    return '$count verkleinerte Bilder von „$source“ werden gelöscht. Sie werden beim nächsten Index-Lauf neu erstellt.';
+  }
+
+  @override
+  String cacheDeleteUnassignedBody(int count) {
+    return '$count verkleinerte Bilder von nicht mehr eingerichteten Quellen werden gelöscht.';
+  }
+
+  @override
+  String get cacheDeleteConfirm => 'Löschen';
+
+  @override
+  String cacheDeletedSnackbar(int count) {
+    return '$count Bilder gelöscht';
+  }
+
+  @override
   String get onboardingSkip => 'Überspringen';
 
   @override
