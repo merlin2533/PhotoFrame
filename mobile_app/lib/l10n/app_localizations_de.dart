@@ -66,6 +66,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String get preparingProgressUnknown => 'Fotos werden vorbereitet…';
 
   @override
+  String preparingProgressQueue(int done, int total, int waiting) {
+    return '$done von $total Fotos vorbereitet · $waiting in Warteschlange';
+  }
+
+  @override
+  String preparingDownloaded(String size) {
+    return '$size heruntergeladen';
+  }
+
+  @override
+  String preparingRate(String rate) {
+    return 'Geschwindigkeit: $rate';
+  }
+
+  @override
+  String preparingConversions(int count) {
+    return 'Offene Konvertierungen: $count';
+  }
+
+  @override
   String commonError(String message) {
     return 'Fehler: $message';
   }
