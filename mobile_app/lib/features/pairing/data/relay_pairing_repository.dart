@@ -160,7 +160,7 @@ class RelayPairingRepository implements PairingRepository {
     final target = pairingResult.valueOrNull!.memberById(targetFrameId);
     if (target == null) {
       return Result.err(Unsupported(
-          'Frame $targetFrameId ist kein Mitglied dieses Pairings (mehr).'));
+          'Frame "$targetFrameId" ist kein Mitglied dieses Pairings (mehr).'));
     }
 
     // publicKey and fingerprint both come from this single GET /pairing/:id
@@ -199,7 +199,7 @@ class RelayPairingRepository implements PairingRepository {
     final publicKey = recipient.publicKey;
     if (publicKey == null) {
       return Result.err(Unsupported(
-        'No public key on file for frame $targetFrameId - the relay server '
+        'No public key on file for frame "$targetFrameId" - the relay server '
         'must expose PairingMember.publicKey from GET /pairing/:id before a '
         'config-push can be encrypted to it (see PairingMember.publicKey doc '
         'comment).',
@@ -214,7 +214,7 @@ class RelayPairingRepository implements PairingRepository {
     // observes FingerprintTrust.match instead.
     if (!recipient.isSafeToSend) {
       return Result.err(Unsupported(
-        'Der Sicherheitsschlüssel von Frame $targetFrameId konnte nicht verifiziert werden oder hat '
+        'Der Sicherheitsschlüssel von Frame "$targetFrameId" konnte nicht verifiziert werden oder hat '
         'sich seit dem letzten Kontakt geändert. Bitte zunächst die Sicherheitswarnung bestätigen.',
       ));
     }

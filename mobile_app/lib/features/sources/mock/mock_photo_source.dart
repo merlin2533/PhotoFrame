@@ -128,7 +128,7 @@ class MockPhotoSource implements PhotoSource {
     _checkNotDisposed();
     final items = _itemsByFolderId[folder.id];
     if (items == null) {
-      yield Result.err(NotFound('Unknown mock folder: ${folder.id}'));
+      yield Result.err(NotFound('Unknown mock folder: "${folder.id}"'));
       return;
     }
     for (final item in items) {
@@ -149,7 +149,7 @@ class MockPhotoSource implements PhotoSource {
 
     final allItems = _itemsByFolderId[item.folderId];
     if (allItems == null || !allItems.any((i) => i.id == item.id)) {
-      return Result.err(NotFound('Unknown mock item: ${item.id}'));
+      return Result.err(NotFound('Unknown mock item: "${item.id}"'));
     }
 
     try {

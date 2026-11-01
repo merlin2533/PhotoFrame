@@ -313,7 +313,7 @@ class SmbPhotoSource implements PhotoSource {
       if (!rootFile.isExists) {
         return Result.err(
           NotFound(
-              'Share/folder not found: ${_config.share}/${_config.rootPath}'),
+              'Share/folder not found: "${_config.share}/${_config.rootPath}"'),
         );
       }
       stopwatch.stop();
@@ -321,7 +321,7 @@ class SmbPhotoSource implements PhotoSource {
         ConnectionStatus(
           reachable: true,
           latency: stopwatch.elapsed,
-          detail: 'Connected to \\\\${_config.host}\\${_config.share}',
+          detail: 'Connected to "\\\\${_config.host}\\${_config.share}"',
         ),
       );
     } on TimeoutException {
@@ -535,7 +535,7 @@ class SmbPhotoSource implements PhotoSource {
       final remoteFile =
           await connect.file(_fullPath(item.id)).timeout(_stepTimeout);
       if (!remoteFile.isExists) {
-        return Result.err(NotFound('SMB file no longer exists: ${item.id}'));
+        return Result.err(NotFound('SMB file no longer exists: "${item.id}"'));
       }
 
       final dir = _cacheDirectory ?? Directory.systemTemp;

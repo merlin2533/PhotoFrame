@@ -189,7 +189,7 @@ class ImmichPhotoSource implements PhotoSource {
     final response = await _get(path, timeout: timeout);
     final data = response.data;
     if (data is! Map) {
-      throw FormatException('Unexpected JSON object response from $path');
+      throw FormatException('Unexpected JSON object response from "$path"');
     }
     return Map<String, dynamic>.from(data);
   }
@@ -198,7 +198,7 @@ class ImmichPhotoSource implements PhotoSource {
     final response = await _get(path, timeout: timeout);
     final data = response.data;
     if (data is! List) {
-      throw FormatException('Unexpected JSON array response from $path');
+      throw FormatException('Unexpected JSON array response from "$path"');
     }
     return data;
   }
