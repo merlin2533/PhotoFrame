@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/app_log.dart';
 import '../../../core/utils/cancellation_token.dart';
+import '../../../core/utils/result.dart';
 import '../../../services/ambient/ambient_dim_controller.dart';
 import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
@@ -154,6 +155,20 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
+
+  // Keys ('sourceId::itemId') of photos whose checked file is on disk: a
+  // prepared copy, or a complete raw download. The engine reads this set
+  // synchronously (see `_isCachedEntry`), so it never waits for I/O. It is
+  // filled in the background by `_markPreparedInBackground`, `_prefetchNext`
+  // and `SlideRenderer.onFileReady`, and cleared on every build.
+  final Set<String> _cachedKeys = {};
+  // Bumped on every build. A background check that ends after a rebuild sees a
+  // different epoch and does not write into the new set.
+  int _cacheEpoch = 0;
+  // True while only checked prepared copies may be shown (see
+  // `AppSettings.onlyPreparedRuleActive`). Then a photo is cached only with a
+  // prepared copy, also for sources that need no download.
+  bool _onlyPrepared = false;
 
   // Ambient dimming: the light source is subscribed for the screen's whole
   // lifetime (a no-op stream by default); its readings drive `_sensorDimOpacity`.
@@ -514,6 +529,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
             addedToPoolAt: DateTime.now()));
       }
       _itemsByKey.removeWhere((_, item) => !kept(item.sourceId, item.id));
+      _cachedKeys.retainWhere(_itemsByKey.containsKey);
+      if (settings.preparationEnabled) _markPreparedInBackground(fresh);
       if (pool.entries.isNotEmpty) engine.refreshPool(pool);
       if (mounted) setState(() {});
     } catch (e) {
@@ -576,14 +593,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       upcoming.add((item, source));
     }
+    final epoch = _cacheEpoch;
     if (settings.preparationEnabled) {
+      final cache = ref.read(smallPhotoCacheProvider);
       // Each `prioritize` call moves its photo to the front of the worker's
       // queue, so the calls run from the farthest to the nearest photo.
       for (final (item, source) in upcoming.reversed) {
         unawaited(ref
             .read(smallPhotoWorkerProvider.notifier)
             .prioritize(item, source)
-            .then<void>((_) {}, onError: (Object _) {}));
+            .then<void>((_) => _markPreparedIfExists(cache, item, epoch),
+                onError: (Object _) {}));
       }
       return;
     }
@@ -593,12 +613,69 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       _rawPrefetches[item.stableId] = token;
       unawaited(source
           .fetchToCache(item, token: token.token)
-          .then<void>((_) {}, onError: (Object _) {})
+          .then<void>((result) => _markDownloaded(item, result, epoch),
+              onError: (Object _) {})
           .whenComplete(() {
         if (identical(_rawPrefetches[item.stableId], token)) {
           _rawPrefetches.remove(item.stableId);
         }
       }));
+    }
+  }
+
+  static String _keyOf(PhotoItem item) => '${item.sourceId}::${item.id}';
+
+  /// Whether photos of [type] are downloaded before they are shown (the same
+  /// sources that `_prefetchNext` prepares).
+  static bool _needsDownload(SourceType type) =>
+      type == SourceType.smb ||
+      type == SourceType.nextcloud ||
+      type == SourceType.immich;
+
+  /// Synchronous check used by the engine to pick the next photo: true when
+  /// the photo of [entry] can be shown right away. Uses only the in-memory
+  /// [_cachedKeys] set and the source type, so it does no I/O.
+  bool _isCachedEntry(PoolEntry entry) {
+    final key = '${entry.sourceId}::${entry.itemId}';
+    if (_cachedKeys.contains(key)) return true;
+    // Without the prepared-only rule, a source that needs no download (local
+    // files) is shown directly. Its copy is not waited for.
+    final source = _sourcesById[entry.sourceId];
+    return !_onlyPrepared && (source == null || !_needsDownload(source.type));
+  }
+
+  void _markFileReady(PhotoItem item) => _cachedKeys.add(_keyOf(item));
+
+  /// Adds [item] to [_cachedKeys] when its prepared copy exists. Only file
+  /// checks run here. Results from an earlier build (see [_cacheEpoch]) are
+  /// dropped.
+  Future<void> _markPreparedIfExists(
+      SmallPhotoCache cache, PhotoItem item, int epoch) async {
+    if (epoch != _cacheEpoch || !mounted) return;
+    if (await cache.existing(item) != null) _cachedKeys.add(_keyOf(item));
+  }
+
+  /// Checks the prepared copies of [items] in the background, so the set knows
+  /// which photos are ready. The engine never waits for this.
+  void _markPreparedInBackground(Iterable<PhotoItem> items) {
+    final cache = ref.read(smallPhotoCacheProvider);
+    final epoch = _cacheEpoch;
+    unawaited(() async {
+      for (final item in items) {
+        await _markPreparedIfExists(cache, item, epoch);
+      }
+    }());
+  }
+
+  /// Adds the raw download [result] of [item] to [_cachedKeys] when it is
+  /// complete. A truncated download is not counted as cached.
+  Future<void> _markDownloaded(
+      PhotoItem item, Result<File> result, int epoch) async {
+    final file = result.valueOrNull;
+    if (file == null || epoch != _cacheEpoch) return;
+    if (await SmallPhotoCache.looksComplete(file, item.size,
+        downloadIsOriginal: true)) {
+      _cachedKeys.add(_keyOf(item));
     }
   }
 
@@ -686,6 +763,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   /// by which time the copy may exist. A photo that cannot be read at all is
   /// taken out of the pool, and the slideshow moves on to the next one.
   void _skipUnavailable(PhotoItem item, SlideUnavailableReason reason) {
+    // Whatever the reason, the file is not ready (any more).
+    _cachedKeys.remove(_keyOf(item));
     final pool = _pool;
     final engine = _engine;
     if (pool == null || engine == null) return;
@@ -713,6 +792,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Future<void> _buildEngine() async {
     // Awaited: the cache must be empty before the first photo is downloaded.
     await ref.read(networkCacheCleanerProvider)();
+    // The cleaner removed the files, so nothing is known to be cached any more.
+    _cachedKeys.clear();
+    _cacheEpoch++;
     try {
       // `sourcesProvider` now loads its descriptor list (and re-attaches
       // credentials) from storage asynchronously - see
@@ -786,12 +868,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       _itemsByKey
         ..clear()
         ..addAll(itemsByKey);
+      // Set before the engine starts: its first pick already uses `_isCachedEntry`.
+      _sourcesById = sourcesById;
+      _onlyPrepared = settings.onlyPreparedRuleActive;
       final engine = SlideshowEngine(
         pool: pool,
         sources: sourcesById,
         resolveItem: (entry) async =>
             _itemsByKey['${entry.sourceId}::${entry.itemId}'],
         config: settings.toSlideshowConfig(),
+        isCached: _isCachedEntry,
       );
       await engine.start();
       if (!mounted) {
@@ -809,6 +895,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // The first item is already shown, so prepare its successors now rather
       // than on the first advance.
       _prefetchNext();
+      if (settings.preparationEnabled) {
+        _markPreparedInBackground(itemsByKey.values);
+      }
       // A reload from the empty state replaces a running engine.
       unawaited(previous?.dispose());
       // Read the remaining photos in the background; the pool is merged in
@@ -1165,6 +1254,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                         displayMode: settings.displayMode,
                         onUnavailable: (reason) =>
                             _skipUnavailable(item, reason),
+                        onFileReady: _markFileReady,
                       );
             if (item != null && effective.kenBurnsEnabled) {
               slide = KenBurnsEffect(
