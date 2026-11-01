@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../cache/not_convertible_store.dart';
 import '../../../cache/small_photo_cache.dart';
 import '../../../settings/domain/app_settings.dart';
 import '../../../settings/state/settings_providers.dart';
@@ -129,9 +130,14 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     final settings = await ref
         .read(settingsProvider.future)
         .catchError((Object _) => const AppSettings());
+    // A photo that cannot be scaled never gets a small copy: its original is
+    // shown instead, and it is not prepared again.
+    final notConvertible = await ref
+        .read(notConvertibleStoreProvider)
+        .contains(widget.item.stableId);
     // Re-preparing a damaged copy is a preparation job, so it is skipped while
     // preparation is off.
-    if (hadFile && settings.preparationEnabled) {
+    if (hadFile && settings.preparationEnabled && !notConvertible) {
       unawaited(ref
           .read(smallPhotoWorkerProvider.notifier)
           .reprepare(widget.item, widget.source)
@@ -140,7 +146,7 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     // Raw downloads can be damaged (truncated or garbled), so by default only
     // checked small copies are shown; the photo is skipped until one exists.
     // With preparation off, the raw download is shown instead.
-    if (settings.onlyPreparedRuleActive) {
+    if (settings.onlyPreparedRuleActive && !notConvertible) {
       return (
         result: Result<File>.err(
             const NotFound('Verkleinerte Kopie noch nicht fertig')),
