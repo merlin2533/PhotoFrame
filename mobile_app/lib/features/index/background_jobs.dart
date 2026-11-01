@@ -9,6 +9,7 @@ import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
 import '../sources/state/sources_providers.dart';
 import 'photo_index_store.dart';
+import 'slideshow_visibility.dart';
 import 'source_indexer.dart';
 
 /// Keeps the photo index, the cache and the screen-sized copies up to date
@@ -19,7 +20,10 @@ import 'source_indexer.dart';
 /// 2. Every photo of the index gets its screen-sized copy (in batches, see
 ///    [SmallPhotoWorker]).
 ///
-/// Runs once at start and then every [interval]. Runs never overlap.
+/// Only runs while the slideshow is visible (see [slideshowVisibleProvider]).
+/// Runs every [interval] and once more as soon as the slideshow becomes
+/// visible. The periodic timer keeps ticking while the slideshow is hidden,
+/// but those ticks do nothing. Runs never overlap.
 class BackgroundJobs extends Notifier<bool> {
   static const interval = Duration(minutes: 15);
 
@@ -31,12 +35,17 @@ class BackgroundJobs extends Notifier<bool> {
   bool build() {
     _timer = Timer.periodic(interval, (_) => unawaited(runOnce()));
     ref.onDispose(() => _timer?.cancel());
-    // Deferred: runOnce sets `state`, which is not allowed inside build().
-    unawaited(Future<void>.delayed(Duration.zero, runOnce));
+    // Runs once each time the slideshow becomes visible. Nothing runs at app
+    // start: the slideshow is not shown yet.
+    ref.listen<bool>(slideshowVisibleProvider, (previous, visible) {
+      if (visible) unawaited(runOnce());
+    });
     return false;
   }
 
   Future<void> runOnce() async {
+    // Nothing is crawled or prepared while the slideshow is hidden.
+    if (!ref.read(slideshowVisibleProvider)) return;
     if (_running) return;
     _running = true;
     state = true;

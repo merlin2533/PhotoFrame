@@ -17,6 +17,7 @@ import '../../cache/small_photo_cache.dart';
 import '../../favorites/domain/favorites_store.dart';
 import '../../favorites/state/favorites_providers.dart';
 import '../../index/photo_index_store.dart';
+import '../../index/slideshow_visibility.dart';
 import '../../index/working_set_pool.dart';
 import '../../playlists/playlist.dart';
 import '../../settings/domain/app_settings.dart';
@@ -170,6 +171,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   // `ref` at all.
   late final AlwaysOnController _alwaysOnController;
   late final KioskModeController _kioskModeController;
+  // Reports to BackgroundJobs whether this screen is on screen. Resolved in
+  // `initState` for the same reason as the controllers above.
+  late final SlideshowVisibility _visibility;
 
   // Needed so `SlideRenderer` can call `source.fetchToCache(item)` on the
   // right source for the currently displayed item - see _buildEngine().
@@ -200,6 +204,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
     _ambientSource = ref.read(ambientLightSourceProvider);
+    _visibility = ref.read(slideshowVisibleProvider.notifier);
+    // After the first frame: provider state must not change during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _visibility.setVisible(true);
+    });
     _ambientSub = _ambientSource.lux.listen(_onAmbientLux);
     unawaited(_buildEngine());
     // Fullscreen: hide status and navigation bar while the slideshow runs.
@@ -222,6 +231,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
   @override
   void dispose() {
+    // Deferred: dispose runs while the widget tree is being finalized, where
+    // provider state must not change.
+    final visibility = _visibility;
+    scheduleMicrotask(() => visibility.setVisible(false));
     _nightTick?.cancel();
     _minuteTick.dispose();
     _ambientSub?.cancel();
