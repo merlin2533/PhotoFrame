@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import '../observability/error_reporter.dart';
 import 'app_log_buffer.dart';
+import 'debug_trace.dart';
 
 /// Logs an error that the app recovers from on purpose (a corrupt cache file,
 /// a source that cannot be crawled, a photo that cannot be scaled).
@@ -34,4 +35,10 @@ void logRecoverableError(
     stackTrace: stackTrace,
   );
   captureRecoveredError(message, error: error, stackTrace: stackTrace);
+  // Also into the crash-safe trace, so caught errors show up in it. Only the
+  // error type is written, not its text.
+  DebugTrace.event(
+    'error',
+    '$message ${error?.runtimeType ?? 'no error'}',
+  );
 }

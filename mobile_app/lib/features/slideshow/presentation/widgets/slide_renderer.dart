@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
+import '../../../../core/utils/debug_trace.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../cache/not_convertible_store.dart';
@@ -264,19 +265,37 @@ class _PhotoImage extends StatelessWidget {
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final portrait = _isPortrait(item);
     final l10n = AppLocalizations.of(context);
+    final shown = file!;
+    final cacheWidth =
+        portrait ? null : (screen.width * devicePixelRatio).round();
+    final cacheHeight =
+        portrait ? (screen.height * devicePixelRatio).round() : null;
+    DebugTrace.event(
+      'slide',
+      'image.file ${DebugTrace.baseName(shown.path)} '
+          'bytes=${DebugTrace.fileLength(shown)} portrait=$portrait '
+          'decode=${cacheWidth ?? 'auto'}x${cacheHeight ?? 'auto'}',
+    );
     return Image.file(
-      file!,
+      shown,
       fit: fit,
-      cacheWidth: portrait ? null : (screen.width * devicePixelRatio).round(),
-      cacheHeight: portrait ? (screen.height * devicePixelRatio).round() : null,
-      errorBuilder: (context, err, stackTrace) => _PlaceholderBox(
-        item: item,
-        // The raw exception is only useful while developing; on the frame
-        // only the translated reason is shown.
-        reason: kDebugMode
-            ? '${l10n.slideDecodeFailed}: $err'
-            : l10n.slideDecodeFailed,
-      ),
+      cacheWidth: cacheWidth,
+      cacheHeight: cacheHeight,
+      errorBuilder: (context, err, stackTrace) {
+        DebugTrace.event(
+          'slide',
+          'errorBuilder ${DebugTrace.baseName(shown.path)} '
+              '${err.runtimeType}',
+        );
+        return _PlaceholderBox(
+          item: item,
+          // The raw exception is only useful while developing; on the frame
+          // only the translated reason is shown.
+          reason: kDebugMode
+              ? '${l10n.slideDecodeFailed}: $err'
+              : l10n.slideDecodeFailed,
+        );
+      },
     );
   }
 }

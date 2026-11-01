@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
@@ -7,10 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/observability/error_reporter.dart';
+import 'core/utils/debug_trace.dart';
 import 'features/settings/state/settings_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Debug trace: trims the trace file in the background. Not awaited, so it
+  // never delays runApp. Does nothing in release builds.
+  unawaited(DebugTrace.startup());
 
   // Read the persisted "Fehlerberichte senden" switch before anything can
   // fail, so that an opted-out user never sends an early error.
