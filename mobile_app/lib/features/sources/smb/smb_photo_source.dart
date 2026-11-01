@@ -89,9 +89,36 @@ class SmbPhotoSource implements PhotoSource {
     required SmbSourceConfig config,
     String? displayName,
     Directory? cacheDirectory,
+    Future<SmbConnect> Function(SmbSourceConfig config)? connector,
+    Duration stepTimeout = const Duration(seconds: 20),
+    DateTime Function()? clock,
   })  : _config = config,
         displayName = displayName ?? 'SMB: ${config.share}',
-        _cacheDirectory = cacheDirectory;
+        _cacheDirectory = cacheDirectory,
+        _connector = connector ?? _defaultConnector,
+        _stepTimeout = stepTimeout,
+        _now = clock ?? DateTime.now;
+
+  /// Opens a new authenticated connection for [config]. Injectable so tests
+  /// can drive connect timing without a real SMB server.
+  static Future<SmbConnect> _defaultConnector(SmbSourceConfig config) {
+    return SmbConnect.connectAuth(
+      host: config.host,
+      username: config.username,
+      password: config.password,
+      domain: config.domain,
+    );
+  }
+
+  final Future<SmbConnect> Function(SmbSourceConfig config) _connector;
+
+  /// Upper bound for each single network step (file lookup, directory listing,
+  /// opening/reading a download). On a dead socket the library never answers,
+  /// so every step is bounded.
+  final Duration _stepTimeout;
+
+  /// Clock used for connection age; injectable for tests.
+  final DateTime Function() _now;
 
   @override
   final String id;
@@ -185,42 +212,66 @@ class SmbPhotoSource implements PhotoSource {
   void _dropConnection() {
     final connect = _connect;
     _connect = null;
-    if (connect != null) {
-      // Best-effort close; a share that's already gone away shouldn't throw
-      // during cleanup.
-      unawaited(connect.transport.close().catchError((_) {}));
-    }
+    if (connect != null) _closeQuietly(connect);
   }
 
-  Future<Result<SmbConnect>> _ensureConnected(Duration timeout) async {
+  /// Best-effort close of [connect]; a share that's already gone away
+  /// shouldn't throw during cleanup.
+  static void _closeQuietly(SmbConnect connect) {
+    unawaited(connect.transport.close().catchError((_) {}));
+  }
+
+  /// The connect currently in progress, if any. A second caller awaits this
+  /// same future instead of opening another transport.
+  Future<Result<SmbConnect>>? _connecting;
+
+  Future<Result<SmbConnect>> _ensureConnected(Duration timeout) {
     final existing = _connect;
-    final fresh = DateTime.now().difference(_connectedAt) < _connectionMaxAge;
-    if (existing != null && fresh) return Result.ok(existing);
-    _connect = null;
+    final fresh = _now().difference(_connectedAt) < _connectionMaxAge;
+    if (existing != null && fresh) return Future.value(Result.ok(existing));
+    final running = _connecting;
+    if (running != null) return running;
+    // Too old: close the stale transport instead of orphaning it.
+    _dropConnection();
+    final connecting = _connectNew(timeout);
+    _connecting = connecting;
+    return connecting.whenComplete(() {
+      if (identical(_connecting, connecting)) _connecting = null;
+    });
+  }
+
+  Future<Result<SmbConnect>> _connectNew(Duration timeout) async {
+    final config = _config;
+    final attempt = Future.sync(() => _connector(config));
     try {
-      final connect = await SmbConnect.connectAuth(
-        host: _config.host,
-        username: _config.username,
-        password: _config.password,
-        domain: _config.domain,
-      ).timeout(timeout);
+      final connect = await attempt.timeout(timeout);
+      if (_disposed || !identical(_config, config)) {
+        // Disposed or reconfigured while connecting: this connection is
+        // already outdated and nobody would own it.
+        _closeQuietly(connect);
+        return Result.err(const NetworkError(
+            'SMB-Verbindung wurde während des Verbindungsaufbaus verworfen'));
+      }
       _connect = connect;
-      _connectedAt = DateTime.now();
+      _connectedAt = _now();
       return Result.ok(connect);
     } on TimeoutException {
+      // The abandoned attempt may still complete later; close whatever it
+      // yields so that transport does not leak.
+      unawaited(attempt.then(_closeQuietly, onError: (_) {}));
       return Result.err(Timeout(
-          'Verbindung zu "${_config.host}" dauert zu lange – Netzwerk oder Host prüfen'));
+          'Verbindung zu "${config.host}" dauert zu lange – Netzwerk oder Host prüfen'));
     } catch (e) {
       final msg = e.toString().toLowerCase();
       if (msg.contains('logon') ||
           msg.contains('access') ||
           msg.contains('password')) {
         return Result.err(AuthError(
-            'SMB authentication failed for "${_config.host}"',
+            'SMB authentication failed for "${config.host}"',
             cause: e));
       }
       return Result.err(NetworkError(
-          'Could not connect to SMB host "${_config.host}"',
+          'Could not connect to SMB host "${config.host}"',
           cause: e));
     }
   }
@@ -308,22 +359,44 @@ class SmbPhotoSource implements PhotoSource {
     }
   }
 
+  /// Lists the direct children of [relPath] with a timeout on each network
+  /// step. On a timeout or error the broken connection is dropped and a
+  /// failure is returned, so the caller always gets a result and never waits
+  /// on a dead socket.
+  Future<Result<List<SmbFile>>> _listChildren(
+    SmbConnect connect,
+    String relPath,
+  ) async {
+    try {
+      final folder =
+          await connect.file(_fullPath(relPath)).timeout(_stepTimeout);
+      final children =
+          await connect.listFiles(folder).timeout(_stepTimeout);
+      return Result.ok(children);
+    } on TimeoutException {
+      _dropBrokenConnection(connect);
+      return Result.err(Timeout(
+          'SMB-Ordner "$relPath" hat zu lange gedauert – Verbindung wird neu aufgebaut'));
+    } catch (e) {
+      _dropBrokenConnection(connect);
+      return Result.err(NetworkError(
+          'SMB-Ordner "$relPath" konnte nicht gelesen werden',
+          cause: e));
+    }
+  }
+
   Stream<Result<PhotoFolder>> _walkFolders(
     SmbConnect connect,
     String relPath,
     CancellationToken? token,
   ) async* {
     token?.throwIfCancelled();
-    List<SmbFile> children;
-    try {
-      final folder = await connect.file(_fullPath(relPath));
-      children = await connect.listFiles(folder);
-    } catch (e) {
-      yield Result.err(NetworkError(
-          'SMB-Ordner "$relPath" konnte nicht gelesen werden',
-          cause: e));
+    final listed = await _listChildren(connect, relPath);
+    if (listed.isErr) {
+      yield Result.err(listed.failureOrNull!);
       return;
     }
+    final children = listed.valueOrNull!;
 
     for (final child in children) {
       token?.throwIfCancelled();
@@ -383,16 +456,12 @@ class SmbPhotoSource implements PhotoSource {
     CancellationToken? token,
   ) async* {
     token?.throwIfCancelled();
-    List<SmbFile> children;
-    try {
-      final folder = await connect.file(_fullPath(relPath));
-      children = await connect.listFiles(folder);
-    } catch (e) {
-      yield Result.err(NetworkError(
-          'SMB-Ordner "$relPath" konnte nicht gelesen werden',
-          cause: e));
+    final listed = await _listChildren(connect, relPath);
+    if (listed.isErr) {
+      yield Result.err(listed.failureOrNull!);
       return;
     }
+    final children = listed.valueOrNull!;
 
     for (final child in children) {
       token?.throwIfCancelled();
@@ -462,10 +531,9 @@ class SmbPhotoSource implements PhotoSource {
 
     // Every network step has a timeout: on a dead socket the library never
     // answers, and a call without one would hold the preparation queue forever.
-    const stepTimeout = Duration(seconds: 20);
     try {
       final remoteFile =
-          await connect.file(_fullPath(item.id)).timeout(stepTimeout);
+          await connect.file(_fullPath(item.id)).timeout(_stepTimeout);
       if (!remoteFile.isExists) {
         return Result.err(NotFound('SMB file no longer exists: ${item.id}'));
       }
@@ -478,8 +546,9 @@ class SmbPhotoSource implements PhotoSource {
 
       final sink = localFile.openWrite();
       try {
-        final stream = await connect.openRead(remoteFile).timeout(stepTimeout);
-        await for (final chunk in stream.timeout(stepTimeout)) {
+        final stream =
+            await connect.openRead(remoteFile).timeout(_stepTimeout);
+        await for (final chunk in stream.timeout(_stepTimeout)) {
           token?.throwIfCancelled();
           sink.add(chunk);
         }
