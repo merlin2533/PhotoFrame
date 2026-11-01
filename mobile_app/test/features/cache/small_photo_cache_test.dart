@@ -87,9 +87,62 @@ void main() {
     expect(await SmallPhotoCache.looksComplete(whole, 7), isTrue);
     expect(await SmallPhotoCache.looksComplete(cut, 7), isFalse);
     expect(await SmallPhotoCache.looksComplete(padded, 8), isTrue);
-    // The source reported more bytes than arrived.
-    expect(await SmallPhotoCache.looksComplete(whole, 100), isFalse);
+    // The original reported more bytes than arrived.
+    expect(
+      await SmallPhotoCache.looksComplete(whole, 100, downloadIsOriginal: true),
+      isFalse,
+    );
+    // The size is ignored for a preview (the source reports the original).
+    expect(await SmallPhotoCache.looksComplete(whole, 100), isTrue);
     expect(await SmallPhotoCache.looksComplete(write('e.jpg', []), 0), isFalse);
+  });
+
+  test('looksComplete accepts a JPEG with appended data and rejects a cut one',
+      () async {
+    File write(String name, List<int> bytes) =>
+        File('${dir.path}${Platform.pathSeparator}$name')
+          ..writeAsBytesSync(bytes);
+    // SOI, a JFIF APP0 segment and EOI: the smallest JPEG structure with an
+    // end marker.
+    const jpeg = [
+      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, 0x11, 0x22, 0xFF, 0xD9,
+    ];
+    // A motion photo: a video follows the EOI. The 200 KiB appended contain no
+    // 0xFF byte, so the search has to walk through several chunks.
+    final motionPhoto = [
+      ...jpeg,
+      for (var i = 0; i < 200 * 1024; i++) (i * 7) & 0x7F,
+    ];
+    expect(
+      await SmallPhotoCache.looksComplete(write('motion.jpg', motionPhoto), 0),
+      isTrue,
+    );
+    // Cut off before the EOI, with no marker in the 200 KiB that follow.
+    final cutLong = [
+      ...jpeg.sublist(0, 10),
+      for (var i = 0; i < 200 * 1024; i++) (i * 7) & 0x7F,
+    ];
+    expect(
+      await SmallPhotoCache.looksComplete(write('cut_long.jpg', cutLong), 0),
+      isFalse,
+    );
+    expect(
+      await SmallPhotoCache.looksComplete(
+        write('cut_short.jpg', jpeg.sublist(0, 10)),
+        0,
+      ),
+      isFalse,
+    );
+    // An end marker split across the 64 KiB chunk border is still found.
+    final split = List<int>.filled(128 * 1024, 0)
+      ..[0] = 0xFF
+      ..[1] = 0xD8
+      ..[64 * 1024 - 1] = 0xFF
+      ..[64 * 1024] = 0xD9;
+    expect(
+      await SmallPhotoCache.looksComplete(write('split.jpg', split), 0),
+      isTrue,
+    );
   });
 
   test('onlyPreparedPhotos defaults to true and survives JSON', () {

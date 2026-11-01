@@ -23,15 +23,16 @@ class SmallPhotoCache {
 
   final Future<Directory> Function() _directory;
 
-  /// Scaling runs strictly one photo at a time: a photo whose wait timed out
-  /// still holds this lock until its native scaling has really finished, so
-  /// two scalings never overlap.
+  /// Scaling runs strictly one photo at a time. The lock is taken before the
+  /// job starts, and the timeout ([scaleTimeout]) applies to the job only, not
+  /// to the wait for the previous job, so a queued photo never times out while
+  /// it is still waiting. A stuck native call that exceeds the timeout still
+  /// runs in the background and may overlap with the next scaling, which is
+  /// accepted.
   Future<void> _scalingTail = Future<void>.value();
 
-  /// A native scaling that never returns must not block every photo after it:
-  /// after [scaleTimeout] the job counts as failed and the lock is released.
-  /// The native call itself cannot be cancelled, so an overlap with one such
-  /// stuck call is accepted over a slideshow that stops preparing photos.
+  /// After this duration a scaling job counts as failed and the lock is
+  /// released.
   static const scaleTimeout = Duration(seconds: 45);
 
   Future<T> _serial<T>(Future<T> Function() job) {
@@ -39,10 +40,12 @@ class SmallPhotoCache {
     final previous = _scalingTail;
     _scalingTail = done.future;
     return previous
-        .then((_) => job())
-        .timeout(scaleTimeout)
+        .then((_) => job().timeout(scaleTimeout))
         .whenComplete(done.complete);
   }
+
+  /// Keeps the temporary file names of concurrent calls apart.
+  int _tempCounter = 0;
 
   bool _purgedOldVersion = false;
 
@@ -264,10 +267,10 @@ class SmallPhotoCache {
       var full = (await source.fetchToCache(item)).valueOrNull;
       // A download that is cut off (network share hiccup) must never become a
       // small copy: check it is complete, and try once more if not.
-      if (full != null && !await looksComplete(full, item.size)) {
+      if (full != null && !await looksComplete(full, 0)) {
         await _deleteIfTemp(full);
         full = (await source.fetchToCache(item)).valueOrNull;
-        if (full != null && !await looksComplete(full, item.size)) {
+        if (full != null && !await looksComplete(full, 0)) {
           await _deleteIfTemp(full);
           return null;
         }
@@ -278,8 +281,13 @@ class SmallPhotoCache {
       final target = await _fileFor(item);
       // Written to a temporary name first: a half-written or broken file must
       // never be picked up by [existing] and shown in the slideshow.
-      final temp = File('${target.path}.tmp.jpg');
-      if (await temp.exists()) await temp.delete();
+      // Unique per call, so two concurrent calls for the same item never share
+      // (and delete) each other's temp file. The .jpg suffix stays: decoders
+      // and the compressor pick the format from it.
+      final temp = File(
+        '${target.path}.${DateTime.now().microsecondsSinceEpoch}'
+        '_${_tempCounter++}.tmp.jpg',
+      );
       File? small;
       try {
         small = await _serial(() => _scale(download, temp));
@@ -312,31 +320,36 @@ class SmallPhotoCache {
     }
   }
 
-  /// `false` when [file] is shorter than the [expectedSize] the source
-  /// reported, or is a JPEG/PNG whose end marker is missing (truncated).
-  static Future<bool> looksComplete(File file, int expectedSize) async {
+  /// `false` when [file] is empty, is a JPEG without an end marker (FF D9
+  /// anywhere in the file, so data appended after it, such as the video of a
+  /// motion photo, is fine), or is a PNG whose last chunk is not IEND.
+  ///
+  /// [expectedSize] is only compared when [downloadIsOriginal] is set: a
+  /// source may deliver a smaller preview than the size it reports for the
+  /// original, so the size is ignored for every other download.
+  static Future<bool> looksComplete(
+    File file,
+    int expectedSize, {
+    bool downloadIsOriginal = false,
+  }) async {
     try {
       final length = await file.length();
       if (length == 0) return false;
-      if (expectedSize > 0 && length < expectedSize) return false;
+      if (downloadIsOriginal && expectedSize > 0 && length < expectedSize) {
+        return false;
+      }
       final raf = await file.open();
       try {
         final head = await raf.read(8);
-        final tailLen = length < 64 ? length : 64;
-        await raf.setPosition(length - tailLen);
-        final tail = await raf.read(tailLen);
         if (head.length >= 3 && head[0] == 0xFF && head[1] == 0xD8) {
-          // JPEG: must end with EOI (FF D9); trailing zero padding is fine.
-          var end = tail.length - 1;
-          while (end > 0 && tail[end] == 0) {
-            end--;
-          }
-          return end >= 1 && tail[end - 1] == 0xFF && tail[end] == 0xD9;
+          return await _hasJpegEndMarker(raf, length);
         }
         if (head.length >= 4 && head[0] == 0x89 && head[1] == 0x50) {
           // PNG: last chunk is IEND.
-          final text = String.fromCharCodes(tail);
-          return text.contains('IEND');
+          final tailLen = length < 64 ? length : 64;
+          await raf.setPosition(length - tailLen);
+          final tail = await raf.read(tailLen);
+          return String.fromCharCodes(tail).contains('IEND');
         }
         return true; // other formats: only the size check applies
       } finally {
@@ -345,6 +358,30 @@ class SmallPhotoCache {
     } catch (_) {
       return false;
     }
+  }
+
+  /// `true` when the file contains a JPEG end marker (FF D9). The file is
+  /// searched backwards in 64 KiB chunks, so the last marker is found first
+  /// and the whole file is read only when there is none.
+  static Future<bool> _hasJpegEndMarker(
+    RandomAccessFile raf,
+    int length,
+  ) async {
+    const chunk = 64 * 1024;
+    var end = length;
+    while (end > 0) {
+      final start = end > chunk ? end - chunk : 0;
+      // One byte past [end] is read as well, so a marker split at the chunk
+      // border is found.
+      final stop = end < length ? end + 1 : end;
+      await raf.setPosition(start);
+      final bytes = await raf.read(stop - start);
+      for (var i = bytes.length - 2; i >= 0; i--) {
+        if (bytes[i] == 0xFF && bytes[i + 1] == 0xD9) return true;
+      }
+      end = start;
+    }
+    return false;
   }
 
   Future<File?> _scale(File full, File temp) async {
