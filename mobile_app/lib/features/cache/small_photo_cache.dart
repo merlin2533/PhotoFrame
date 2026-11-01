@@ -66,9 +66,7 @@ class SmallPhotoCache {
     final previous = _queueTail;
     _queueTail = done.future;
     _openConversions++;
-    return previous
-        .then((_) => job().timeout(scaleTimeout))
-        .whenComplete(() {
+    return previous.then((_) => job().timeout(scaleTimeout)).whenComplete(() {
       _openConversions--;
       done.complete();
     });
@@ -316,11 +314,11 @@ class SmallPhotoCache {
       // A download that is cut off (network share hiccup) must never become a
       // small copy: check it is complete, and try once more if not.
       if (full != null && !await looksComplete(full, 0)) {
-        await _deleteIfTemp(full);
+        await deleteIfTemp(full);
         full = (await source.fetchToCache(item)).valueOrNull;
         await _countDownload(source, full);
         if (full != null && !await looksComplete(full, 0)) {
-          await _deleteIfTemp(full);
+          await deleteIfTemp(full);
           return null;
         }
       }
@@ -375,7 +373,9 @@ class SmallPhotoCache {
     } catch (_) {}
   }
 
-  Future<void> _deleteIfTemp(File file) async {
+  /// Deletes [file] only when it sits in the temp directory, where downloads
+  /// of network sources go. Local originals are never deleted.
+  Future<void> deleteIfTemp(File file) async {
     if (file.parent.path == Directory.systemTemp.path && await file.exists()) {
       await file.delete();
     }
