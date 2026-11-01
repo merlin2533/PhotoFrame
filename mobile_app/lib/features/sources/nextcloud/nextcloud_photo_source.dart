@@ -195,10 +195,8 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
     // Self-hosted Nextcloud instances often use self-signed or otherwise
     // invalid certificates; the user explicitly chose to accept those.
     client.c.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () =>
-          HttpClient()
-            ..badCertificateCallback =
-                (cert, host, port) => isPrivateHost(host),
+      createHttpClient: () => HttpClient()
+        ..badCertificateCallback = (cert, host, port) => isPrivateHost(host),
     );
     return client;
   }

@@ -178,7 +178,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   // the rest of the index in random order.
   List<PhotoItem> _replacementOrder = const [];
   // Day key (yyyy-MM-dd) of the last daily swap, in the app preferences.
-  static const _swapDayKey = 'rotation_swap_day_v1';
+  static const _swapDayKey = rotationSwapDayPrefsKey;
 
   // Keys ('sourceId::itemId') of photos whose checked file is on disk: a
   // prepared copy, or a complete raw download. The engine reads this set
@@ -1437,7 +1437,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         fit: StackFit.expand,
         children: [
           // Same action buttons either way; only the content changes.
-          _awaitingPrepared ? const PreparingView() : const EmptyStateView(),
+          _awaitingPrepared
+              ? PreparingView(poolSize: _pool?.entries.length)
+              : const EmptyStateView(),
           Positioned(
             top: 0,
             right: 0,

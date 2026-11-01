@@ -69,4 +69,37 @@ void main() {
     expect(find.text('8 Fotos'), findsOneWidget);
     expect(find.text('7 Fotos'), findsNothing);
   });
+
+  testWidgets('the cache count is read again when the app resumes',
+      (tester) async {
+    var cachedPhotos = 3;
+    var reads = 0;
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        sourcesProvider.overrideWith(_NoSourcesController.new),
+        settingsProvider.overrideWith(_PreparationOffSettings.new),
+        photoIndexStoreProvider.overrideWithValue(
+          PhotoIndexStore(read: () async => null, write: (_) async {}),
+        ),
+        smallPhotoCacheUsageProvider.overrideWith((ref) async {
+          reads++;
+          return _usage(cachedPhotos);
+        }),
+        smallPhotoWorkerProvider.overrideWith(_FakeWorker.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('3 Fotos'), findsOneWidget);
+    final readsBefore = reads;
+
+    // Photos were removed while the app was in the background.
+    cachedPhotos = 1;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(reads, greaterThan(readsBefore));
+    expect(find.text('1 Fotos'), findsOneWidget);
+    expect(find.text('3 Fotos'), findsNothing);
+  });
 }

@@ -122,9 +122,8 @@ class ImmichPhotoSource implements PhotoSource {
       receiveTimeout: const Duration(seconds: 60),
     ));
     dio.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () =>
-          HttpClient()..badCertificateCallback = (cert, host, port) =>
-              isPrivateHost(host),
+      createHttpClient: () => HttpClient()
+        ..badCertificateCallback = (cert, host, port) => isPrivateHost(host),
     );
     return dio;
   }
@@ -184,8 +183,7 @@ class ImmichPhotoSource implements PhotoSource {
         queryParameters: query, options: _authOptions(timeout: timeout));
   }
 
-  Future<Map<String, dynamic>> _getMap(String path,
-      {Duration? timeout}) async {
+  Future<Map<String, dynamic>> _getMap(String path, {Duration? timeout}) async {
     final response = await _get(path, timeout: timeout);
     final data = response.data;
     if (data is! Map) {
@@ -301,8 +299,8 @@ class ImmichPhotoSource implements PhotoSource {
     if (folder.id.isEmpty) return;
 
     try {
-      final album = await _getMap(
-          '/api/albums/${Uri.encodeComponent(folder.id)}');
+      final album =
+          await _getMap('/api/albums/${Uri.encodeComponent(folder.id)}');
       final assets = album['assets'];
       if (assets is! List) return;
       for (final entry in assets) {
@@ -325,8 +323,8 @@ class ImmichPhotoSource implements PhotoSource {
     if (asset['type'] != 'IMAGE') return null;
 
     final exif = _asMap(asset['exifInfo']);
-    final takenAt =
-        _parseDate(asset['fileCreatedAt']) ?? _parseDate(asset['localDateTime']);
+    final takenAt = _parseDate(asset['fileCreatedAt']) ??
+        _parseDate(asset['localDateTime']);
     final mtime = _parseDate(asset['fileModifiedAt']) ??
         takenAt ??
         DateTime.fromMillisecondsSinceEpoch(0);

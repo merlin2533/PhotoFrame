@@ -221,7 +221,8 @@ void main() {
       expect(item.takenAt, DateTime.utc(2025, 7, 1, 10));
     });
 
-    test('listImages on the empty root folder yields nothing and makes no request',
+    test(
+        'listImages on the empty root folder yields nothing and makes no request',
         () async {
       final adapter = _FakeAdapter();
       final source = _source(adapter: adapter);
@@ -374,8 +375,7 @@ void main() {
       final json = config.toJson();
       expect(json.values, isNot(contains('secret')));
 
-      final restored =
-          ImmichSourceConfig.fromJson(json, password: 'secret');
+      final restored = ImmichSourceConfig.fromJson(json, password: 'secret');
       expect(restored.serverUrl, _base);
       expect(restored.albumId, 'album-1');
       expect(restored.albumName, 'Urlaub');

@@ -86,6 +86,26 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String preparingCacheCount(int count) {
+    return '$count Fotos im Cache';
+  }
+
+  @override
+  String preparingSwapToday(int swapped, int pool) {
+    return 'Heute ausgetauscht: $swapped von $pool';
+  }
+
+  @override
+  String preparingSwapDailyPercent(int percent) {
+    return 'Täglicher Austausch: $percent %';
+  }
+
+  @override
+  String preparingSwapDailyCount(int percent, int perDay) {
+    return 'Täglicher Austausch: $percent % ($perDay Fotos pro Tag)';
+  }
+
+  @override
   String commonError(String message) {
     return 'Fehler: $message';
   }
