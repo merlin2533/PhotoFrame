@@ -43,13 +43,15 @@ class SmallPhotoCache {
   Future<void> _purgeOldVersion(Directory dir) async {
     if (_purgedOldVersion) return;
     _purgedOldVersion = true;
-    final old = Directory(
-        '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
-    try {
-      if (await old.exists()) await old.delete(recursive: true);
-    } catch (e, st) {
-      logRecoverableError('Old small photo folder could not be removed',
-          error: e, stackTrace: st);
+    for (final name in legacyDirectoryNames) {
+      final old = Directory(
+          '${dir.parent.path}${Platform.pathSeparator}$name');
+      try {
+        if (await old.exists()) await old.delete(recursive: true);
+      } catch (e, st) {
+        logRecoverableError('Old small photo folder could not be removed',
+            error: e, stackTrace: st);
+      }
     }
   }
 
@@ -246,6 +248,8 @@ class SmallPhotoCache {
         }
       }
       if (full == null) return null;
+      // A local variable so the promotion survives the closure below.
+      final download = full;
       final target = await _fileFor(item);
       // Written to a temporary name first: a half-written or broken file must
       // never be picked up by [existing] and shown in the slideshow.
@@ -253,7 +257,7 @@ class SmallPhotoCache {
       if (await temp.exists()) await temp.delete();
       File? small;
       try {
-        small = await _serial(() => _scale(full, temp));
+        small = await _serial(() => _scale(download, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
