@@ -13,17 +13,38 @@ import 'slideshow_config.dart';
 /// index, likely backed by drift) doesn't exist yet in this scaffold.
 typedef ItemResolver = Future<PhotoItem?> Function(PoolEntry entry);
 
-/// How many upcoming photos the slideshow prepares ahead of time, so they are
-/// already in the cache when they are shown.
+/// How many upcoming photos the slideshow prepares ahead of time when it
+/// starts, so they are already in the cache when they are shown. This is the
+/// start value of the prefetch ramp (see [prefetchCountAfter]).
 const int upcomingPhotoCount = 3;
+
+/// Upper limit for the number of photos prefetched ahead.
+const int maxPrefetchCount = 25;
+
+/// How much the prefetch count grows for every photo the slideshow shows.
+const int prefetchRampStep = 2;
+
+/// The number of photos to prefetch ahead after [shownCount] photos were shown
+/// since the engine was built. It starts at [upcomingPhotoCount], grows by
+/// [prefetchRampStep] per shown photo and never exceeds [maxPrefetchCount].
+/// Negative counts are treated as zero.
+///
+/// For example: 0 shown gives 3, 1 shown gives 5, 11 shown gives 25, and any
+/// higher count still gives 25.
+int prefetchCountAfter(int shownCount) {
+  final shown = shownCount < 0 ? 0 : shownCount;
+  final ramped = upcomingPhotoCount + prefetchRampStep * shown;
+  return ramped > maxPrefetchCount ? maxPrefetchCount : ramped;
+}
 
 /// Drives the slideshow: decides which item is currently shown, advances on
 /// a timer, and pulls the next candidates from a [WorkingSetPool] via a
 /// [ShuffleBag] so items rotate fairly without immediate repeats.
 ///
 /// Prefetching: the screen asks [upcomingEntries] for the next
-/// [upcomingPhotoCount] entries and prepares them (see `_prefetchNext` in
-/// `slideshow_screen.dart`). The engine itself does no I/O.
+/// [prefetchCountAfter] entries (the count ramps up while the slideshow runs)
+/// and prepares them (see `_prefetchNext` in `slideshow_screen.dart`). The
+/// engine itself does no I/O.
 class SlideshowEngine {
   SlideshowEngine({
     required WorkingSetPool pool,
