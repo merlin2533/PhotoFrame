@@ -8,6 +8,7 @@ one-time setup) — each entry's version is `mobile_app`'s `pubspec.yaml`
 build number *after* that commit's automatic bump, newest entry on top.
 
 <!-- COMMIT-HOOK-INSERT-MARKER: new entries are inserted directly below this line. -->
+- **2026-11-01** (mobile_app build from commit count) — Release: slideshow pool keeps unprepared photos and retries, SMB reconnects after failures with step timeouts, small-photo cache keeps its live folder, log view and GlitchTip error reports with redaction, iOS 15.0 minimum, Immich previews and motion-photo JPEGs accepted, error messages quote hosts and paths
 - **2026-08-31** (mobile_app 0.1.0+2) — Fix real-device bugs (slideshow never rendered real photos, kiosk mode had no immediate exit), rename app to PhotoFrame, add CHANGELOG/version-bump git hooks
 
 ## Baseline (pre-automation)
