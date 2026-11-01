@@ -66,8 +66,118 @@ class SmallPhotoCache {
     final dir = await _directory();
     await dir.create(recursive: true);
     await _purgeOldVersion(dir);
-    final name = item.stableId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final name = baseNameFor(item.stableId);
     return File('${dir.path}${Platform.pathSeparator}$name.jpg');
+  }
+
+  /// File name (without `.jpg`) used for a stableId: every character outside
+  /// `[A-Za-z0-9_-]` becomes `_`. A stableId is `<sourceId>:<hash>`, so the
+  /// name starts with `<sourceId>_` (see [belongsToSource]).
+  static String baseNameFor(String stableId) =>
+      stableId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+
+  /// The stableId hash is 16 lowercase hex characters (see `MediaStableId`).
+  static final RegExp _fileSuffix = RegExp(r'^[0-9a-f]{16}\.jpg$');
+
+  /// `true` when the cache file [fileName] was written for a photo of
+  /// [sourceId]. Source ids may contain `_`, so the prefix alone is not
+  /// enough: the rest of the name must be exactly one 16-character hash.
+  static bool belongsToSource(String fileName, String sourceId) {
+    final prefix = baseNameFor('$sourceId:');
+    if (!fileName.startsWith(prefix)) return false;
+    return _fileSuffix.hasMatch(fileName.substring(prefix.length));
+  }
+
+  /// The first of [knownSourceIds] that [fileName] belongs to, or `null` when
+  /// it belongs to none (for example a source that was removed).
+  static String? sourceIdForFile(
+      String fileName, Iterable<String> knownSourceIds) {
+    for (final id in knownSourceIds) {
+      if (belongsToSource(fileName, id)) return id;
+    }
+    return null;
+  }
+
+  /// Every regular file in the cache folder. Empty while the folder does not
+  /// exist yet.
+  Future<List<File>> _cachedFiles() async {
+    final dir = await _directory();
+    if (!await dir.exists()) return [];
+    final files = <File>[];
+    await for (final entity in dir.list(followLinks: false)) {
+      if (entity is File) files.add(entity);
+    }
+    return files;
+  }
+
+  static String _nameOf(File file) => file.path.split(RegExp(r'[/\\]')).last;
+
+  /// Counts and sizes of the whole folder, grouped by [knownSourceIds]. Every
+  /// known source gets an entry (even with 0 files); files that match none of
+  /// them are summed up separately as "unassigned" instead of being dropped.
+  Future<SmallPhotoCacheUsage> usage(Iterable<String> knownSourceIds) async {
+    final ids = knownSourceIds.toSet().toList();
+    final counts = {for (final id in ids) id: 0};
+    final bytes = {for (final id in ids) id: 0};
+    var unassignedCount = 0;
+    var unassignedBytes = 0;
+    for (final file in await _cachedFiles()) {
+      final size = await _sizeOf(file);
+      if (size == null) continue;
+      final id = sourceIdForFile(_nameOf(file), ids);
+      if (id == null) {
+        unassignedCount++;
+        unassignedBytes += size;
+      } else {
+        counts[id] = counts[id]! + 1;
+        bytes[id] = bytes[id]! + size;
+      }
+    }
+    return SmallPhotoCacheUsage(
+      bySource: [
+        for (final id in ids)
+          SmallPhotoSourceUsage(
+              sourceId: id, count: counts[id]!, bytes: bytes[id]!),
+      ],
+      unassignedCount: unassignedCount,
+      unassignedBytes: unassignedBytes,
+    );
+  }
+
+  /// Size in bytes, or `null` when the file vanished meanwhile (for example
+  /// removed by a concurrent clear).
+  static Future<int?> _sizeOf(File file) async {
+    try {
+      return await file.length();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Deletes the cache files of [sourceId] only. Returns how many were removed.
+  Future<int> deleteForSource(String sourceId) =>
+      _deleteWhere((name) => belongsToSource(name, sourceId));
+
+  /// Deletes the files that belong to none of [knownSourceIds] (left behind by
+  /// removed sources). Returns how many were removed.
+  Future<int> deleteUnassigned(Iterable<String> knownSourceIds) {
+    final ids = knownSourceIds.toList();
+    return _deleteWhere((name) => sourceIdForFile(name, ids) == null);
+  }
+
+  Future<int> _deleteWhere(bool Function(String fileName) matches) async {
+    var deleted = 0;
+    for (final file in await _cachedFiles()) {
+      if (!matches(_nameOf(file))) continue;
+      try {
+        await file.delete();
+        deleted++;
+      } on FileSystemException catch (e, st) {
+        logRecoverableError('Small photo could not be deleted',
+            error: e, stackTrace: st);
+      }
+    }
+    return deleted;
   }
 
   /// The small file if it exists already.
@@ -263,6 +373,37 @@ final Provider<SmallPhotoCache> smallPhotoCacheProvider =
     },
   ),
 );
+
+/// Number and total size of the cached files of one source.
+class SmallPhotoSourceUsage {
+  const SmallPhotoSourceUsage(
+      {required this.sourceId, required this.count, required this.bytes});
+
+  final String sourceId;
+  final int count;
+  final int bytes;
+}
+
+/// What the small-photo cache holds right now, see [SmallPhotoCache.usage].
+class SmallPhotoCacheUsage {
+  const SmallPhotoCacheUsage({
+    required this.bySource,
+    required this.unassignedCount,
+    required this.unassignedBytes,
+  });
+
+  /// One entry per known source, in the order the source ids were given.
+  final List<SmallPhotoSourceUsage> bySource;
+
+  /// Files that belong to none of the known sources.
+  final int unassignedCount;
+  final int unassignedBytes;
+
+  int get count => bySource.fold(unassignedCount, (sum, s) => sum + s.count);
+
+  int get totalBytes =>
+      bySource.fold(unassignedBytes, (sum, s) => sum + s.bytes);
+}
 
 /// Progress of the background job that prepares the small files.
 class SmallPhotoStatus {

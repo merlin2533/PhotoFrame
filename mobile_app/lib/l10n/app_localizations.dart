@@ -380,6 +380,72 @@ abstract class AppLocalizations {
   /// **'Cache geleert'**
   String get cacheClearedSnackbar;
 
+  /// Gesamtzahl der verkleinerten Bilder im Cache.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Bilder gecacht'**
+  String cacheImageCount(int count);
+
+  /// Überschrift der Liste mit dem Cache je Quelle.
+  ///
+  /// In de, this message translates to:
+  /// **'Nach Quelle'**
+  String get cacheBySourceTitle;
+
+  /// Zeile je Quelle: Anzahl der Bilder und belegter Speicher.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Bilder · {size}'**
+  String cacheSourceUsage(int count, String size);
+
+  /// Name der Gruppe für Cache-Dateien, die zu keiner eingerichteten Quelle gehören.
+  ///
+  /// In de, this message translates to:
+  /// **'Unbekannte Quelle'**
+  String get cacheUnknownSource;
+
+  /// Erklärung unter der Gruppe 'Unbekannte Quelle'.
+  ///
+  /// In de, this message translates to:
+  /// **'Dias von Quellen, die nicht mehr eingerichtet sind'**
+  String get cacheUnknownSourceHint;
+
+  /// Tooltip des Löschen-Symbols in einer Quellenzeile.
+  ///
+  /// In de, this message translates to:
+  /// **'Cache dieser Quelle löschen'**
+  String get cacheDeleteSourceTooltip;
+
+  /// Titel des Bestätigungsdialogs zum Löschen des Caches einer Quelle.
+  ///
+  /// In de, this message translates to:
+  /// **'Cache löschen?'**
+  String get cacheDeleteSourceTitle;
+
+  /// Text des Bestätigungsdialogs für eine Quelle.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} verkleinerte Bilder von „{source}“ werden gelöscht. Sie werden beim nächsten Index-Lauf neu erstellt.'**
+  String cacheDeleteSourceBody(int count, String source);
+
+  /// Text des Bestätigungsdialogs für die Gruppe 'Unbekannte Quelle'.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} verkleinerte Bilder von nicht mehr eingerichteten Quellen werden gelöscht.'**
+  String cacheDeleteUnassignedBody(int count);
+
+  /// Bestätigungsbutton der Löschen-Dialoge im Cache.
+  ///
+  /// In de, this message translates to:
+  /// **'Löschen'**
+  String get cacheDeleteConfirm;
+
+  /// Bestätigungsmeldung nach dem Löschen des Caches einer Quelle.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Bilder gelöscht'**
+  String cacheDeletedSnackbar(int count);
+
   /// Button, um das Onboarding zu überspringen.
   ///
   /// In de, this message translates to:
