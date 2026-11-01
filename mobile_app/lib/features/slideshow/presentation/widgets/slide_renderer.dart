@@ -174,14 +174,18 @@ class _PhotoImage extends StatelessWidget {
       return _PlaceholderBox(item: item, reason: error);
     }
     // Decode at screen resolution instead of full camera size: a 12 MP photo
-    // otherwise takes ~48 MB of memory on the frame.
-    final screenWidth = MediaQuery.sizeOf(context).width *
-        MediaQuery.devicePixelRatioOf(context);
+    // otherwise takes ~48 MB of memory on the frame. A portrait photo is
+    // limited by the screen height, so it is decoded to that size instead of
+    // the width; otherwise it would be enlarged (and blurred) when shown.
+    final screen = MediaQuery.sizeOf(context);
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final portrait = _isPortrait(item);
     final l10n = AppLocalizations.of(context);
     return Image.file(
       file!,
       fit: fit,
-      cacheWidth: screenWidth.round(),
+      cacheWidth: portrait ? null : (screen.width * devicePixelRatio).round(),
+      cacheHeight: portrait ? (screen.height * devicePixelRatio).round() : null,
       errorBuilder: (context, err, stackTrace) => _PlaceholderBox(
         item: item,
         // The raw exception is only useful while developing; on the frame
@@ -192,6 +196,16 @@ class _PhotoImage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Whether the photo is shown upright in portrait orientation. The stored size
+/// is the sensor size; EXIF orientations 5 to 8 rotate it by 90 degrees.
+/// Unknown sizes count as landscape.
+bool _isPortrait(PhotoItem item) {
+  final w = item.width, h = item.height;
+  if (w == null || h == null) return false;
+  final rotated = item.orientation >= 5 && item.orientation <= 8;
+  return rotated ? w > h : h > w;
 }
 
 /// Deterministic placeholder (color derived from the item id, plus its

@@ -76,7 +76,8 @@ class SmallPhotoCache {
       final file = await _fileFor(item);
       return await file.exists() ? file : null;
     } catch (e, st) {
-      logRecoverableError('Small photo lookup failed', error: e, stackTrace: st);
+      logRecoverableError('Small photo lookup failed',
+          error: e, stackTrace: st);
       return null;
     }
   }
@@ -212,17 +213,22 @@ class SmallPhotoCache {
     ui.Codec? codec;
     try {
       final bytes = await source.readAsBytes();
-      final probe = await ui.instantiateImageCodec(bytes);
-      final frame = (await probe.getNextFrame()).image;
-      final w = frame.width, h = frame.height;
-      frame.dispose();
-      probe.dispose();
-      final longest = w > h ? w : h;
-      codec = longest > 2048
-          ? await ui.instantiateImageCodec(bytes,
-              targetWidth: w >= h ? 2048 : null,
-              targetHeight: h > w ? 2048 : null)
-          : await ui.instantiateImageCodec(bytes);
+      // The size is read from the header only (no full decode), and the
+      // image is then decoded once, already scaled.
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      try {
+        final w = descriptor.width, h = descriptor.height;
+        final longest = w > h ? w : h;
+        codec = longest > 2048
+            ? await descriptor.instantiateCodec(
+                targetWidth: w >= h ? 2048 : null,
+                targetHeight: h > w ? 2048 : null)
+            : await descriptor.instantiateCodec();
+      } finally {
+        descriptor.dispose();
+        buffer.dispose();
+      }
       final image = (await codec.getNextFrame()).image;
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
@@ -350,12 +356,10 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     final cache = ref.read(smallPhotoCacheProvider);
     try {
       while (_queued.isNotEmpty) {
-        final batchSize = (ref
-                    .read(settingsProvider)
-                    .value
-                    ?.smallPhotoBatchSize ??
-                defaultBatchSize)
-            .clamp(1, 50);
+        final batchSize =
+            (ref.read(settingsProvider).value?.smallPhotoBatchSize ??
+                    defaultBatchSize)
+                .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
           _queued.remove(item.stableId);
