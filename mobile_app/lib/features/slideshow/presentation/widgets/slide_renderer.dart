@@ -147,10 +147,29 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
         notPreparedYet: true,
       );
     }
-    return (
-      result: await widget.source.fetchToCache(widget.item),
-      notPreparedYet: false,
+    // The raw download is the original file, so it must be complete: a
+    // truncated one would decode only partly (the rest is garbage on screen).
+    // It is checked with the same rule as the small copies, against the size
+    // the source reported. A photo without that proof is never shown.
+    final fetched = await widget.source.fetchToCache(widget.item);
+    final file = fetched.valueOrNull;
+    if (file == null) {
+      return (result: fetched, notPreparedYet: false);
+    }
+    final complete = await SmallPhotoCache.looksComplete(
+      file,
+      widget.item.size,
+      downloadIsOriginal: true,
     );
+    if (!complete) {
+      await cache.deleteIfTemp(file);
+      return (
+        result: Result<File>.err(
+            const NetworkError('Heruntergeladene Datei ist unvollständig')),
+        notPreparedYet: false,
+      );
+    }
+    return (result: fetched, notPreparedYet: false);
   }
 
   @override
@@ -185,25 +204,18 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
                   child: _PhotoImage(
                       item: widget.item, file: file, fit: BoxFit.cover),
                 ),
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: _aspectRatio,
-                    child: _PhotoImage(
-                        item: widget.item, file: file, fit: BoxFit.contain),
-                  ),
+                // The foreground fills the whole screen; BoxFit.contain scales
+                // the photo to the largest size that fits and keeps its aspect
+                // ratio. A fixed box would shrink it to the photo's ratio.
+                SizedBox.expand(
+                  child: _PhotoImage(
+                      item: widget.item, file: file, fit: BoxFit.contain),
                 ),
               ],
             );
         }
       },
     );
-  }
-
-  double get _aspectRatio {
-    final w = widget.item.width;
-    final h = widget.item.height;
-    if (w == null || h == null || h == 0) return 16 / 9;
-    return w / h;
   }
 }
 
