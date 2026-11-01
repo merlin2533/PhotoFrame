@@ -404,6 +404,17 @@ class SmallPhotoCache {
           throw const PhotoNotConvertibleException(
               'Format is neither JPEG nor PNG');
         }
+        // Panoramas are not scaled: the native scaler damages parts of very
+        // wide or very tall images, and the colour check cannot see that.
+        // They are shown as the original instead.
+        final w = item.width, h = item.height;
+        if (w != null && h != null && h > 0 && w > 0) {
+          final ratio = w / h;
+          if (ratio > 2.5 || ratio < 0.4) {
+            throw const PhotoNotConvertibleException(
+                'Extreme aspect ratio (panorama), not scaled');
+          }
+        }
         // Held back while the slideshow is busy. Waiting happens before the
         // job takes its place in the shared queue, so a slideshow decode is
         // never stuck behind a waiting scale.
