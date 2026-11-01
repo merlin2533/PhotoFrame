@@ -460,8 +460,12 @@ class SmbPhotoSource implements PhotoSource {
     }
     final connect = connectResult.valueOrNull!;
 
+    // Every network step has a timeout: on a dead socket the library never
+    // answers, and a call without one would hold the preparation queue forever.
+    const stepTimeout = Duration(seconds: 20);
     try {
-      final remoteFile = await connect.file(_fullPath(item.id));
+      final remoteFile =
+          await connect.file(_fullPath(item.id)).timeout(stepTimeout);
       if (!remoteFile.isExists) {
         return Result.err(NotFound('SMB file no longer exists: ${item.id}'));
       }
@@ -474,8 +478,8 @@ class SmbPhotoSource implements PhotoSource {
 
       final sink = localFile.openWrite();
       try {
-        final stream = await connect.openRead(remoteFile);
-        await for (final chunk in stream) {
+        final stream = await connect.openRead(remoteFile).timeout(stepTimeout);
+        await for (final chunk in stream.timeout(stepTimeout)) {
           token?.throwIfCancelled();
           sink.add(chunk);
         }
@@ -487,13 +491,24 @@ class SmbPhotoSource implements PhotoSource {
     } on CancelledException {
       rethrow;
     } on TimeoutException {
+      _dropBrokenConnection(connect);
       return Result.err(
           Timeout('Foto "${item.id}" konnte nicht rechtzeitig geladen werden'));
     } catch (e) {
+      // A failed read leaves the socket in an unknown state. Drop it, so the
+      // next photo connects again instead of failing on the same socket.
+      _dropBrokenConnection(connect);
       return Result.err(NetworkError(
           'Foto "${item.id}" konnte nicht geladen werden',
           cause: e));
     }
+  }
+
+  /// Closes [connect] and forgets it, but only if it is still the current
+  /// connection (a newer one may already have replaced it).
+  void _dropBrokenConnection(SmbConnect connect) {
+    if (!identical(_connect, connect)) return;
+    _dropConnection();
   }
 
   /// SMB shares don't push change notifications - see the honesty note on
