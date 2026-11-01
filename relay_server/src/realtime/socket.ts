@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
+import { corsOrigin } from '../config/cors';
 import { verifyDeviceToken } from '../auth/deviceTokens';
 import { getDb } from '../db';
 
@@ -13,32 +14,26 @@ interface AuthedSocket extends Socket {
   frameId?: string;
 }
 
+// A socket may ask to join pairing rooms at most this many times per window.
+// Each join costs a DB lookup, and a legitimate client only joins once per
+// pairing it shows, so the limit is generous.
+const JOIN_LIMIT_PER_WINDOW = 20;
+const JOIN_WINDOW_MS = 60_000;
+
 /**
  * Initializes Socket.IO on the same HTTP server/port as Express. Auth
  * happens once at handshake via a device token; a socket may then request
- * to join a pairing room, but only after we verify current membership -
- * this is re-checked at join time (not just at handshake) so a frame
- * removed from a pairing mid-connection cannot keep listening in that room.
+ * to join a pairing room, but only after we verify current membership.
  *
- * Known limitation (Code-Review-Backlog, intentionally left open in this
- * round): membership is ONLY re-checked at `join_pairing` time, not on every
- * subsequent event delivery. If a frame is later removed from a pairing
- * (DELETE /pairing/:id/members/:frameId) or has its device token revoked
- * while its socket is still connected and already sitting in that
- * `pairing:<id>` room, it keeps receiving `album:updated`/`album:imageDeleted`
- * broadcasts for that room until it disconnects/reconnects - there is no
- * server-initiated recheck-and-evict loop. The clean fix is either (a) have
- * the member-removal code path explicitly `socket.leave()` any of the
- * removed frame's currently-connected sockets for that room (requires
- * looking up sockets by frameId, e.g. via the `frame:<id>` room every socket
- * already joins on connect - see routes/pairing.ts's member-removal route
- * for where that would hook in), or (b) a periodic recheck sweep. Left as a
- * documented gap rather than implemented here to avoid colliding with the
- * parallel work on the member-block feature in routes/pairing.ts.
+ * Membership changes are pushed to live sockets by the code that makes them,
+ * using the helpers below: a removed member's sockets leave the pairing room,
+ * and sockets of a revoked or deleted frame are disconnected. Without that,
+ * a frame removed from a pairing would keep receiving album broadcasts until
+ * it reconnected.
  */
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
-    cors: { origin: '*' },
+    cors: { origin: corsOrigin() },
   });
 
   io.use((socket: AuthedSocket, next) => {
@@ -63,7 +58,21 @@ export function initSocket(httpServer: HttpServer): Server {
       socket.join(`frame:${socket.frameId}`);
     }
 
+    let joinWindowStart = Date.now();
+    let joinCount = 0;
+
     socket.on('join_pairing', (pairingId: string, ack?: (result: { ok: boolean; error?: string }) => void) => {
+      const now = Date.now();
+      if (now - joinWindowStart >= JOIN_WINDOW_MS) {
+        joinWindowStart = now;
+        joinCount = 0;
+      }
+      joinCount += 1;
+      if (joinCount > JOIN_LIMIT_PER_WINDOW) {
+        ack?.({ ok: false, error: 'too many join requests' });
+        return;
+      }
+
       if (!socket.frameId || typeof pairingId !== 'string') {
         ack?.({ ok: false, error: 'invalid request' });
         return;
@@ -91,4 +100,26 @@ export function initSocket(httpServer: HttpServer): Server {
   });
 
   return io;
+}
+
+/**
+ * Removes every connected socket of `frameId` from the pairing room. Call
+ * when that frame stops being a member (leave, owner removal, admin delete).
+ */
+export function evictFrameFromPairing(frameId: string, pairingId: string): void {
+  io?.in(`frame:${frameId}`).socketsLeave(`pairing:${pairingId}`);
+}
+
+/** Removes every connected socket from a pairing room (pairing deleted). */
+export function closePairingRoom(pairingId: string): void {
+  io?.socketsLeave(`pairing:${pairingId}`);
+}
+
+/**
+ * Disconnects every connected socket of `frameId`. Call when the frame's
+ * device token is revoked or the frame is deleted, so an already-open
+ * connection cannot keep using a credential that no longer works.
+ */
+export function disconnectFrameSockets(frameId: string): void {
+  io?.in(`frame:${frameId}`).disconnectSockets(true);
 }

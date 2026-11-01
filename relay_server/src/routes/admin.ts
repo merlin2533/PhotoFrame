@@ -10,6 +10,7 @@ import { runGarbageCollection } from '../storage/contentAddressedStore';
 import { releaseImageAccounting } from '../storage/imageCleanup';
 import { runBlobConsistencyCheck } from '../storage/blobConsistencyCheck';
 import { revokeAllTokensForFrame } from '../auth/deviceTokens';
+import { disconnectFrameSockets } from '../realtime/socket';
 
 export const adminRouter = Router();
 
@@ -139,6 +140,7 @@ adminRouter.delete('/users/:userId', (req, res) => {
     releaseImageAccounting(images);
     db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
   });
+  for (const frame of frames) disconnectFrameSockets(frame.id);
   audit('admin', 'delete_user', 'user', req.params.userId);
   res.json({ ok: true });
 });
@@ -210,6 +212,7 @@ adminRouter.delete('/frames/:frameId', (req, res) => {
     );
   });
 
+  disconnectFrameSockets(frame.id);
   audit('admin', 'delete_frame', 'frame', frame.id);
   res.json({ ok: true });
 });

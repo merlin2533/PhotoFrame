@@ -7,6 +7,7 @@ import { generatePairingCode, hashPairingCode } from '../auth/pairingCode';
 import { deriveKeyFingerprint } from '../auth/keyFingerprint';
 import { pairingCreateRateLimiter, pairingRedeemRateLimiter } from '../middleware/rateLimit';
 import { releaseImageAccounting } from '../storage/imageCleanup';
+import { closePairingRoom, evictFrameFromPairing } from '../realtime/socket';
 
 export const pairingRouter = Router();
 
@@ -202,6 +203,7 @@ pairingRouter.post('/:pairingId/leave', requirePairingMembership, (req, res) => 
     req.params.pairingId,
     req.frameId!,
   );
+  evictFrameFromPairing(req.frameId!, req.params.pairingId);
   res.json({ ok: true });
 });
 
@@ -245,6 +247,7 @@ pairingRouter.delete('/:pairingId/members/:frameId', requirePairingMembership, (
     pairingId,
     targetFrameId,
   );
+  evictFrameFromPairing(targetFrameId, pairingId);
   res.json({ ok: true });
 });
 
@@ -274,5 +277,6 @@ pairingRouter.delete('/:pairingId', requirePairingMembership, (req, res) => {
     releaseImageAccounting(images);
     db.prepare('DELETE FROM pairings WHERE id = ?').run(req.params.pairingId);
   });
+  closePairingRoom(req.params.pairingId);
   res.json({ ok: true });
 });
