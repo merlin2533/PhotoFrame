@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:mobile_app/features/index/photo_index_store.dart';
 import 'package:mobile_app/features/settings/domain/app_settings.dart';
 import 'package:mobile_app/features/settings/state/settings_providers.dart';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
+import 'package:mobile_app/features/slideshow/domain/daily_selection.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/preparing_view.dart';
@@ -287,6 +289,52 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+      'starts at once with a prepared photo of the index when the selection has none',
+      (tester) async {
+    final source = MockPhotoSource(
+      id: 'mock-prep',
+      folderCount: 1,
+      itemsPerFolder: 3,
+      simulatedDelay: Duration.zero,
+    );
+    final items = [
+      for (final id in ['a', 'b', 'c']) _itemOf(source, id)
+    ];
+    // The saved selection holds a and b only; c is the one prepared copy, so
+    // it lies outside today's selection (the worker prepares in random order).
+    SharedPreferences.setMockInitialValues({
+      'daily_selection_v1': jsonEncode({
+        'day': DailySelection.dayKey(DateTime.now()),
+        'keys': ['mock-prep::a', 'mock-prep::b'],
+      }),
+    });
+    final preparedDir = Directory.systemTemp.createTempSync('prepared_test_');
+    addTearDown(() => preparedDir.delete(recursive: true));
+    final preparedFile = File('${preparedDir.path}/c_small.jpg')
+      ..writeAsBytesSync([1, 2, 3]);
+
+    await tester.pumpWidget(_screenWith(
+      source,
+      _TwoPhotoSelection.new,
+      savedItems: items,
+      // Default wait limit (3 minutes): reaching the engine within the 1 s
+      // below proves the start did not wait for the timeout.
+      cache: _SomePreparedSmallPhotoCache({'c'}, preparedFile),
+    ));
+    for (var i = 0;
+        i < 100 && find.byType(SlideRenderer).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+
+    expect(find.byType(SlideRenderer), findsWidgets);
+    expect(find.byType(PreparingView), findsNothing);
+    expect(find.byType(EmptyStateView), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('clearNetworkCache keeps a recently modified download', () async {
     final dir = await Directory.systemTemp.createTemp('cache_cleanup_test_');
     addTearDown(() => dir.delete(recursive: true));
@@ -364,6 +412,17 @@ class _PreparedOnlySettings extends AppSettingsController {
       );
 }
 
+/// Only prepared small copies are shown, and today's selection holds two of
+/// the saved photos.
+class _TwoPhotoSelection extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        intervalSeconds: 1,
+        selectionCount: 2,
+      );
+}
+
 /// Raw downloads are allowed too, one slide per second.
 class _RawSettings extends AppSettingsController {
   @override
@@ -385,6 +444,7 @@ ProviderScope _screenWith(
   List<PhotoItem> savedItems = const [],
   Duration? preparedWaitLimit,
   SmallPhotoWorker Function()? worker,
+  SmallPhotoCache? cache,
 }) {
   return ProviderScope(
     overrides: [
@@ -395,7 +455,7 @@ ProviderScope _screenWith(
       ),
       kioskModeControllerProvider.overrideWithValue(_FakeKioskModeController()),
       networkCacheCleanerProvider.overrideWithValue(() async {}),
-      smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
+      smallPhotoCacheProvider.overrideWithValue(cache ?? _NoSmallPhotoCache()),
       smallPhotoWorkerProvider.overrideWith(worker ?? _NoWorker.new),
       photoIndexStoreProvider.overrideWithValue(_SavedIndexStore(savedItems)),
     ],
@@ -428,6 +488,25 @@ class _SavedIndexStore extends PhotoIndexStore {
     if (items.isEmpty) return IndexSnapshot.empty;
     return IndexSnapshot(items: items, savedAt: DateTime.now());
   }
+}
+
+/// Test stand-in: only the photos in [preparedIds] have a small copy, all of
+/// them the file [file]. Its bytes are not an image, so the slide shows its
+/// placeholder.
+class _SomePreparedSmallPhotoCache extends SmallPhotoCache {
+  _SomePreparedSmallPhotoCache(this.preparedIds, this.file)
+      : super(directory: () async => Directory.systemTemp);
+
+  final Set<String> preparedIds;
+  final File file;
+
+  @override
+  Future<File?> existing(PhotoItem item) async =>
+      preparedIds.contains(item.id) ? file : null;
+
+  @override
+  Future<File?> verifiedExisting(PhotoItem item) async =>
+      preparedIds.contains(item.id) ? file : null;
 }
 
 /// Test stand-in worker reporting fixed progress (2 of 5 prepared).
@@ -478,6 +557,20 @@ List<PhotoItem> _savedItemsOf(PhotoSource source) => [
         takenAt: DateTime(2024),
       ),
     ];
+
+/// A saved index entry with the id [id] in [source].
+PhotoItem _itemOf(PhotoSource source, String id) => PhotoItem(
+      id: id,
+      sourceId: source.id,
+      folderId: 'folder-0',
+      name: 'mock_0_$id.jpg',
+      mediaType: MediaType.image,
+      size: 1,
+      mtime: DateTime(2024),
+      width: 1920,
+      height: 1080,
+      takenAt: DateTime(2024),
+    );
 
 /// Pumps until the preparing view is on screen (the start path reaches the
 /// wait after a few async steps).
