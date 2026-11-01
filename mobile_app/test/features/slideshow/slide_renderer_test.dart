@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/core/errors/failure.dart';
 import 'package:mobile_app/core/utils/cancellation_token.dart';
 import 'package:mobile_app/core/utils/result.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
@@ -107,7 +109,7 @@ void main() {
     final source = _FileSource(junk!);
     addTearDown(source.dispose);
     final items = await tester.runAsync(() => crawlSource(source));
-    var unavailable = 0;
+    final reasons = <SlideUnavailableReason>[];
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -123,7 +125,7 @@ void main() {
             item: items!.first,
             source: source,
             displayMode: DisplayMode.cover,
-            onUnavailable: () => unavailable++,
+            onUnavailable: reasons.add,
           ),
         ),
       ),
@@ -132,7 +134,89 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
 
-    expect(unavailable, 1);
+    // Not an error: the copy is simply not prepared yet, so the caller keeps
+    // the photo and tries it again later.
+    expect(reasons, [SlideUnavailableReason.notPreparedYet]);
     expect(find.byType(Image), findsNothing);
   });
+
+  testWidgets('a late failure for the previous item does not skip the current one',
+      (tester) async {
+    final source = _GatedSource();
+    addTearDown(source.dispose);
+    final items = await tester.runAsync(() => crawlSource(source));
+    final first = items![0];
+    final second = items[1];
+    final current = ValueNotifier<PhotoItem>(first);
+    addTearDown(current.dispose);
+    final skipped = <String>[];
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        smallPhotoCacheProvider.overrideWithValue(_NoSmallCopies()),
+        settingsProvider.overrideWith(_RawAllowedSettings.new),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('de'),
+        home: Scaffold(
+          body: ValueListenableBuilder<PhotoItem>(
+            valueListenable: current,
+            builder: (context, item, _) => SlideRenderer(
+              item: item,
+              source: source,
+              displayMode: DisplayMode.cover,
+              onUnavailable: (_) => skipped.add(item.id),
+            ),
+          ),
+        ),
+      ),
+    ));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump();
+    }
+    expect(source.hasRequested(first), isTrue);
+
+    // The slideshow moves on while the first photo is still being fetched.
+    current.value = second;
+    await tester.pump();
+    expect(source.hasRequested(second), isTrue);
+
+    // The first fetch fails late: it must not skip the photo on screen now.
+    source.gateFor(first)
+        .complete(Result<File>.err(const NotFound('Datei fehlt')));
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump();
+    expect(skipped, isEmpty);
+
+    // The current photo failing is reported as usual.
+    source.gateFor(second)
+        .complete(Result<File>.err(const NotFound('Datei fehlt')));
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump();
+    expect(skipped, [second.id]);
+  });
+}
+
+/// Each fetch waits for a gate the test completes by hand, so the order in
+/// which the fetches finish can be chosen.
+class _GatedSource extends MockPhotoSource {
+  _GatedSource() : super(simulatedDelay: Duration.zero);
+
+  final Map<String, Completer<Result<File>>> _gates = {};
+
+  Completer<Result<File>> gateFor(PhotoItem item) =>
+      _gates.putIfAbsent(item.id, () => Completer<Result<File>>());
+
+  bool hasRequested(PhotoItem item) => _gates.containsKey(item.id);
+
+  @override
+  Future<Result<File>> fetchToCache(
+    PhotoItem item, {
+    CancellationToken? token,
+  }) =>
+      gateFor(item).future;
 }
