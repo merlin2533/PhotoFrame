@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/app_log.dart';
 import '../cache/small_photo_cache.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
@@ -56,14 +57,15 @@ class BackgroundJobs extends Notifier<bool> {
               Duration(hours: settings.indexRefreshHours);
       if (due) {
         for (final source in enabled) {
-          await _refreshSource(source, store);
+          snapshot = await _refreshSource(source, store, snapshot);
         }
-        snapshot = await store.load();
         unawaited(
             _prepareSmallPhotos(_enabledItems(snapshot, enabled), enabled));
       }
-    } catch (_) {
-      // Next run tries again; nothing else to do here.
+    } catch (e, st) {
+      // Next run tries again.
+      logRecoverableError('Background index run failed',
+          error: e, stackTrace: st);
     } finally {
       _running = false;
       state = false;
@@ -71,18 +73,29 @@ class BackgroundJobs extends Notifier<bool> {
   }
 
   List<PhotoItem> _enabledItems(
-          IndexSnapshot snapshot, List<PhotoSource> enabled) =>
-      snapshot.items
-          .where((i) => enabled.any((s) => s.id == i.sourceId))
-          .toList();
+      IndexSnapshot snapshot, List<PhotoSource> enabled) {
+    // Built once: a per-item scan over `enabled` is O(items * sources).
+    final enabledIds = {for (final s in enabled) s.id};
+    return snapshot.items
+        .where((i) => enabledIds.contains(i.sourceId))
+        .toList();
+  }
 
-  /// Replaces the photos of one source in the saved index.
-  Future<void> _refreshSource(PhotoSource source, PhotoIndexStore store) async {
+  /// Replaces the photos of one source in the saved index. Returns the index
+  /// after the replacement, or [current] when the crawl failed.
+  Future<IndexSnapshot> _refreshSource(
+    PhotoSource source,
+    PhotoIndexStore store,
+    IndexSnapshot current,
+  ) async {
     try {
       final items = await crawlSource(source);
-      await store.merge(items, replacing: {source.id});
-    } catch (_) {
-      // A failing source keeps its saved photos.
+      return await store.merge(items, replacing: {source.id});
+    } catch (e, st) {
+      // A failing source keeps its saved photos; the other sources still run.
+      logRecoverableError('Crawl of source ${source.id} failed',
+          error: e, stackTrace: st);
+      return current;
     }
   }
 

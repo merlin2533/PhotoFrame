@@ -94,5 +94,6 @@
   "pairingSendConfigButton": "Send configuration to device",
   "pairingNoRelayHint": "Set up a relay server first to pair devices.",
   "pairingNoActivePairingHint": "No pairing group connected yet.",
-  "configPushConfirmSmbTitle": "Apply new SMB source from {senderLabel}?"
+  "configPushConfirmSmbTitle": "Apply new SMB source from {senderLabel}?",
+  "slideDecodeFailed": "Cannot be decoded"
 }

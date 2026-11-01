@@ -305,4 +305,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String configPushConfirmSmbTitle(String senderLabel) {
     return 'Apply new SMB source from $senderLabel?';
   }
+
+  @override
+  String get slideDecodeFailed => 'Cannot be decoded';
 }

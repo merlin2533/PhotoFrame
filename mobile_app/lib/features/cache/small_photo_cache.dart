@@ -7,6 +7,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/app_log.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
@@ -46,7 +47,10 @@ class SmallPhotoCache {
         '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
     try {
       if (await old.exists()) await old.delete(recursive: true);
-    } catch (_) {}
+    } catch (e, st) {
+      logRecoverableError('Old small photo folder could not be removed',
+          error: e, stackTrace: st);
+    }
   }
 
   /// Name of the folder used before colours were checked (see above).
@@ -71,7 +75,9 @@ class SmallPhotoCache {
     try {
       final file = await _fileFor(item);
       return await file.exists() ? file : null;
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Small photo lookup failed',
+          error: e, stackTrace: st);
       return null;
     }
   }
@@ -106,7 +112,9 @@ class SmallPhotoCache {
         }
       }
       return target;
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Small photo could not be prepared',
+          error: e, stackTrace: st);
       return null;
     }
   }
@@ -171,6 +179,8 @@ class SmallPhotoCache {
           [for (final v in sums[k]) v / (counts[k] == 0 ? 1 : counts[k])],
       ];
     } catch (_) {
+      // Undecodable file: expected for some formats, so this is not logged
+      // as an error. The caller falls back to the placeholder.
       return null;
     } finally {
       codec?.dispose();
@@ -203,17 +213,22 @@ class SmallPhotoCache {
     ui.Codec? codec;
     try {
       final bytes = await source.readAsBytes();
-      final probe = await ui.instantiateImageCodec(bytes);
-      final frame = (await probe.getNextFrame()).image;
-      final w = frame.width, h = frame.height;
-      frame.dispose();
-      probe.dispose();
-      final longest = w > h ? w : h;
-      codec = longest > 2048
-          ? await ui.instantiateImageCodec(bytes,
-              targetWidth: w >= h ? 2048 : null,
-              targetHeight: h > w ? 2048 : null)
-          : await ui.instantiateImageCodec(bytes);
+      // The size is read from the header only (no full decode), and the
+      // image is then decoded once, already scaled.
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      try {
+        final w = descriptor.width, h = descriptor.height;
+        final longest = w > h ? w : h;
+        codec = longest > 2048
+            ? await descriptor.instantiateCodec(
+                targetWidth: w >= h ? 2048 : null,
+                targetHeight: h > w ? 2048 : null)
+            : await descriptor.instantiateCodec();
+      } finally {
+        descriptor.dispose();
+        buffer.dispose();
+      }
       final image = (await codec.getNextFrame()).image;
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
@@ -229,7 +244,9 @@ class SmallPhotoCache {
         format: CompressFormat.jpeg,
       );
       return await temp.writeAsBytes(jpeg, flush: true);
-    } catch (_) {
+    } catch (e, st) {
+      logRecoverableError('Fallback photo scaling failed',
+          error: e, stackTrace: st);
       return null;
     } finally {
       codec?.dispose();
@@ -339,12 +356,10 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     final cache = ref.read(smallPhotoCacheProvider);
     try {
       while (_queued.isNotEmpty) {
-        final batchSize = (ref
-                    .read(settingsProvider)
-                    .value
-                    ?.smallPhotoBatchSize ??
-                defaultBatchSize)
-            .clamp(1, 50);
+        final batchSize =
+            (ref.read(settingsProvider).value?.smallPhotoBatchSize ??
+                    defaultBatchSize)
+                .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
           _queued.remove(item.stableId);
