@@ -13,21 +13,17 @@ import 'slideshow_config.dart';
 /// index, likely backed by drift) doesn't exist yet in this scaffold.
 typedef ItemResolver = Future<PhotoItem?> Function(PoolEntry entry);
 
+/// How many upcoming photos the slideshow prepares ahead of time, so they are
+/// already in the cache when they are shown.
+const int upcomingPhotoCount = 3;
+
 /// Drives the slideshow: decides which item is currently shown, advances on
 /// a timer, and pulls the next candidates from a [WorkingSetPool] via a
 /// [ShuffleBag] so items rotate fairly without immediate repeats.
 ///
-/// Prefetching concept (not implemented here, intentionally): a real
-/// implementation should, on every advance, kick off
-/// `source.fetchToCache(nextItem)` for the *upcoming* one or two items
-/// (not just the current one) so the image is already decoded/cached by
-/// the time it needs to be displayed, and should hold a `CacheLease` on it
-/// for the duration it is likely to be shown so the (future)
-/// `ImageCacheManager`'s LRU eviction can't remove it mid-display. That
-/// wiring belongs in the UI/controller layer once `ImageCacheManager`
-/// exists; this engine only exposes [currentItem] and timing, and leaves a
-/// clear seam (see [onAdvance]) for a caller to trigger prefetch of
-/// upcoming items.
+/// Prefetching: the screen asks [upcomingEntries] for the next
+/// [upcomingPhotoCount] entries and prepares them (see `_prefetchNext` in
+/// `slideshow_screen.dart`). The engine itself does no I/O.
 class SlideshowEngine {
   SlideshowEngine({
     required WorkingSetPool pool,
@@ -56,6 +52,10 @@ class SlideshowEngine {
 
   late ShuffleBag<PoolEntry> _shuffleBag;
 
+  /// Entries already drawn from [_shuffleBag] but not shown yet, in show order.
+  /// Filled by [upcomingEntries] and consumed first by [_advance].
+  final List<PoolEntry> _lookahead = [];
+
   Timer? _timer;
   final List<_Shown> _history = [];
   static const _maxHistory = 50;
@@ -77,6 +77,16 @@ class SlideshowEngine {
 
   bool get isRunning => _timer != null;
 
+  /// The next [count] entries the slideshow will show, in show order, without
+  /// showing them. The engine draws them ahead into a buffer that [_advance]
+  /// consumes first, so the order returned here is the order it will use.
+  List<PoolEntry> upcomingEntries(int count) {
+    while (_lookahead.length < count) {
+      _lookahead.add(_shuffleBag.next());
+    }
+    return List.unmodifiable(_lookahead.take(count));
+  }
+
   /// Looks up the [PhotoSource] backing the currently shown item, if any.
   PhotoSource? get currentSource =>
       _currentEntry == null ? null : _sources[_currentEntry!.sourceId];
@@ -97,6 +107,7 @@ class SlideshowEngine {
         noRepeatWindow: _config.noRepeatWindow,
         keyOf: (entry) => entry.key,
       );
+      _lookahead.clear();
     }
 
     if (wasRunning) {
@@ -110,6 +121,8 @@ class SlideshowEngine {
   void refreshPool(WorkingSetPool pool) {
     _pool = pool;
     _shuffleBag.updateItems(pool.entries);
+    final keys = pool.entries.map((entry) => entry.key).toSet();
+    _lookahead.removeWhere((entry) => !keys.contains(entry.key));
   }
 
   /// Starts the slideshow: immediately resolves and shows the first item,
@@ -160,14 +173,17 @@ class SlideshowEngine {
   }
 
   Future<void> _advance() async {
-    final entry = _shuffleBag.next();
+    final entry =
+        _lookahead.isNotEmpty ? _lookahead.removeAt(0) : _shuffleBag.next();
     final item = await _resolveItem(entry);
     if (item == null) {
       // Resolution failed (e.g. item vanished from its source); try the
       // next candidate rather than getting stuck on a dead entry.
       _pool.remove(entry.sourceId, entry.itemId);
+      _lookahead.removeWhere((other) => other.key == entry.key);
       // ShuffleBag rejects an empty list, so an emptied pool is handled first.
       if (_pool.entries.isEmpty) {
+        _lookahead.clear();
         _currentEntry = null;
         _currentItem = null;
         _currentItemController.add(null);
