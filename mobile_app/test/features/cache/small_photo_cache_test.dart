@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/settings/domain/app_settings.dart';
+import 'package:mobile_app/features/sources/domain/media_type.dart';
+import 'package:mobile_app/features/sources/domain/photo_item.dart';
 
 Future<File> _solidPng(Directory dir, String name, ui.Color color) async {
   final recorder = ui.PictureRecorder();
@@ -72,6 +74,55 @@ void main() {
       final broken = File('${dir.path}${Platform.pathSeparator}x.jpg')
         ..writeAsBytesSync([1, 2, 3]);
       expect(await SmallPhotoCache.looksLikeOriginal(orange, broken), isFalse);
+    });
+  });
+
+  test('looksComplete detects truncated JPEG and short downloads', () async {
+    File write(String name, List<int> bytes) =>
+        File('${dir.path}${Platform.pathSeparator}$name')
+          ..writeAsBytesSync(bytes);
+    final whole = write('ok.jpg', [0xFF, 0xD8, 1, 2, 3, 0xFF, 0xD9]);
+    final cut = write('cut.jpg', [0xFF, 0xD8, 1, 2, 3, 4, 5]);
+    final padded = write('pad.jpg', [0xFF, 0xD8, 1, 0xFF, 0xD9, 0, 0, 0]);
+    expect(await SmallPhotoCache.looksComplete(whole, 7), isTrue);
+    expect(await SmallPhotoCache.looksComplete(cut, 7), isFalse);
+    expect(await SmallPhotoCache.looksComplete(padded, 8), isTrue);
+    // The source reported more bytes than arrived.
+    expect(await SmallPhotoCache.looksComplete(whole, 100), isFalse);
+    expect(await SmallPhotoCache.looksComplete(write('e.jpg', []), 0), isFalse);
+  });
+
+  test('onlyPreparedPhotos defaults to true and survives JSON', () {
+    expect(const AppSettings().onlyPreparedPhotos, isTrue);
+    final off = AppSettings.fromJson(
+        const AppSettings().copyWith(onlyPreparedPhotos: false).toJson());
+    expect(off.onlyPreparedPhotos, isFalse);
+  });
+
+  testWidgets('verifiedExisting returns intact files and deletes damaged ones',
+      (tester) async {
+    await tester.runAsync(() async {
+      final cache = SmallPhotoCache(directory: () async => dir);
+      PhotoItem item(String id) => PhotoItem(
+            id: id,
+            sourceId: 's',
+            folderId: 'f',
+            name: id,
+            mediaType: MediaType.image,
+            size: 1,
+            mtime: DateTime(2024),
+          );
+      final good = item('good.jpg');
+      final bad = item('bad.jpg');
+      final png = await _solidPng(dir, 'tmp.png', const ui.Color(0xFF30A030));
+      await png.copy((await cache.fileFor(good)).path);
+      // Starts like a JPEG but is cut off.
+      await (await cache.fileFor(bad))
+          .writeAsBytes([0xFF, 0xD8, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+      expect(await cache.verifiedExisting(good), isNotNull);
+      expect(await cache.verifiedExisting(bad), isNull);
+      expect(await (await cache.fileFor(bad)).exists(), isFalse);
     });
   });
 

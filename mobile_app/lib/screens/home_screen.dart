@@ -159,7 +159,7 @@ final FutureProvider<File?> _backgroundPhotoProvider =
   final random = math.Random();
   for (var attempt = 0; attempt < 8; attempt++) {
     final item = snapshot.items[random.nextInt(snapshot.items.length)];
-    final file = await cache.existing(item);
+    final file = await cache.verifiedExisting(item);
     if (file != null) return file;
   }
   return null;

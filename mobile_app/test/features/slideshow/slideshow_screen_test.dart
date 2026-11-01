@@ -53,13 +53,17 @@ class _FakeKioskModeController implements KioskModeController {
 /// single-`MockPhotoSource` registry, without touching secure-storage
 /// pruning (see `SourcesController.build`'s doc comment) - irrelevant noise
 /// for these tests.
-/// Pins the transition to fade: with the random default, one of the effects
-/// (zoom) makes pumpAndSettle time out, so these tests must not depend on the
-/// random pick.
+/// Pins the transition to fade (with the random default, zoom makes
+/// pumpAndSettle time out) and allows raw downloads, because a MockPhotoSource
+/// has no prepared small copy.
 class _FixedSettings extends AppSettingsController {
   @override
-  Future<AppSettings> build() async =>
-      const AppSettings(transition: SlideshowTransition.fade);
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        onlyPreparedPhotos: false,
+      );
+}
+
 }
 
 class _FixedSourcesController extends SourcesController {

@@ -7,6 +7,8 @@ import 'package:mobile_app/core/utils/cancellation_token.dart';
 import 'package:mobile_app/core/utils/result.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/index/source_indexer.dart';
+import 'package:mobile_app/features/settings/domain/app_settings.dart';
+import 'package:mobile_app/features/settings/state/settings_providers.dart';
 import 'package:mobile_app/features/slideshow/domain/slideshow_config.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/slide_renderer.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
@@ -36,6 +38,20 @@ class _NoSmallCopies extends SmallPhotoCache {
   Future<File?> existing(PhotoItem item) async => null;
 }
 
+/// Settings that allow showing the raw download (the default is to show only
+/// checked small copies).
+class _RawAllowedSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async =>
+      const AppSettings(onlyPreparedPhotos: false);
+}
+
+/// Default settings: only prepared small copies are shown.
+class _DefaultSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings();
+}
+
 void main() {
   testWidgets('a photo that cannot be decoded shows the localized placeholder',
       (tester) async {
@@ -54,6 +70,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         smallPhotoCacheProvider.overrideWithValue(_NoSmallCopies()),
+        settingsProvider.overrideWith(_RawAllowedSettings.new),
       ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -78,5 +95,44 @@ void main() {
       await tester.pump();
     }
     expect(reason, findsOneWidget);
+  });
+
+  testWidgets('by default a photo without a small copy is skipped, not shown raw',
+      (tester) async {
+    final junk = await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('slide_renderer_test_');
+      return File('${dir.path}/raw.jpg').writeAsBytes(List<int>.filled(64, 7));
+    });
+    addTearDown(() => junk!.parent.delete(recursive: true));
+    final source = _FileSource(junk!);
+    addTearDown(source.dispose);
+    final items = await tester.runAsync(() => crawlSource(source));
+    var unavailable = 0;
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        smallPhotoCacheProvider.overrideWithValue(_NoSmallCopies()),
+        settingsProvider.overrideWith(_DefaultSettings.new),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('de'),
+        home: Scaffold(
+          body: SlideRenderer(
+            item: items!.first,
+            source: source,
+            displayMode: DisplayMode.cover,
+            onUnavailable: () => unavailable++,
+          ),
+        ),
+      ),
+    ));
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+
+    expect(unavailable, 1);
+    expect(find.byType(Image), findsNothing);
   });
 }

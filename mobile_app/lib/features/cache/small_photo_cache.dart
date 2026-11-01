@@ -28,11 +28,20 @@ class SmallPhotoCache {
   /// two scalings never overlap.
   Future<void> _scalingTail = Future<void>.value();
 
+  /// A native scaling that never returns must not block every photo after it:
+  /// after [scaleTimeout] the job counts as failed and the lock is released.
+  /// The native call itself cannot be cancelled, so an overlap with one such
+  /// stuck call is accepted over a slideshow that stops preparing photos.
+  static const scaleTimeout = Duration(seconds: 45);
+
   Future<T> _serial<T>(Future<T> Function() job) {
     final done = Completer<void>();
     final previous = _scalingTail;
     _scalingTail = done.future;
-    return previous.then((_) => job()).whenComplete(done.complete);
+    return previous
+        .then((_) => job())
+        .timeout(scaleTimeout)
+        .whenComplete(done.complete);
   }
 
   bool _purgedOldVersion = false;
@@ -43,18 +52,20 @@ class SmallPhotoCache {
   Future<void> _purgeOldVersion(Directory dir) async {
     if (_purgedOldVersion) return;
     _purgedOldVersion = true;
-    final old = Directory(
-        '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
-    try {
-      if (await old.exists()) await old.delete(recursive: true);
-    } catch (e, st) {
-      logRecoverableError('Old small photo folder could not be removed',
-          error: e, stackTrace: st);
+    for (final name in legacyDirectoryNames) {
+      final old = Directory(
+          '${dir.parent.path}${Platform.pathSeparator}$name');
+      try {
+        if (await old.exists()) await old.delete(recursive: true);
+      } catch (e, st) {
+        logRecoverableError('Old small photo folder could not be removed',
+            error: e, stackTrace: st);
+      }
     }
   }
 
   /// Name of the folder used before colours were checked (see above).
-  static const legacyDirectoryName = 'small_photos';
+  static const legacyDirectoryNames = ['small_photos', 'small_photos_v2'];
 
   /// Removes every prepared copy so they are created again.
   Future<void> clear() async {
@@ -180,6 +191,41 @@ class SmallPhotoCache {
     return deleted;
   }
 
+  /// Path of the small file of [item] (it may not exist).
+  Future<File> fileFor(PhotoItem item) => _fileFor(item);
+
+  /// Files that passed [verify], keyed by path and remembered with their size
+  /// and modification time so a good file is not decoded again on every show.
+  final Map<String, String> _verified = {};
+
+  /// The small file of [item], but only if it exists AND is intact (complete
+  /// JPEG/PNG that decodes fully). A damaged file is deleted so it is
+  /// prepared again, and `null` is returned.
+  Future<File?> verifiedExisting(PhotoItem item) async {
+    final file = await existing(item);
+    if (file == null) return null;
+    try {
+      final stat = await file.stat();
+      final stamp = '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+      if (_verified[file.path] == stamp) return file;
+      if (await verify(file)) {
+        _verified[file.path] = stamp;
+        return file;
+      }
+    } catch (_) {}
+    _verified.remove(file.path);
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+    return null;
+  }
+
+  /// `true` when [file] is a complete image that decodes without error.
+  static Future<bool> verify(File file) async {
+    if (!await looksComplete(file, 0)) return false;
+    return await colorGrid(file) != null;
+  }
+
   /// The small file if it exists already.
   Future<File?> existing(PhotoItem item) async {
     try {
@@ -199,8 +245,20 @@ class SmallPhotoCache {
     final have = await existing(item);
     if (have != null) return have;
     try {
-      final full = (await source.fetchToCache(item)).valueOrNull;
+      var full = (await source.fetchToCache(item)).valueOrNull;
+      // A download that is cut off (network share hiccup) must never become a
+      // small copy: check it is complete, and try once more if not.
+      if (full != null && !await looksComplete(full, item.size)) {
+        await _deleteIfTemp(full);
+        full = (await source.fetchToCache(item)).valueOrNull;
+        if (full != null && !await looksComplete(full, item.size)) {
+          await _deleteIfTemp(full);
+          return null;
+        }
+      }
       if (full == null) return null;
+      // A local variable so the promotion survives the closure below.
+      final download = full;
       final target = await _fileFor(item);
       // Written to a temporary name first: a half-written or broken file must
       // never be picked up by [existing] and shown in the slideshow.
@@ -208,7 +266,7 @@ class SmallPhotoCache {
       if (await temp.exists()) await temp.delete();
       File? small;
       try {
-        small = await _serial(() => _scale(full, temp));
+        small = await _serial(() => _scale(download, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
@@ -226,6 +284,47 @@ class SmallPhotoCache {
       logRecoverableError('Small photo could not be prepared',
           error: e, stackTrace: st);
       return null;
+    }
+  }
+
+  Future<void> _deleteIfTemp(File file) async {
+    if (file.parent.path == Directory.systemTemp.path && await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  /// `false` when [file] is shorter than the [expectedSize] the source
+  /// reported, or is a JPEG/PNG whose end marker is missing (truncated).
+  static Future<bool> looksComplete(File file, int expectedSize) async {
+    try {
+      final length = await file.length();
+      if (length == 0) return false;
+      if (expectedSize > 0 && length < expectedSize) return false;
+      final raf = await file.open();
+      try {
+        final head = await raf.read(8);
+        final tailLen = length < 64 ? length : 64;
+        await raf.setPosition(length - tailLen);
+        final tail = await raf.read(tailLen);
+        if (head.length >= 3 && head[0] == 0xFF && head[1] == 0xD8) {
+          // JPEG: must end with EOI (FF D9); trailing zero padding is fine.
+          var end = tail.length - 1;
+          while (end > 0 && tail[end] == 0) {
+            end--;
+          }
+          return end >= 1 && tail[end - 1] == 0xFF && tail[end] == 0xD9;
+        }
+        if (head.length >= 4 && head[0] == 0x89 && head[1] == 0x50) {
+          // PNG: last chunk is IEND.
+          final text = String.fromCharCodes(tail);
+          return text.contains('IEND');
+        }
+        return true; // other formats: only the size check applies
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
     }
   }
 
@@ -450,6 +549,14 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   void reset() {
     _doneKeys.clear();
     _failedAt.clear();
+  }
+
+  /// Forgets that [item] was prepared (its small file turned out damaged), so
+  /// it is prepared again at the front of the queue.
+  Future<void> reprepare(PhotoItem item, PhotoSource source) {
+    _doneKeys.remove(item.stableId);
+    _failedAt.remove(item.stableId);
+    return prioritize(item, source);
   }
 
   bool _failedRecently(PhotoItem item) {
