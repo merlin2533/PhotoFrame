@@ -349,8 +349,8 @@ class SmallPhotoCache {
         // instead of reusing the broken file. Downloads of network sources sit
         // in the temp directory and are deleted; local sources return the
         // original file, which is not in the temp directory and so stays
-        // (same rule as before, see [_deleteIfTemp]).
-        await _deleteIfTemp(full);
+        // (same rule as before, see [deleteIfTemp]).
+        await deleteIfTemp(full);
       }
       return target;
     } catch (e, st) {
