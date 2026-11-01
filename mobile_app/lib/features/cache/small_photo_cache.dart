@@ -10,11 +10,32 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/utils/app_log.dart';
 import '../settings/state/settings_providers.dart';
+import '../sources/domain/media_type.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
 import '../sources/local/local_folder_source.dart';
 import 'download_rate_meter.dart';
+import 'not_convertible_store.dart';
 import 'slideshow_busy.dart';
+
+/// Thrown by [SmallPhotoCache.ensure] when a photo can never become a
+/// screen-sized copy. The worker marks such a photo as not convertible and
+/// never tries it again.
+///
+/// [cause] is set when the scaling step threw. It is `null` for the expected
+/// refusals (video, format other than JPEG/PNG, no file from scaling), which
+/// are not logged as errors.
+class PhotoNotConvertibleException implements Exception {
+  const PhotoNotConvertibleException(this.reason,
+      {this.cause, this.stackTrace});
+
+  final String reason;
+  final Object? cause;
+  final StackTrace? stackTrace;
+
+  @override
+  String toString() => 'PhotoNotConvertibleException: $reason';
+}
 
 /// Keeps a small, screen-sized JPEG of every photo on the device. The slideshow
 /// shows these files, so a photo from a network share is read once and then
@@ -304,12 +325,16 @@ class SmallPhotoCache {
   }
 
   /// Makes sure the small file exists: downloads the photo if needed, scales it
-  /// down and removes the full-size download. Returns `null` when the photo
-  /// cannot be read.
+  /// down and removes the full-size download.
   ///
   /// [beforeScale] is awaited after the download and before the scaling job
   /// is queued. The worker uses it to hold back scaling while the slideshow is
   /// busy; downloads are never held.
+  ///
+  /// Returns `null` when the download failed (a retry later may succeed).
+  /// Throws [PhotoNotConvertibleException] when the photo can never be scaled:
+  /// it is a video, it is not a JPEG or PNG, or the scaling step returned no
+  /// file or threw. The caller must not retry such a photo.
   Future<File?> ensure(
     PhotoSource source,
     PhotoItem item, {
@@ -317,6 +342,10 @@ class SmallPhotoCache {
   }) async {
     final have = await existing(item);
     if (have != null) return have;
+    // Videos have no still image to scale: refused without a download.
+    if (item.mediaType == MediaType.video) {
+      throw const PhotoNotConvertibleException('Video, no still image');
+    }
     try {
       var full = (await source.fetchToCache(item)).valueOrNull;
       await _countDownload(source, full);
@@ -346,13 +375,20 @@ class SmallPhotoCache {
       );
       File? small;
       try {
+        // Safety rule: only JPEG and PNG files reach the scaler. Checked
+        // before the busy wait, so a refused photo never waits.
+        if (!await isScalableFormat(download)) {
+          throw const PhotoNotConvertibleException(
+              'Format is neither JPEG nor PNG');
+        }
         // Held back while the slideshow is busy. Waiting happens before the
         // job takes its place in the shared queue, so a slideshow decode is
         // never stuck behind a waiting scale.
         await beforeScale?.call();
-        // Scaling and its colour checks run as one job of the shared queue.
-        small = await _serial(() => scaleCopy(download, temp));
-        if (small == null) return null;
+        small = await _scaleInQueue(download, temp);
+        if (small == null) {
+          throw const PhotoNotConvertibleException('Scaling returned no file');
+        }
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
       } finally {
@@ -365,6 +401,8 @@ class SmallPhotoCache {
         }
       }
       return target;
+    } on PhotoNotConvertibleException {
+      rethrow;
     } catch (e, st) {
       logRecoverableError(
         'Small photo could not be prepared',
@@ -373,6 +411,52 @@ class SmallPhotoCache {
       );
       return null;
     }
+  }
+
+  /// Runs [_scale] as one job of the shared queue. Any failure of the job
+  /// (including the timeout of [scaleTimeout]) becomes a
+  /// [PhotoNotConvertibleException] with the original error as [cause].
+  Future<File?> _scaleInQueue(File download, File temp) async {
+    try {
+      // Scaling and its colour checks run as one job of the shared queue.
+      return await _serial(() => scaleCopy(download, temp));
+    } catch (e, st) {
+      throw PhotoNotConvertibleException(
+        'Scaling threw an exception',
+        cause: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// `true` when the first bytes of [file] are a JPEG (FF D8 FF) or a PNG
+  /// (89 50 4E 47). Other formats are never decoded. A file that cannot be
+  /// read counts as not scalable.
+  static Future<bool> isScalableFormat(File file) async {
+    try {
+      final raf = await file.open();
+      try {
+        return isScalableHeader(await raf.read(4));
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The pure check behind [isScalableFormat], on the first bytes of a file.
+  static bool isScalableHeader(List<int> head) {
+    final jpeg = head.length >= 3 &&
+        head[0] == 0xFF &&
+        head[1] == 0xD8 &&
+        head[2] == 0xFF;
+    final png = head.length >= 4 &&
+        head[0] == 0x89 &&
+        head[1] == 0x50 &&
+        head[2] == 0x4E &&
+        head[3] == 0x47;
+    return jpeg || png;
   }
 
   /// Adds the size of [file], as returned by [PhotoSource.fetchToCache], to
@@ -700,12 +784,17 @@ class SmallPhotoStatus {
 /// the other. Work can be added at any time with [start]: items that arrive
 /// while a run is going are queued and handled by the same run, so the
 /// preparation never stops between two refreshes.
+///
+/// Failures are handled in two ways:
+/// - A failed download is retried after [retryAfter] (hourly).
+/// - A photo that cannot be scaled (see [PhotoNotConvertibleException]) is
+///   written to the persistent [NotConvertibleStore] and never scaled again.
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// Default batch size; the real value comes from the settings.
   static const defaultBatchSize = 5;
 
-  /// A photo that could not be prepared is left alone for this long before it
-  /// is tried again.
+  /// A photo whose download failed is left alone for this long before it is
+  /// tried again. Scaling failures are not retried at all.
   static const retryAfter = Duration(hours: 1);
 
   /// Pause between two items of the queue. Downloads and scaling never run
@@ -726,20 +815,27 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   final Map<String, PhotoItem> _queued = {};
   final Map<String, PhotoSource> _sources = {};
 
+  /// Set by [stop] while a run is going; the run ends after the current photo.
+  bool _stopRequested = false;
+
   /// stableIds of photos whose small copy exists (prepared in this session).
   final Set<String> _doneKeys = {};
 
-  /// When each photo last failed to prepare.
+  /// When each photo last failed to download.
   final Map<String, DateTime> _failedAt = {};
 
   /// Download speed of the current run, sampled by [_run]'s publish step.
   final DownloadRateMeter _rateMeter = DownloadRateMeter();
 
+  NotConvertibleStore get _notConvertible =>
+      ref.read(notConvertibleStoreProvider);
+
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
 
   /// Forgets what was prepared or failed (used after the copies were deleted,
-  /// so nothing is skipped as "already done").
+  /// so nothing is skipped as "already done"). Photos marked as not
+  /// convertible stay marked.
   void reset() {
     _doneKeys.clear();
     _failedAt.clear();
@@ -765,9 +861,14 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     Map<String, PhotoSource> sourcesById,
   ) async {
     _sources.addAll(sourcesById);
+    final notConvertible = await _notConvertible.load();
     for (final item in List<PhotoItem>.of(items)..shuffle()) {
       if (_queued.containsKey(item.stableId)) continue;
-      if (_doneKeys.contains(item.stableId) || _failedRecently(item)) continue;
+      if (_doneKeys.contains(item.stableId) ||
+          _failedRecently(item) ||
+          notConvertible.contains(item.stableId)) {
+        continue;
+      }
       _queued[item.stableId] = item;
       _total++;
     }
@@ -776,10 +877,12 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 
   /// Puts [item] at the front of the queue and runs the queue if it is not
   /// running, so a photo about to be shown is prepared before the others.
-  /// Photos that are already prepared or failed recently are left alone.
+  /// Photos that are already prepared, not convertible or failed recently are
+  /// left alone.
   Future<void> prioritize(PhotoItem item, PhotoSource source) async {
     _sources[source.id] = source;
     if (_doneKeys.contains(item.stableId) || _failedRecently(item)) return;
+    if (await _notConvertible.contains(item.stableId)) return;
     final wasQueued = _queued.containsKey(item.stableId);
     final rest = Map<String, PhotoItem>.of(_queued)..remove(item.stableId);
     _queued
@@ -788,6 +891,19 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
       ..addAll(rest);
     if (!wasQueued) _total++;
     await _run();
+  }
+
+  /// Ends the current run after the photo that is being prepared, and drops
+  /// the photos still waiting in the queue. Does nothing when no run is going.
+  void stop() {
+    if (!_running) return;
+    _stopRequested = true;
+    _queued.clear();
+  }
+
+  /// Marks [item] as not convertible, in memory and persistently.
+  Future<void> _markNotConvertible(PhotoItem item) async {
+    await _notConvertible.add(item.stableId);
   }
 
   /// Waits while the slideshow is busy (see [slideshowBusyProvider]), polling
@@ -836,16 +952,18 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     // sits between two items only (also across batches).
     var anyItemStarted = false;
     try {
-      while (_queued.isNotEmpty) {
+      while (_queued.isNotEmpty && !_stopRequested) {
         final batchSize =
             (ref.read(settingsProvider).value?.smallPhotoBatchSize ??
                     defaultBatchSize)
                 .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
+          if (_stopRequested) break;
           if (anyItemStarted) {
             // Give the UI and the slideshow room between two items.
             await Future<void>.delayed(itemPause);
+            if (_stopRequested) break;
           }
           anyItemStarted = true;
           _queued.remove(item.stableId);
@@ -854,28 +972,54 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           // minute the photo is skipped and the next one starts. The wait for an
           // idle slideshow ([maxBusyWait]) is added to that minute, so a photo
           // that waited for the slideshow is not counted as stalled.
-          if (source != null) {
-            final file = await cache
-                .ensure(source, item, beforeScale: _waitForSlideshow)
-                .timeout(
-                  const Duration(seconds: 60) + maxBusyWait,
-                  onTimeout: () => null,
+          if (source != null &&
+              !await _notConvertible.contains(item.stableId)) {
+            try {
+              final file = await cache
+                  .ensure(source, item, beforeScale: _waitForSlideshow)
+                  .timeout(
+                    const Duration(seconds: 60) + maxBusyWait,
+                    onTimeout: () => null,
+                  );
+              if (file != null) {
+                _doneKeys.add(item.stableId);
+                _failedAt.remove(item.stableId);
+              } else {
+                // Download failed: retried after [retryAfter].
+                _failedAt[item.stableId] = DateTime.now();
+              }
+            } on PhotoNotConvertibleException catch (e) {
+              // Never scaled again. Only real scaling errors are logged; the
+              // expected refusals (video, other formats) are not errors.
+              if (e.cause != null) {
+                logRecoverableError(
+                  'Photo could not be scaled, marked as not convertible',
+                  error: e.cause,
+                  stackTrace: e.stackTrace,
                 );
-            if (file != null) {
-              _doneKeys.add(item.stableId);
-              _failedAt.remove(item.stableId);
-            } else {
-              _failedAt[item.stableId] = DateTime.now();
+              }
+              await _markNotConvertible(item);
+            } catch (e, st) {
+              // Anything else must not stop the worker: log it, mark the
+              // photo, and go on with the next one.
+              logRecoverableError(
+                'Photo preparation failed, marked as not convertible',
+                error: e,
+                stackTrace: st,
+              );
+              await _markNotConvertible(item);
             }
           }
           _done++;
           publish();
         }
       }
+      _total = _done + _queued.length;
       state = SmallPhotoStatus(done: _done, total: _total);
     } finally {
       ticker.cancel();
       _running = false;
+      _stopRequested = false;
     }
   }
 }

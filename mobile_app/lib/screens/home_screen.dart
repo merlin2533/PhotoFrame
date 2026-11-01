@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -6,19 +7,87 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/utils/app_log.dart';
 import '../features/cache/small_photo_cache.dart';
+import '../features/cache/small_photo_usage_provider.dart';
 import '../features/index/photo_index_store.dart';
 import '../features/settings/state/settings_providers.dart';
+import '../features/sources/domain/photo_item.dart';
 import '../features/sources/domain/photo_source.dart';
 import '../features/sources/state/sources_providers.dart';
 
 /// Start screen: a background photo from the index, the current status of
 /// sources, index and preparation, and the main actions.
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final SmallPhotoWorker _worker;
+
+  /// `true` when this screen started the worker run, so only this screen's
+  /// run is stopped when it is disposed.
+  bool _startedRun = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _worker = ref.read(smallPhotoWorkerProvider.notifier);
+    // Once, after the first frame: not on every rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_prepareInBackground());
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_startedRun) _worker.stop();
+    super.dispose();
+  }
+
+  /// Starts the preparation of the photos that have no small copy yet, when
+  /// preparation is on and the cache is below its limit. Already prepared and
+  /// not convertible photos are skipped by the worker.
+  Future<void> _prepareInBackground() async {
+    try {
+      final settings = await ref.read(settingsProvider.future);
+      if (!mounted || !settings.preparationEnabled) return;
+      final sources = await ref.read(sourcesProvider.future);
+      ref.invalidate(smallPhotoCacheUsageProvider);
+      final usage = await ref.read(smallPhotoCacheUsageProvider.future);
+      if (!mounted || usage.totalBytes >= settings.cacheLimitBytes) return;
+      final snapshot = await ref.read(photoIndexStoreProvider).load();
+      if (!mounted) return;
+      final cache = ref.read(smallPhotoCacheProvider);
+      final disabled = settings.disabledSourceIds.toSet();
+      final sourcesById = {
+        for (final s in sources)
+          if (!disabled.contains(s.id)) s.id: s,
+      };
+      final pending = <PhotoItem>[];
+      for (final item in snapshot.items) {
+        if (!sourcesById.containsKey(item.sourceId)) continue;
+        if (await cache.existing(item) == null) pending.add(item);
+      }
+      if (!mounted || pending.isEmpty) return;
+      // Only a run that is not going yet is owned by this screen. A run of the
+      // background jobs is joined, but not stopped on dispose.
+      _startedRun = !ref.read(smallPhotoWorkerProvider).running;
+      await _worker.start(pending, sourcesById);
+    } catch (e, st) {
+      logRecoverableError(
+        'Preparation on the home screen could not start',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value ?? const <PhotoSource>[];
     final disabled = ref.watch(settingsProvider).value?.disabledSourceIds ??
         const <String>[];

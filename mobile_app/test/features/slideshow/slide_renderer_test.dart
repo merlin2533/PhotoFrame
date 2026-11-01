@@ -17,6 +17,7 @@ import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/mock/mock_photo_source.dart';
 import 'package:mobile_app/l10n/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Hands out one prepared file (bytes no image codec can decode) without
 /// touching the disk inside the widget test's fake-async zone.
@@ -56,6 +57,11 @@ class _DefaultSettings extends AppSettingsController {
 }
 
 void main() {
+  // The renderer reads the not-convertible list from the preferences. The
+  // in-memory preferences answer without a platform channel, which the
+  // fake-async zone of widget tests could not complete.
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('a photo that cannot be decoded shows the localized placeholder',
       (tester) async {
     // Real file I/O has to happen outside the fake-async zone of testWidgets.

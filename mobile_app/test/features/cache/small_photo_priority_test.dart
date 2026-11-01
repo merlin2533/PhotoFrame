@@ -28,7 +28,12 @@ class _RecordingCache extends SmallPhotoCache {
   }
 }
 
-/// Hands out a small complete file for every photo, so the download step
+/// A minimal complete JPEG (start marker, end marker). The format check before
+/// scaling refuses anything that is not a JPEG or PNG, so the fake download
+/// must look like one.
+const _tinyJpeg = [0xFF, 0xD8, 0xFF, 0xD9];
+
+/// Hands out a small complete JPEG for every photo, so the download step
 /// succeeds without a network.
 class _DownloadSource extends MockPhotoSource {
   _DownloadSource(this.dir)
@@ -47,7 +52,7 @@ class _DownloadSource extends MockPhotoSource {
     CancellationToken? token,
   }) async {
     final file = File('${dir.path}/${item.id}.download');
-    await file.writeAsBytes([1, 2, 3]);
+    await file.writeAsBytes(_tinyJpeg);
     return Result.ok(file);
   }
 }
