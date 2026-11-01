@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../services/ambient/ambient_dim_controller.dart';
+import '../../../services/ambient/ambient_light_source.dart';
 import '../../../services/kiosk/kiosk_mode_controller.dart';
 import '../../cache/small_photo_cache.dart';
 import '../../favorites/domain/favorites_store.dart';
@@ -29,6 +31,7 @@ import '../domain/effective_visual_settings.dart';
 import '../domain/slideshow_config.dart';
 import '../domain/slideshow_engine.dart';
 import '../state/slideshow_providers.dart';
+import 'widgets/caption_overlay.dart';
 import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
@@ -37,6 +40,15 @@ import 'widgets/slide_renderer.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
 import 'widgets/weather_overlay.dart';
+
+/// Ambient light source for [AmbientDimController]. Defaults to the no-op
+/// source (no light sensor plugin yet), so ambient dimming uses its time
+/// window alone. Override this provider once a real sensor source exists.
+final Provider<AmbientLightSource> ambientLightSourceProvider =
+    Provider<AmbientLightSource>((ref) => const NoopAmbientLightSource());
+
+/// Opacity used for the time-window dim when no light sensor is available.
+const double _fixedAmbientDimOpacity = 0.6;
 
 /// Empties the network photo cache. Overridden in widget tests, where real
 /// file-system calls never complete under the fake clock.
@@ -53,7 +65,9 @@ Future<void> clearNetworkCache() async {
     await for (final entity in dir.list(followLinks: false)) {
       final name = entity.path.split(Platform.pathSeparator).last;
       if (entity is File &&
-          (name.startsWith('nextcloud_') || name.startsWith('smb_'))) {
+          (name.startsWith('nextcloud_') ||
+              name.startsWith('smb_') ||
+              name.startsWith('immich_'))) {
         await entity.delete();
       }
     }
@@ -92,6 +106,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
 
+  // Ambient dimming: the light source is subscribed for the screen's whole
+  // lifetime (a no-op stream by default); its readings drive `_sensorDimOpacity`.
+  late final AmbientLightSource _ambientSource;
+  StreamSubscription<double>? _ambientSub;
+  final AmbientDimController _ambientDim = AmbientDimController();
+  double _sensorDimOpacity = 0;
+
   static const _dailyKey = 'daily_selection_v1';
 
   /// Photos needed before the slideshow starts; the rest loads in the background.
@@ -126,6 +147,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // the field-level doc comment above for why that ordering matters.
     _alwaysOnController = ref.read(alwaysOnControllerProvider);
     _kioskModeController = ref.read(kioskModeControllerProvider);
+    _ambientSource = ref.read(ambientLightSourceProvider);
+    _ambientSub = _ambientSource.lux.listen(_onAmbientLux);
     unawaited(_buildEngine());
     // Fullscreen: hide status and navigation bar while the slideshow runs.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -138,6 +161,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   @override
   void dispose() {
     _nightTick?.cancel();
+    _ambientSub?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
     _refreshTimer?.cancel();
@@ -180,7 +204,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // `seenKeys`.
       if (source.type == SourceType.local ||
           source.type == SourceType.smb ||
-          source.type == SourceType.nextcloud) {
+          source.type == SourceType.nextcloud ||
+          source.type == SourceType.immich) {
         const root = PhotoFolder(id: '', name: '', path: '');
         await for (final r in source.listImages(root, recursive: false)) {
           if (full()) break;
@@ -365,7 +390,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       if (!mounted || _engine != engine || eligible.isEmpty) return;
 
-      // Prepare a small, screen-sized copy of every photo in batches of 100.
+      // Prepare a small, screen-sized copy of every photo in small batches.
       unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
         (List<PhotoItem>.of(eligible)..shuffle()),
         {for (final s in sources) s.id: s},
@@ -404,15 +429,20 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final source = _sourcesById[item.sourceId];
       return source != null &&
           (source.type == SourceType.smb ||
-              source.type == SourceType.nextcloud);
+              source.type == SourceType.nextcloud ||
+              source.type == SourceType.immich);
     }).toList();
     if (candidates.isEmpty) return;
     final item = candidates[_prefetchRandom.nextInt(candidates.length)];
     final source = _sourcesById[item.sourceId];
     if (source == null) return;
-    // Failures are ignored: the photo is fetched again when it is shown.
-    unawaited(
-        source.fetchToCache(item).then<void>((_) {}, onError: (Object _) {}));
+    // Goes through the worker's queue (at the front), so it never runs in
+    // parallel with the worker's own scaling. Failures are ignored: the photo
+    // is fetched again when it is shown.
+    unawaited(ref
+        .read(smallPhotoWorkerProvider.notifier)
+        .prioritize(item, source)
+        .then<void>((_) {}, onError: (Object _) {}));
   }
 
   /// Photos that already have a screen-sized copy come first: while copies are
@@ -561,6 +591,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     final slash = item.id.lastIndexOf('/');
     final folder = slash > 0 ? item.id.substring(0, slash) : '/';
     return '$source \u203a $folder\n$when';
+  }
+
+  void _onAmbientLux(double lux) {
+    final opacity = _ambientDim.update(lux);
+    if (mounted && opacity != _sensorDimOpacity) {
+      setState(() => _sensorDimOpacity = opacity);
+    }
   }
 
   void _togglePause() {
@@ -776,6 +813,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
     final settings = settingsAsync.value ?? const AppSettings();
     final isNight = settings.nightSchedule.isNightAt(DateTime.now());
+    final inDimWindow = isWithinDimWindow(
+      DateTime.now(),
+      startMinutes: settings.dimStartMinutes,
+      endMinutes: settings.dimEndMinutes,
+    );
+    final hasLightSensor = _ambientSource is! NoopAmbientLightSource;
+    final ambientDimOpacity = !inDimWindow
+        ? 0.0
+        : hasLightSensor
+            ? _sensorDimOpacity
+            : _fixedAmbientDimOpacity;
     final favorites = ref.watch(favoritesStoreProvider);
 
     return Scaffold(
@@ -948,6 +996,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ),
                 if (settings.showSourceLabel && item != null)
                   SourceLabelOverlay(label: item.sourceId),
+                // The path overlay already shows the date, so the caption is only
+                // needed when the path overlay is off.
+                if (settings.showCaptionOverlay &&
+                    !settings.showImageDetails &&
+                    item != null)
+                  CaptionOverlay(
+                    text: captionTextFor(item),
+                    // Weather is always bottom-left; the clock only when it
+                    // is not moved to the top.
+                    raised: settings.weatherEnabled ||
+                        (settings.showClock && !settings.clockAtTop),
+                  ),
                 // Clock and weather share the bottom-left corner: shown
                 // combined in one pill when both are enabled, otherwise
                 // whichever one is enabled renders alone. See
@@ -975,6 +1035,20 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                   ClockOverlay(atTop: settings.clockAtTop)
                 else if (settings.weatherEnabled)
                   const WeatherOverlay(),
+                // Ambient dimming: black overlay inside the configured time
+                // window. Without a light sensor the fixed opacity applies;
+                // with one, the lux-based opacity is used instead. The
+                // AnimatedOpacity fades in and out over the whole window edge.
+                if (settings.ambientDimEnabled)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: ambientDimOpacity,
+                        duration: const Duration(seconds: 2),
+                        child: const ColoredBox(color: Colors.black),
+                      ),
+                    ),
+                  ),
                 if (isNight)
                   IgnorePointer(
                     child: Container(

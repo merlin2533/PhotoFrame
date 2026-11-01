@@ -8,6 +8,7 @@ import '../../index/source_indexer.dart';
 import '../../settings/state/settings_providers.dart';
 import '../domain/photo_source.dart';
 import '../domain/uploadable_photo_source.dart';
+import '../immich/immich_photo_source.dart';
 import '../nextcloud/nextcloud_photo_source.dart';
 import '../smb/smb_photo_source.dart';
 import '../state/source_stats.dart';
@@ -79,6 +80,7 @@ String _groupKey(PhotoSource source) {
     return 'smb:${source.config.host}:${source.config.share}';
   }
   if (source is NextcloudPhotoSource) return 'nc:${source.config.davBaseUrl}';
+  if (source is ImmichPhotoSource) return 'immich:${source.config.serverUrl}';
   return source.id;
 }
 
@@ -104,6 +106,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
     final source = widget.source;
     if (source is SmbPhotoSource) return 'SMB: ${source.config.share}';
     if (source is NextcloudPhotoSource) return 'Nextcloud';
+    if (source is ImmichPhotoSource) return 'Immich';
     return source.displayName;
   }
 
@@ -115,6 +118,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
           s.config.rootPath.isEmpty ? '(Hauptordner)' : s.config.rootPath
         else if (s is NextcloudPhotoSource)
           s.config.rootPath.isEmpty ? '(Hauptordner)' : s.config.rootPath
+        else if (s is ImmichPhotoSource)
+          s.config.albumName.isEmpty ? '(Alle Alben)' : s.config.albumName
         else
           s.displayName,
     ];
@@ -155,7 +160,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
     final stats = ref.watch(sourceStatsProvider)[widget.source.id];
     final indexStatus = ref.watch(sourceIndexerProvider)[widget.source.id];
     final editable = widget.source.type == SourceType.smb ||
-        widget.source.type == SourceType.nextcloud;
+        widget.source.type == SourceType.nextcloud ||
+        widget.source.type == SourceType.immich;
     // The entry counts as off only when every folder of it is off.
     final groupIds = {for (final g in _all) g.id};
     final disabled = ref.watch(settingsProvider.select((s) {
@@ -172,7 +178,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
       subtitle: Text([
         if (_all.length > 1 ||
             widget.source is SmbPhotoSource ||
-            widget.source is NextcloudPhotoSource)
+            widget.source is NextcloudPhotoSource ||
+            widget.source is ImmichPhotoSource)
           _folderLine,
         disabled ? 'Deaktiviert (wird nicht abgespielt)' : _subtitle(),
         if (stats != null) _statsLine(stats),
@@ -226,7 +233,9 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
               } else if (value == 'edit') {
                 final path = widget.source.type == SourceType.smb
                     ? '/settings/sources/add/smb'
-                    : '/settings/sources/add/nextcloud';
+                    : widget.source.type == SourceType.immich
+                        ? '/settings/sources/add/immich'
+                        : '/settings/sources/add/nextcloud';
                 context.push(path, extra: widget.source);
               } else if (value == 'remove') {
                 for (final source in _all) {
@@ -271,6 +280,10 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
       final folder = source.config.rootPath;
       return 'Ordner: ${folder.isEmpty ? '(Hauptordner)' : folder}';
     }
+    if (source is ImmichPhotoSource) {
+      final album = source.config.albumName;
+      return 'Album: ${album.isEmpty ? '(Alle Alben)' : album}';
+    }
     return widget.source.type.name;
   }
 
@@ -305,6 +318,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         return Icons.dns_outlined;
       case SourceType.nextcloud:
         return Icons.cloud_outlined;
+      case SourceType.immich:
+        return Icons.photo_library_outlined;
       case SourceType.local:
         return Icons.folder_outlined;
       case SourceType.sharedAlbum:

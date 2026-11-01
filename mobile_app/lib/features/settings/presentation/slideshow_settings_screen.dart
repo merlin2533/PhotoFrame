@@ -43,6 +43,14 @@ class SlideshowSettingsScreen extends ConsumerWidget {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              title: const Text('Datum als Bildunterschrift anzeigen'),
+              subtitle: const Text('Unten links: Aufnahmedatum und Ordner'),
+              value: settings.showCaptionOverlay,
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(showCaptionOverlay: v)),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('Uhr anzeigen'),
               value: settings.showClock,
               onChanged: (v) =>

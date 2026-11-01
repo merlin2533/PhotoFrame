@@ -7,6 +7,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
 
@@ -33,9 +34,34 @@ class SmallPhotoCache {
     return previous.then((_) => job()).whenComplete(done.complete);
   }
 
+  bool _purgedOldVersion = false;
+
+  /// Earlier versions stored copies with an unchecked, sometimes purple
+  /// colour cast and kept no original to compare with, so the old folder is
+  /// dropped once and everything is prepared again.
+  Future<void> _purgeOldVersion(Directory dir) async {
+    if (_purgedOldVersion) return;
+    _purgedOldVersion = true;
+    final old = Directory(
+        '${dir.parent.path}${Platform.pathSeparator}$legacyDirectoryName');
+    try {
+      if (await old.exists()) await old.delete(recursive: true);
+    } catch (_) {}
+  }
+
+  /// Name of the folder used before colours were checked (see above).
+  static const legacyDirectoryName = 'small_photos';
+
+  /// Removes every prepared copy so they are created again.
+  Future<void> clear() async {
+    final dir = await _directory();
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
   Future<File> _fileFor(PhotoItem item) async {
     final dir = await _directory();
     await dir.create(recursive: true);
+    await _purgeOldVersion(dir);
     final name = item.stableId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
     return File('${dir.path}${Platform.pathSeparator}$name.jpg');
   }
@@ -106,28 +132,44 @@ class SmallPhotoCache {
     return small ?? await _scaleWithFlutter(full, temp);
   }
 
-  /// Average colour (r, g, b) of [file] decoded at a tiny size by Flutter's own
-  /// codec, or `null` when it cannot be decoded.
-  static Future<List<double>?> averageColor(File file) async {
+  /// Grid size of the colour comparison: the picture is split into
+  /// [gridSize] x [gridSize] cells so damage in one part of the picture (for
+  /// example a garbled left third) is noticed, not averaged away.
+  static const gridSize = 6;
+
+  /// Average colour (r, g, b) of every cell of a [gridSize] x [gridSize] grid
+  /// of [file], decoded small by Flutter's own codec (a full decode of the
+  /// data, so truncated or broken files fail here). `null` when the file
+  /// cannot be decoded.
+  static Future<List<List<double>>?> colorGrid(File file) async {
     ui.Codec? codec;
     try {
       codec = await ui.instantiateImageCodec(
         await file.readAsBytes(),
-        targetWidth: 16,
+        targetWidth: gridSize * 8,
       );
       final image = (await codec.getNextFrame()).image;
+      final w = image.width, h = image.height;
       final data = await image.toByteData();
       image.dispose();
-      if (data == null) return null;
-      final sum = [0.0, 0.0, 0.0];
-      final pixels = data.lengthInBytes ~/ 4;
-      if (pixels == 0) return null;
-      for (var i = 0; i < pixels; i++) {
-        for (var c = 0; c < 3; c++) {
-          sum[c] += data.getUint8(i * 4 + c);
+      if (data == null || w < gridSize || h < gridSize) return null;
+      final sums = List.generate(gridSize * gridSize, (_) => [0.0, 0.0, 0.0]);
+      final counts = List.filled(gridSize * gridSize, 0);
+      for (var y = 0; y < h; y++) {
+        final row = (y * gridSize ~/ h) * gridSize;
+        for (var x = 0; x < w; x++) {
+          final cell = row + (x * gridSize ~/ w);
+          final o = (y * w + x) * 4;
+          for (var c = 0; c < 3; c++) {
+            sums[cell][c] += data.getUint8(o + c);
+          }
+          counts[cell]++;
         }
       }
-      return [for (final v in sum) v / pixels];
+      return [
+        for (var k = 0; k < sums.length; k++)
+          [for (final v in sums[k]) v / (counts[k] == 0 ? 1 : counts[k])],
+      ];
     } catch (_) {
       return null;
     } finally {
@@ -135,23 +177,28 @@ class SmallPhotoCache {
     }
   }
 
-  /// `true` when [scaled] decodes and its average colour is close to that of
-  /// [original]. If the original itself cannot be decoded by Flutter there is
-  /// nothing to compare against, so the scaled file is accepted when it
-  /// decodes.
+  /// `true` when [scaled] decodes and matches [original]: the overall average
+  /// colour is close and no single cell of the grid differs strongly. If the
+  /// original itself cannot be decoded by Flutter there is nothing to compare
+  /// against, so the scaled file is accepted when it decodes.
   static Future<bool> looksLikeOriginal(File original, File scaled) async {
-    final b = await averageColor(scaled);
+    final b = await colorGrid(scaled);
     if (b == null) return false;
-    final a = await averageColor(original);
+    final a = await colorGrid(original);
     if (a == null) return true;
-    for (var c = 0; c < 3; c++) {
-      if ((a[c] - b[c]).abs() > 30) return false;
+    final mean = [0.0, 0.0, 0.0];
+    for (var k = 0; k < a.length; k++) {
+      for (var c = 0; c < 3; c++) {
+        final d = (a[k][c] - b[k][c]).abs();
+        if (d > 60) return false; // one cell clearly wrong
+        mean[c] += (a[k][c] - b[k][c]) / a.length;
+      }
     }
-    return true;
+    return mean.every((m) => m.abs() <= 30);
   }
 
   /// Fallback scaler using Flutter's own decoder (correct colours for every
-  /// format it can read). Stored as PNG data: larger, but always right.
+  /// format it can read), re-encoded as JPEG to keep storage small.
   Future<File?> _scaleWithFlutter(File source, File temp) async {
     ui.Codec? codec;
     try {
@@ -171,10 +218,17 @@ class SmallPhotoCache {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
       if (data == null) return null;
-      final out = await temp.writeAsBytes(
-          Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
-          flush: true);
-      return out;
+      // Flutter decoded the colours correctly; the PNG is only handed to the
+      // native encoder, which turns it into a small JPEG (no colour
+      // conversion on this path, so the cast cannot come back).
+      final jpeg = await FlutterImageCompress.compressWithList(
+        Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 90,
+        format: CompressFormat.jpeg,
+      );
+      return await temp.writeAsBytes(jpeg, flush: true);
     } catch (_) {
       return null;
     } finally {
@@ -206,12 +260,17 @@ class SmallPhotoStatus {
   final int waiting;
 }
 
-/// Prepares the screen-sized copies in batches of [batchSize], one batch after
+/// Prepares the screen-sized copies in batches (size from the settings), one batch after
 /// the other. Work can be added at any time with [start]: items that arrive
 /// while a run is going are queued and handled by the same run, so the
 /// preparation never stops between two refreshes.
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
-  static const batchSize = 20;
+  /// Default batch size; the real value comes from the settings.
+  static const defaultBatchSize = 5;
+
+  /// A photo that could not be prepared is left alone for this long before it
+  /// is tried again.
+  static const retryAfter = Duration(hours: 1);
 
   bool _running = false;
   int _done = 0;
@@ -219,8 +278,26 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   final Map<String, PhotoItem> _queued = {};
   final Map<String, PhotoSource> _sources = {};
 
+  /// stableIds of photos whose small copy exists (prepared in this session).
+  final Set<String> _doneKeys = {};
+
+  /// When each photo last failed to prepare.
+  final Map<String, DateTime> _failedAt = {};
+
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
+
+  /// Forgets what was prepared or failed (used after the copies were deleted,
+  /// so nothing is skipped as "already done").
+  void reset() {
+    _doneKeys.clear();
+    _failedAt.clear();
+  }
+
+  bool _failedRecently(PhotoItem item) {
+    final failed = _failedAt[item.stableId];
+    return failed != null && DateTime.now().difference(failed) < retryAfter;
+  }
 
   /// Queues [items] (in random order) and runs the queue if it is not running.
   /// Returns when the queue is empty.
@@ -230,15 +307,44 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   ) async {
     _sources.addAll(sourcesById);
     for (final item in List<PhotoItem>.of(items)..shuffle()) {
-      if (_queued.putIfAbsent(item.stableId, () => item) == item) {
-        _total++;
-      }
+      if (_queued.containsKey(item.stableId)) continue;
+      if (_doneKeys.contains(item.stableId) || _failedRecently(item)) continue;
+      _queued[item.stableId] = item;
+      _total++;
     }
+    await _run();
+  }
+
+  /// Puts [item] at the front of the queue and runs the queue if it is not
+  /// running, so a photo about to be shown is prepared before the others.
+  /// Photos that are already prepared or failed recently are left alone.
+  Future<void> prioritize(PhotoItem item, PhotoSource source) async {
+    _sources[source.id] = source;
+    if (_doneKeys.contains(item.stableId) || _failedRecently(item)) return;
+    final wasQueued = _queued.containsKey(item.stableId);
+    final rest = Map<String, PhotoItem>.of(_queued)..remove(item.stableId);
+    _queued
+      ..clear()
+      ..[item.stableId] = item
+      ..addAll(rest);
+    if (!wasQueued) _total++;
+    await _run();
+  }
+
+  /// Works through the queue batch by batch until it is empty. Does nothing
+  /// when a run is already going: that run picks up what was queued meanwhile.
+  Future<void> _run() async {
     if (_running || _queued.isEmpty) return;
     _running = true;
     final cache = ref.read(smallPhotoCacheProvider);
     try {
       while (_queued.isNotEmpty) {
+        final batchSize = (ref
+                    .read(settingsProvider)
+                    .value
+                    ?.smallPhotoBatchSize ??
+                defaultBatchSize)
+            .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
         for (final item in batch) {
           _queued.remove(item.stableId);
@@ -246,9 +352,15 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           // A stalled network read must not stop the whole preparation: after a
           // minute the photo is skipped and the next one starts.
           if (source != null) {
-            await cache
+            final file = await cache
                 .ensure(source, item)
                 .timeout(const Duration(seconds: 60), onTimeout: () => null);
+            if (file != null) {
+              _doneKeys.add(item.stableId);
+              _failedAt.remove(item.stableId);
+            } else {
+              _failedAt[item.stableId] = DateTime.now();
+            }
           }
           _done++;
           state = SmallPhotoStatus(

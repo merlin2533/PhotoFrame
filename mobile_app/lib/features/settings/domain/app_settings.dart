@@ -21,6 +21,7 @@ class AppSettings {
     // Slideshow
     this.intervalSeconds = 30,
     this.showSourceLabel = false,
+    this.showCaptionOverlay = false,
     this.showImageDetails = true,
     this.slideLayout = SlideLayout.single,
     this.imageDetailsOnRight = false,
@@ -36,6 +37,10 @@ class AppSettings {
     this.kioskModeEnabled = false,
     // Night mode
     this.nightSchedule = const NightSchedule.disabled(),
+    // Ambient dimming (time window + optional light sensor)
+    this.ambientDimEnabled = false,
+    this.dimStartMinutes = 22 * 60,
+    this.dimEndMinutes = 6 * 60,
     // Cache
     this.cacheLimitBytes = 500 * 1024 * 1024,
     // Working-set pool
@@ -43,6 +48,7 @@ class AppSettings {
     this.poolRefillIntervalHours = 1,
     this.indexRefreshHours = 48,
     this.selectionCount = 1000,
+    this.smallPhotoBatchSize = 5,
     this.poolNewImageQuota = 0.2,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
@@ -69,6 +75,10 @@ class AppSettings {
   // --- Slideshow ------------------------------------------------------
   final int intervalSeconds;
   final bool showSourceLabel;
+
+  /// Photo date (and folder name) as a small caption at the bottom left,
+  /// see `widgets/caption_overlay.dart`.
+  final bool showCaptionOverlay;
 
   /// Folder and date of the shown photo at the bottom edge.
   final bool showImageDetails;
@@ -103,6 +113,19 @@ class AppSettings {
   // --- Night mode -------------------------------------------------------
   final NightSchedule nightSchedule;
 
+  // --- Ambient dimming ----------------------------------------------------
+  /// Whether the screen is dimmed with a black overlay inside the time
+  /// window below. Off by default.
+  final bool ambientDimEnabled;
+
+  /// Start of the dimming window, minutes since midnight (default 22:00).
+  /// See `isWithinDimWindow` in `services/ambient/ambient_dim_controller.dart`.
+  final int dimStartMinutes;
+
+  /// End of the dimming window, minutes since midnight (default 06:00).
+  /// The window may cross midnight.
+  final int dimEndMinutes;
+
   // --- Cache ------------------------------------------------------------
   final int cacheLimitBytes;
 
@@ -115,6 +138,10 @@ class AppSettings {
 
   /// How many random photos are drawn each day (100-5000).
   final int selectionCount;
+
+  /// How many photos are queued per batch when screen-sized copies are
+  /// prepared (1-50). Photos in a batch are scaled one after the other.
+  final int smallPhotoBatchSize;
   final double poolNewImageQuota;
 
   // --- Favorites / date filter (P2) ---------------------------------------
@@ -222,6 +249,7 @@ class AppSettings {
   AppSettings copyWith({
     int? intervalSeconds,
     bool? showSourceLabel,
+    bool? showCaptionOverlay,
     bool? showImageDetails,
     bool? imageDetailsOnRight,
     SlideLayout? slideLayout,
@@ -234,11 +262,15 @@ class AppSettings {
     AlwaysOnMode? alwaysOnMode,
     bool? kioskModeEnabled,
     NightSchedule? nightSchedule,
+    bool? ambientDimEnabled,
+    int? dimStartMinutes,
+    int? dimEndMinutes,
     int? cacheLimitBytes,
     int? poolTargetSize,
     int? poolRefillIntervalHours,
     int? indexRefreshHours,
     int? selectionCount,
+    int? smallPhotoBatchSize,
     double? poolNewImageQuota,
     bool? favoritesOnlyMode,
     List<String>? disabledSourceIds,
@@ -262,6 +294,7 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: intervalSeconds ?? this.intervalSeconds,
       showSourceLabel: showSourceLabel ?? this.showSourceLabel,
+      showCaptionOverlay: showCaptionOverlay ?? this.showCaptionOverlay,
       showImageDetails: showImageDetails ?? this.showImageDetails,
       imageDetailsOnRight: imageDetailsOnRight ?? this.imageDetailsOnRight,
       slideLayout: slideLayout ?? this.slideLayout,
@@ -275,12 +308,16 @@ class AppSettings {
       alwaysOnMode: alwaysOnMode ?? this.alwaysOnMode,
       kioskModeEnabled: kioskModeEnabled ?? this.kioskModeEnabled,
       nightSchedule: nightSchedule ?? this.nightSchedule,
+      ambientDimEnabled: ambientDimEnabled ?? this.ambientDimEnabled,
+      dimStartMinutes: dimStartMinutes ?? this.dimStartMinutes,
+      dimEndMinutes: dimEndMinutes ?? this.dimEndMinutes,
       cacheLimitBytes: cacheLimitBytes ?? this.cacheLimitBytes,
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
       poolRefillIntervalHours:
           poolRefillIntervalHours ?? this.poolRefillIntervalHours,
       indexRefreshHours: indexRefreshHours ?? this.indexRefreshHours,
       selectionCount: selectionCount ?? this.selectionCount,
+      smallPhotoBatchSize: smallPhotoBatchSize ?? this.smallPhotoBatchSize,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
       disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
@@ -311,6 +348,7 @@ class AppSettings {
   Map<String, dynamic> toJson() => {
         'intervalSeconds': intervalSeconds,
         'showSourceLabel': showSourceLabel,
+        'showCaptionOverlay': showCaptionOverlay,
         'showImageDetails': showImageDetails,
         'imageDetailsOnRight': imageDetailsOnRight,
         'slideLayout': slideLayout.name,
@@ -323,11 +361,15 @@ class AppSettings {
         'alwaysOnMode': alwaysOnMode.name,
         'kioskModeEnabled': kioskModeEnabled,
         'nightSchedule': nightSchedule.toJson(),
+        'ambientDimEnabled': ambientDimEnabled,
+        'dimStartMinutes': dimStartMinutes,
+        'dimEndMinutes': dimEndMinutes,
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
         'indexRefreshHours': indexRefreshHours,
         'selectionCount': selectionCount,
+        'smallPhotoBatchSize': smallPhotoBatchSize,
         'poolNewImageQuota': poolNewImageQuota,
         'favoritesOnlyMode': favoritesOnlyMode,
         'disabledSourceIds': disabledSourceIds,
@@ -349,6 +391,7 @@ class AppSettings {
     return AppSettings(
       intervalSeconds: json['intervalSeconds'] as int? ?? 10,
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
+      showCaptionOverlay: json['showCaptionOverlay'] as bool? ?? false,
       showImageDetails: json['showImageDetails'] as bool? ?? true,
       imageDetailsOnRight: json['imageDetailsOnRight'] as bool? ?? false,
       slideLayout: SlideLayout.values.firstWhere(
@@ -377,11 +420,15 @@ class AppSettings {
           ? NightSchedule.fromJson(
               Map<String, dynamic>.from(json['nightSchedule'] as Map))
           : const NightSchedule.disabled(),
+      ambientDimEnabled: json['ambientDimEnabled'] as bool? ?? false,
+      dimStartMinutes: json['dimStartMinutes'] as int? ?? 22 * 60,
+      dimEndMinutes: json['dimEndMinutes'] as int? ?? 6 * 60,
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
       indexRefreshHours: json['indexRefreshHours'] as int? ?? 48,
       selectionCount: json['selectionCount'] as int? ?? 1000,
+      smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
