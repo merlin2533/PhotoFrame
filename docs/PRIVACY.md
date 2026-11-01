@@ -42,6 +42,8 @@ Die Verarbeitung dient ausschließlich der Bereitstellung der Kernfunktion: Kont
 
 Es findet keine Weitergabe von Nutzerdaten an Dritte statt, sofern der Betreiber nicht selbst zusätzliche Dienste einbindet (z.B. externe Backup-Speicherorte, E-Mail-Versand). Werden solche Dienste ergänzt, muss dieser Abschnitt entsprechend erweitert werden (ggf. inkl. Auftragsverarbeitungsvertrag).
 
+Die PhotoFrame-Companion-App auf dem Gerät sendet optional anonymisierte Fehlerberichte an den Fehlerdienst GlitchTip (siehe Abschnitt 9). GlitchTip erhält dabei ausschließlich die unter Abschnitt 9 beschriebenen, bereinigten Fehlerdaten. Der Dienst wird hier der Vollständigkeit halber genannt.
+
 ## 6. Melde-Funktion für nutzergenerierte Inhalte (UGC)
 
 Da Bilder zwischen gepaarten Nutzern ausgetauscht werden, kann es zu unerwünschten oder missbräuchlichen Inhalten kommen. Jedes Mitglied eines Pairings kann ein Bild über die App melden. Gemeldete Bilder werden dem Betreiber im Admin-Panel zur Prüfung angezeigt; der Betreiber kann gemeldete Inhalte entfernen. Nutzer können ein Bild zusätzlich jederzeit unabhängig von einer Meldung lokal für sich ausblenden, ohne dass dies andere Mitglieder betrifft oder eine Meldung erzeugt.
@@ -55,3 +57,32 @@ Da Bilder zwischen gepaarten Nutzern ausgetauscht werden, kann es zu unerwünsch
 ## 8. Änderungen dieser Erklärung
 
 Der Betreiber sollte diese Erklärung aktuell halten, insbesondere wenn sich Funktionsumfang, Speicherorte oder eingebundene Dritt-Dienste ändern.
+
+## 9. Fehlerberichte der Companion-App (GlitchTip)
+
+Dieser Abschnitt betrifft die **Android-/iOS-App** (Companion-App auf dem Fotorahmen), nicht den Relay-Server. Die App meldet unerwartete und intern abgefangene Fehler an den Fehlerdienst GlitchTip (Sentry-kompatibel) unter dem Projekt-DSN in `mobile_app/lib/core/observability/error_reporter.dart`.
+
+**Welche Fehler gesendet werden:**
+
+- Nicht abgefangene Fehler der Oberfläche und der Laufzeitumgebung (Flutter- und Dart-Fehler).
+- Vom App-Code bewusst abgefangene Fehler, etwa ein beschädigter Cache-Eintrag, eine nicht lesbare Quelle oder ein Foto, das nicht skaliert werden kann. Sie werden mit Fehlertyp und Meldetext erfasst.
+- Keine Performance- oder Nutzungsdaten: Performance-Tracing ist vollständig deaktiviert, es werden keine Ereignisse über Bildschirme oder Bedienschritte erfasst.
+
+**Was vor dem Senden entfernt wird:**
+
+- Die Standardangaben zu Person und Gerät werden nicht gesendet (`sendDefaultPii` ist aus). Dazu gehören IP-Adresse und Benutzerkennung.
+- Breadcrumbs (Verlaufsspuren der Bedienschritte), Benutzerdaten und Request-Daten werden vollständig entfernt. Der Gerätename wird entfernt.
+- Jeder Text im Ereignis (Meldung, Fehlertext, Stapelrahmen-Pfade, Zusatzdaten, Tags) wird bereinigt. Ersetzt wird durch `[redacted]`:
+  - URLs mit beliebigem Schema (http, https, file, content, smb usw.), damit Quell-Hosts und Pfade das Gerät nicht verlassen,
+  - Windows- und POSIX-Dateipfade sowie UNC-Pfade,
+  - Dateinamen von Fotos und Videos (z. B. `IMG_1234.heic`),
+  - E-Mail-Adressen,
+  - IPv4-Adressen, Hostnamen (z. B. `nas.local`) und `localhost`.
+
+**Was niemals gesendet wird:** Fotos, Bildinhalte, Dateinamen, Ordnerpfade, Zugangsdaten und Quell-Hosts (NAS-, Nextcloud-, Immich- oder SMB-Adressen). Das Umgebungsfeld ist `debug` bzw. `release`. Gerätemodell, Betriebssystemversion und App-Version werden als SDK-Standard mitgesendet. Die App setzt keine Nutzerkennung.
+
+**Speicherung:** Die Fehlerdaten liegen bei GlitchTip. Das lokale Protokoll (Einstellungen → Protokoll) hält die letzten 300 Einträge nur im Arbeitsspeicher und verlässt das Gerät nicht. Es geht beim Neustart verloren.
+
+**Abschalten:** In den Einstellungen unter **Allgemein → Fehlerberichte senden** lässt sich das Senden deaktivieren. Der Schalter ist standardmäßig eingeschaltet und wird lokal gespeichert. Ist er aus, verwirft die App jeden Fehlerbericht, bevor er das Gerät verlässt.
+
+**Rechtsgrundlage:** Berechtigtes Interesse an der Fehlerbehebung (Art. 6 Abs. 1 lit. f DSGVO), das durch die Bereinigung und den abschaltbaren Schalter gewahrt wird. Der Betreiber der App-Installation hat dies vor dem Einsatz zu prüfen. [Platzhalter: Auftragsverarbeitung mit dem Betreiber des GlitchTip-Dienstes]

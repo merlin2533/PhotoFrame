@@ -66,6 +66,7 @@ dependencies:
   # App version display (settings screen) - reads pubspec.yaml's `version:`
   # at build time, no manual wiring needed when it's bumped.
   package_info_plus: ^10.2.2
+  sentry_flutter: ^10.2.0
 
 dev_dependencies:
   flutter_test:
