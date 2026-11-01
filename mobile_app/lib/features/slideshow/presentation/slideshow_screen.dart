@@ -149,8 +149,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Timer? _refreshTimer;
   StreamSubscription<PhotoItem?>? _prefetchSub;
   // Raw downloads started by `_prefetchNext` while preparation is off, by
-  // `stableId`. Cancelled in `dispose`, so closing the slideshow stops them.
+  // `stableId`, while they are still running. Cancelled in `dispose`, so closing
+  // the slideshow stops them.
   final Map<String, CancellationTokenSource> _rawPrefetches = {};
+  // `stableId`s of raw prefetches requested for the current engine and still in
+  // the prefetch window (or still running). Keeps a photo that is already
+  // downloaded from being requested again on every advance.
+  final Set<String> _rawRequested = {};
+  // Photos shown since the current engine was built. Drives the prefetch ramp
+  // (see `prefetchCountAfter`). Reset when a new engine is built.
+  int _shownSinceEngineBuilt = 0;
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
@@ -250,6 +258,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       token.cancel();
     }
     _rawPrefetches.clear();
+    _rawRequested.clear();
     _refreshTimer?.cancel();
     _retryTimer?.cancel();
     final engine = _engine;
@@ -552,20 +561,24 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     await _buildEngine();
   }
 
-  /// Prepares the next [upcomingPhotoCount] photos of the engine's order from a
-  /// network source, so they are already in the cache when they are shown.
-  /// Local photos need no download and are skipped. Runs on every advance.
+  /// Prepares the next photos of the engine's order from a network source, so
+  /// they are already in the cache when they are shown. The number of photos
+  /// ramps up with every photo shown (see `prefetchCountAfter`): it starts at
+  /// `upcomingPhotoCount` and is capped at `maxPrefetchCount`. Local photos need
+  /// no download and are skipped. Runs on every advance.
   ///
   /// With preparation on, the photos go through the worker's `prioritize`
   /// queue. With preparation off, the raw download is started with
-  /// `source.fetchToCache` instead. Failures are ignored: a photo is fetched
+  /// `source.fetchToCache` instead, and a photo is requested only once per
+  /// window (see `_rawRequested`). Failures are ignored: a photo is fetched
   /// again when it is shown.
   void _prefetchNext() {
     final engine = _engine;
     if (engine == null) return;
     final settings = ref.read(settingsProvider).value ?? const AppSettings();
     final upcoming = <(PhotoItem, PhotoSource)>[];
-    for (final entry in engine.upcomingEntries(upcomingPhotoCount)) {
+    final count = prefetchCountAfter(_shownSinceEngineBuilt);
+    for (final entry in engine.upcomingEntries(count)) {
       final item = _itemsByKey['${entry.sourceId}::${entry.itemId}'];
       final source = item == null ? null : _sourcesById[item.sourceId];
       if (item == null || source == null) continue;
@@ -587,8 +600,15 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       return;
     }
+    // Forget photos that left the window and are no longer running, so the set
+    // stays as small as the window and a photo that comes back is requested
+    // again.
+    final windowIds = {for (final (item, _) in upcoming) item.stableId};
+    _rawRequested.removeWhere((id) =>
+        !windowIds.contains(id) && !_rawPrefetches.containsKey(id));
     for (final (item, source) in upcoming) {
-      if (_rawPrefetches.containsKey(item.stableId)) continue;
+      if (_rawRequested.contains(item.stableId)) continue;
+      _rawRequested.add(item.stableId);
       final token = CancellationTokenSource();
       _rawPrefetches[item.stableId] = token;
       unawaited(source
@@ -801,8 +821,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final previous = _engine;
       setState(() {
         _engine = engine;
+        // A new engine starts the prefetch ramp again at `upcomingPhotoCount`.
+        _shownSinceEngineBuilt = 0;
         _prefetchSub?.cancel();
-        _prefetchSub = engine.currentItemChanges.listen((_) => _prefetchNext());
+        // Fires for every photo shown after the first one (which is shown by
+        // `engine.start()` before this listener exists); each one raises the
+        // prefetch count by one ramp step.
+        _prefetchSub = engine.currentItemChanges.listen((item) {
+          if (item != null) _shownSinceEngineBuilt++;
+          _prefetchNext();
+        });
         _sourcesById = sourcesById;
         _loading = false;
       });
