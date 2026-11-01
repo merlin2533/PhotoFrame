@@ -96,6 +96,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final worker = ref.watch(smallPhotoWorkerProvider);
     final prepared = ref.watch(_preparedCountProvider);
 
+    final usage = ref.watch(smallPhotoCacheUsageProvider);
+    // The counters move while photos are prepared: every finished photo
+    // re-reads the cache folder and the prepared count.
+    ref.listen<int>(
+      smallPhotoWorkerProvider.select((status) => status.done),
+      (_, __) {
+        ref.invalidate(smallPhotoCacheUsageProvider);
+        ref.invalidate(_preparedCountProvider);
+      },
+    );
+
     final enabledCount = sources.where((s) => !disabled.contains(s.id)).length;
     final snapshot = index.value;
 
@@ -143,6 +154,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ? '…'
                             : '${prepared.value} von ${snapshot.items.length}'
                                 '${worker.running ? ' (läuft, ${worker.waiting} wartend)' : ''}',
+                  ),
+                  _StatusRow(
+                    icon: Icons.download_done_outlined,
+                    label: 'Heruntergeladen',
+                    // The photos on disk in the small-photo cache: every photo
+                    // that was downloaded and scaled, across all sources.
+                    value: usage.value == null
+                        ? '…'
+                        : '${usage.value!.count} Fotos',
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,

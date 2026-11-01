@@ -302,10 +302,10 @@ void main() {
         engine.start();
         async.flushMicrotasks();
 
-        final upcoming = engine.upcomingEntries(upcomingPhotoCount);
-        expect(upcoming, hasLength(upcomingPhotoCount));
+        final upcoming = engine.upcomingEntries(3);
+        expect(upcoming, hasLength(3));
         // Asking again does not change the order or draw extra entries.
-        expect(engine.upcomingEntries(upcomingPhotoCount).map((e) => e.key),
+        expect(engine.upcomingEntries(3).map((e) => e.key),
             upcoming.map((e) => e.key));
 
         // The slideshow then shows exactly those entries, in that order.
@@ -320,9 +320,9 @@ void main() {
       });
     });
 
-    test('upcomingEntries() returns up to maxPrefetchCount entries in order',
+    test('upcomingEntries() returns the entries in order, capped at 100',
         () async {
-      final fixture = _buildFixture(folderCount: 3, itemsPerFolder: 10);
+      final fixture = _buildFixture(folderCount: 5, itemsPerFolder: 30);
       await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
 
       fakeAsync((async) {
@@ -337,47 +337,17 @@ void main() {
         engine.start();
         async.flushMicrotasks();
 
-        final upcoming = engine.upcomingEntries(maxPrefetchCount);
-        expect(upcoming, hasLength(maxPrefetchCount));
-        expect(engine.upcomingEntries(maxPrefetchCount).map((e) => e.key),
+        final upcoming = engine.upcomingEntries(maxAheadCount);
+        expect(upcoming, hasLength(maxAheadCount));
+        expect(engine.upcomingEntries(maxAheadCount).map((e) => e.key),
             upcoming.map((e) => e.key));
 
-        // A smaller count is a prefix of the same order, so a ramp that grows
-        // only asks for the photos it has not requested yet.
-        expect(engine.upcomingEntries(upcomingPhotoCount).map((e) => e.key),
-            upcoming.take(upcomingPhotoCount).map((e) => e.key));
+        // A smaller count is a prefix of the same order.
+        expect(engine.upcomingEntries(3).map((e) => e.key),
+            upcoming.take(3).map((e) => e.key));
 
         engine.dispose();
       });
-    });
-  });
-
-  group('prefetchCountAfter', () {
-    test('starts at upcomingPhotoCount (3)', () {
-      expect(upcomingPhotoCount, 3);
-      expect(prefetchCountAfter(0), 3);
-    });
-
-    test('grows by prefetchRampStep (2) per shown photo', () {
-      expect(prefetchRampStep, 2);
-      expect(prefetchCountAfter(1), 5);
-      expect(prefetchCountAfter(2), 7);
-      expect(prefetchCountAfter(10), 23);
-    });
-
-    test('is capped at maxPrefetchCount (25) and never exceeds it', () {
-      expect(maxPrefetchCount, 25);
-      expect(prefetchCountAfter(11), 25);
-      expect(prefetchCountAfter(12), 25);
-      expect(prefetchCountAfter(1000), 25);
-      expect(prefetchCountAfter(1 << 40), 25);
-      for (var shown = 0; shown < 500; shown++) {
-        expect(prefetchCountAfter(shown), lessThanOrEqualTo(25));
-      }
-    });
-
-    test('treats negative counts as zero', () {
-      expect(prefetchCountAfter(-1), 3);
     });
   });
 }

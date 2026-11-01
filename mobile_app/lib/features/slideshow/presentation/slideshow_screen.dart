@@ -124,7 +124,7 @@ class SlideshowScreen extends ConsumerStatefulWidget {
   });
 
   /// How long the start waits for the first prepared small copies before the
-  /// engine starts anyway (see `_preferPrepared`). Only tests pass another value.
+  /// engine starts anyway (see `_startPool`). Only tests pass another value.
   final Duration preparedWaitLimit;
 
   static const defaultPreparedWaitLimit = Duration(minutes: 3);
@@ -138,7 +138,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   bool _paused = false;
   bool _loading = true;
   Object? _loadError;
-  // True only while the start path waits in `_preferPrepared` for the first
+  // True only while the start path waits in `_startPool` for the first
   // prepared copies and no engine exists yet. `build` shows `PreparingView`
   // then. Set and cleared by `_awaitPreparedAtStart`, which clears it on every
   // exit (success, error, early return), and also in `dispose`.
@@ -150,6 +150,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   final ValueNotifier<int> _minuteTick = ValueNotifier<int>(0);
   Timer? _refreshTimer;
   StreamSubscription<PhotoItem?>? _prefetchSub;
+  // Photos the small-photo worker has just prepared. Each one joins the cached
+  // set and, when it is not in the rotation yet, the rotation (see
+  // `_onPhotoPrepared`). Lives as long as the screen.
+  StreamSubscription<PhotoItem>? _preparedSub;
   // Raw downloads started by `_prefetchNext` while preparation is off, by
   // `stableId`, while they are still running. Cancelled in `dispose`, so closing
   // the slideshow stops them.
@@ -158,9 +162,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   // the prefetch window (or still running). Keeps a photo that is already
   // downloaded from being requested again on every advance.
   final Set<String> _rawRequested = {};
-  // Photos shown since the current engine was built. Drives the prefetch ramp
-  // (see `prefetchCountAfter`). Reset when a new engine is built.
-  int _shownSinceEngineBuilt = 0;
   InMemoryWorkingSetPool? _pool;
   final Map<String, PhotoItem> _itemsByKey = {};
   bool _refreshing = false;
@@ -255,6 +256,10 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _busy = ref.read(slideshowBusyProvider);
     _ambientSource = ref.read(ambientLightSourceProvider);
     _ambientSub = _ambientSource.lux.listen(_onAmbientLux);
+    _preparedSub = ref
+        .read(smallPhotoWorkerProvider.notifier)
+        .preparedPhotos
+        .listen(_onPhotoPrepared);
     unawaited(_buildEngine());
     // Fullscreen: hide status and navigation bar while the slideshow runs.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -306,6 +311,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _ambientSub?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
+    _preparedSub?.cancel();
     for (final token in _rawPrefetches.values) {
       token.cancel();
     }
@@ -554,16 +560,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         ));
       }
 
-      final fresh = await _preferPrepared(
-        await _todaysSelection(eligible, settings.selectionCount),
-        index: eligible,
-      );
-      // Nothing prepared yet (or the wait timed out): keep the photos already in
-      // the pool rather than emptying it.
+      // The whole selection, prepared or not: the rotation grows with the
+      // photos that get cached (see `_onPhotoPrepared`), not only with those
+      // that are already on disk.
+      final fresh = await _todaysSelection(eligible, settings.selectionCount);
       if (fresh.isEmpty || !mounted || _engine != engine) return;
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
+      // Photos that are cached stay in the rotation even when they are not in
+      // today's selection, and so do the photos of sources that failed.
       bool kept(String sourceId, String itemId) =>
-          failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
+          failed.contains(sourceId) ||
+          freshKeys.contains('$sourceId::$itemId') ||
+          _cachedKeys.contains('$sourceId::$itemId');
       for (final e in pool.entries) {
         if (!kept(e.sourceId, e.itemId)) pool.remove(e.sourceId, e.itemId);
       }
@@ -615,11 +623,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     await _buildEngine();
   }
 
-  /// Prepares the next photos of the engine's order from a network source, so
-  /// they are already in the cache when they are shown. The number of photos
-  /// ramps up with every photo shown (see `prefetchCountAfter`): it starts at
-  /// `upcomingPhotoCount` and is capped at `maxPrefetchCount`. Local photos need
-  /// no download and are skipped. Runs on every advance.
+  /// Keeps the next [maxAheadCount] photos of the engine's order downloaded and
+  /// stored in the cache, so the rotation has material. Local photos need no
+  /// download and are skipped. Runs on every advance.
+  ///
+  /// Stops when the small-photo cache has reached its size limit (see
+  /// `_cacheBelowLimit`): then nothing new is requested, and the photos already
+  /// cached keep rotating.
   ///
   /// With preparation on, the photos go through the worker's `prioritize`
   /// queue. With preparation off, the raw download is started with
@@ -631,19 +641,27 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     if (engine == null) return;
     final settings = ref.read(settingsProvider).value ?? const AppSettings();
     final upcoming = <(PhotoItem, PhotoSource)>[];
-    final count = prefetchCountAfter(_shownSinceEngineBuilt);
-    for (final entry in engine.upcomingEntries(count)) {
+    for (final entry in engine.upcomingEntries(maxAheadCount)) {
       final item = _itemsByKey['${entry.sourceId}::${entry.itemId}'];
       final source = item == null ? null : _sourcesById[item.sourceId];
       if (item == null || source == null) continue;
-      if (source.type != SourceType.smb &&
-          source.type != SourceType.nextcloud &&
-          source.type != SourceType.immich) {
-        continue;
-      }
+      if (!_needsDownload(source.type)) continue;
       upcoming.add((item, source));
     }
-    final epoch = _cacheEpoch;
+    if (upcoming.isEmpty) return;
+    unawaited(_prefetchWithinLimit(upcoming, settings, _cacheEpoch));
+  }
+
+  /// Starts the prefetch of [upcoming] (see `_prefetchNext`) when the cache is
+  /// still below its size limit. [epoch] is the cache epoch of the caller: a
+  /// prefetch that started before a rebuild does nothing.
+  Future<void> _prefetchWithinLimit(
+    List<(PhotoItem, PhotoSource)> upcoming,
+    AppSettings settings,
+    int epoch,
+  ) async {
+    if (!await _cacheBelowLimit(settings)) return;
+    if (!mounted || epoch != _cacheEpoch) return;
     if (settings.preparationEnabled) {
       final cache = ref.read(smallPhotoCacheProvider);
       // Each `prioritize` call moves its photo to the front of the worker's
@@ -680,6 +698,39 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
+  /// Whether the small-photo cache is still below `AppSettings.cacheLimitBytes`.
+  /// Reads the folder once (sizes of the files), so it is only called once per
+  /// advance, never per photo.
+  Future<bool> _cacheBelowLimit(AppSettings settings) async {
+    if (!mounted) return false;
+    final usage = await ref
+        .read(smallPhotoCacheProvider)
+        .usage(_sourcesById.keys.toList());
+    return usage.totalBytes < settings.cacheLimitBytes;
+  }
+
+  /// Called for every photo that became cached (a prepared small copy, a
+  /// complete raw download). It is added to the cached set, and to the rotation
+  /// when it is not in the pool yet, so the running slideshow picks it up
+  /// without a restart. Photos of sources that are not part of this slideshow
+  /// are ignored.
+  void _onPhotoPrepared(PhotoItem item) {
+    if (!mounted) return;
+    if (!_sourcesById.containsKey(item.sourceId)) return;
+    final key = _keyOf(item);
+    _cachedKeys.add(key);
+    final pool = _pool;
+    if (pool == null) return;
+    final added = pool.add(PoolEntry(
+      sourceId: item.sourceId,
+      itemId: item.id,
+      addedToPoolAt: DateTime.now(),
+    ));
+    if (!added) return;
+    _itemsByKey[key] = item;
+    _engine?.refreshPool(pool);
+  }
+
   static String _keyOf(PhotoItem item) => '${item.sourceId}::${item.id}';
 
   /// Whether photos of [type] are downloaded before they are shown (the same
@@ -709,7 +760,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Future<void> _markPreparedIfExists(
       SmallPhotoCache cache, PhotoItem item, int epoch) async {
     if (epoch != _cacheEpoch || !mounted) return;
-    if (await cache.existing(item) != null) _cachedKeys.add(_keyOf(item));
+    if (await cache.existing(item) != null) _onPhotoPrepared(item);
   }
 
   /// Checks the prepared copies of [items] in the background, so the set knows
@@ -732,24 +783,27 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     if (file == null || epoch != _cacheEpoch) return;
     if (await SmallPhotoCache.looksComplete(file, item.size,
         downloadIsOriginal: true)) {
-      _cachedKeys.add(_keyOf(item));
+      _onPhotoPrepared(item);
     }
   }
 
-  /// Picks the photos to start with, in this order:
+  /// Picks the photos the rotation starts with:
   ///
-  /// 1. The prepared photos of [items] (today's selection).
-  /// 2. If none of them is prepared, the prepared photos of [index] (the whole
-  ///    photo index). The worker prepares photos in random order, so the
-  ///    prepared copies may lie outside the selection.
-  /// 3. Only if nothing is prepared anywhere, wait for the worker to finish the
-  ///    first copies, up to `preparedWaitLimit` (3 minutes by default).
+  /// 1. All of [items] (today's selection), prepared or not. Only the photos
+  ///    that are prepared are shown first (see `SlideshowEngine.isCached`); the
+  ///    others join the rotation as their copies appear.
+  /// 2. If none of [items] is prepared, the prepared photos of [index] (the
+  ///    whole photo index) are added as well. The worker prepares photos in
+  ///    random order, so the prepared copies may lie outside the selection.
+  /// 3. With the only-prepared rule on, the start waits for the worker to finish
+  ///    the first copies, up to `preparedWaitLimit` (3 minutes by default). If
+  ///    nothing is prepared by then, the list is empty.
   ///
   /// Without an [index] only steps 1 and 3 apply, for [items]. Raw downloads
   /// are used only when `onlyPreparedPhotos` is off: then the photos of [items]
   /// are returned when nothing is prepared anywhere. Preparation off counts as
   /// `onlyPreparedPhotos` off (see `AppSettings.onlyPreparedRuleActive`).
-  Future<List<PhotoItem>> _preferPrepared(
+  Future<List<PhotoItem>> _startPool(
     List<PhotoItem> items, {
     List<PhotoItem> index = const [],
   }) async {
@@ -767,14 +821,20 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       return list;
     }
 
-    Future<List<PhotoItem>> prepared() async {
-      final selected = await preparedIn(items);
-      if (selected.isNotEmpty) return selected;
-      return preparedIn(index);
+    Future<List<PhotoItem>> pool() async {
+      if ((await preparedIn(items)).isNotEmpty) return items;
+      final fromIndex = await preparedIn(index);
+      if (fromIndex.isEmpty) return onlyPrepared ? const [] : items;
+      final keys = {for (final i in items) _keyOf(i)};
+      return [
+        ...items,
+        for (final i in fromIndex)
+          if (!keys.contains(_keyOf(i))) i,
+      ];
     }
 
-    var list = await prepared();
-    if (!onlyPrepared) return list.isEmpty ? items : list;
+    var list = await pool();
+    if (!onlyPrepared || list.isNotEmpty) return list;
     // Only checked small copies are shown. While none exists yet, wait for the
     // worker to finish the first ones (up to `preparedWaitLimit`, 3 minutes by
     // default) instead of showing raw downloads.
@@ -782,12 +842,12 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     while (list.isEmpty && mounted && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(seconds: 3));
       final status = ref.read(smallPhotoWorkerProvider);
-      if (status.done > 0 || !status.running) list = await prepared();
+      if (status.done > 0 || !status.running) list = await pool();
     }
     return list;
   }
 
-  /// Runs [_preferPrepared] for the start path with [_awaitingPrepared] set, so
+  /// Runs [_startPool] for the start path with [_awaitingPrepared] set, so
   /// the preparing view shows while the start waits. The flag is cleared in
   /// `finally`, so it is reset whether the wait returns, throws, or the screen
   /// is already gone. The engine is not built yet at this point, so the screen
@@ -798,7 +858,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   }) async {
     _setAwaitingPrepared(true);
     try {
-      return await _preferPrepared(items, index: index);
+      return await _startPool(items, index: index);
     } finally {
       _setAwaitingPrepared(false);
     }
@@ -944,15 +1004,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final previous = _engine;
       setState(() {
         _engine = engine;
-        // A new engine starts the prefetch ramp again at `upcomingPhotoCount`.
-        _shownSinceEngineBuilt = 0;
+        // Photos that were prepared while the engine started join the rotation.
+        engine.refreshPool(pool);
         _prefetchSub?.cancel();
         // Fires for every photo shown after the first one (which is shown by
-        // `engine.start()` before this listener exists); each one raises the
-        // prefetch count by one ramp step.
+        // `engine.start()` before this listener exists).
         _prefetchSub = engine.currentItemChanges.listen((item) {
           _markSlideChange();
-          if (item != null) _shownSinceEngineBuilt++;
           _prefetchNext();
         });
         _sourcesById = sourcesById;

@@ -14,38 +14,25 @@ import 'slideshow_config.dart';
 /// index, likely backed by drift) doesn't exist yet in this scaffold.
 typedef ItemResolver = Future<PhotoItem?> Function(PoolEntry entry);
 
-/// How many upcoming photos the slideshow prepares ahead of time when it
-/// starts, so they are already in the cache when they are shown. This is the
-/// start value of the prefetch ramp (see [prefetchCountAfter]).
-const int upcomingPhotoCount = 3;
-
-/// Upper limit for the number of photos prefetched ahead.
-const int maxPrefetchCount = 25;
-
-/// How much the prefetch count grows for every photo the slideshow shows.
-const int prefetchRampStep = 2;
-
-/// The number of photos to prefetch ahead after [shownCount] photos were shown
-/// since the engine was built. It starts at [upcomingPhotoCount], grows by
-/// [prefetchRampStep] per shown photo and never exceeds [maxPrefetchCount].
-/// Negative counts are treated as zero.
-///
-/// For example: 0 shown gives 3, 1 shown gives 5, 11 shown gives 25, and any
-/// higher count still gives 25.
-int prefetchCountAfter(int shownCount) {
-  final shown = shownCount < 0 ? 0 : shownCount;
-  final ramped = upcomingPhotoCount + prefetchRampStep * shown;
-  return ramped > maxPrefetchCount ? maxPrefetchCount : ramped;
-}
+/// How many upcoming photos are prepared ahead of the photo on screen: the
+/// slideshow keeps this many photos downloaded and stored in the cache, so the
+/// rotation has material. It is also the upper limit of [SlideshowEngine.upcomingEntries].
+/// The prefetch stops early when the cache limit is reached (see the
+/// slideshow screen).
+const int maxAheadCount = 100;
 
 /// Drives the slideshow: decides which item is currently shown, advances on
 /// a timer, and pulls the next candidates from a [WorkingSetPool] via a
 /// [ShuffleBag] so items rotate fairly without immediate repeats.
 ///
-/// Prefetching: the screen asks [upcomingEntries] for the next
-/// [prefetchCountAfter] entries (the count ramps up while the slideshow runs)
-/// and prepares them (see `_prefetchNext` in `slideshow_screen.dart`). The
-/// engine itself does no I/O.
+/// Prefetching: the screen asks [upcomingEntries] for the next [maxAheadCount]
+/// entries and prepares them (see `_prefetchNext` in `slideshow_screen.dart`).
+/// The engine itself does no I/O.
+///
+/// Rotation: when the bag reaches the end of the working list, a new cycle
+/// starts (the same photos again, in a new random order), so the slideshow
+/// keeps repeating the available photos. Photos added to the pool with
+/// [refreshPool] join the rotation at once.
 class SlideshowEngine {
   SlideshowEngine({
     required WorkingSetPool pool,
@@ -112,11 +99,14 @@ class SlideshowEngine {
   /// The next [count] entries the slideshow will show, in show order, without
   /// showing them. The engine draws them ahead into a buffer that [_advance]
   /// consumes first, so the order returned here is the order it will use.
+  /// [count] is capped at [maxAheadCount]; fewer entries are returned when the
+  /// pool is smaller.
   List<PoolEntry> upcomingEntries(int count) {
-    while (_lookahead.length < count) {
+    final wanted = count > maxAheadCount ? maxAheadCount : count;
+    while (_lookahead.length < wanted) {
       _lookahead.add(_shuffleBag.next());
     }
-    return List.unmodifiable(_lookahead.take(count));
+    return List.unmodifiable(_lookahead.take(wanted));
   }
 
   /// Looks up the [PhotoSource] backing the currently shown item, if any.

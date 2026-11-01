@@ -868,6 +868,14 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   final Map<String, PhotoItem> _queued = {};
   final Map<String, PhotoSource> _sources = {};
 
+  /// Emits every photo whose small copy became available in this run, so a
+  /// running slideshow can add it to its rotation without a restart.
+  final StreamController<PhotoItem> _preparedController =
+      StreamController<PhotoItem>.broadcast();
+
+  /// Photos whose small copy was just created by the worker, one event each.
+  Stream<PhotoItem> get preparedPhotos => _preparedController.stream;
+
   /// Set by [stop] while a run is going; the run ends after the current photo.
   bool _stopRequested = false;
 
@@ -884,7 +892,10 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
       ref.read(notConvertibleStoreProvider);
 
   @override
-  SmallPhotoStatus build() => const SmallPhotoStatus();
+  SmallPhotoStatus build() {
+    ref.onDispose(_preparedController.close);
+    return const SmallPhotoStatus();
+  }
 
   /// Forgets what was prepared or failed (used after the copies were deleted,
   /// so nothing is skipped as "already done"). Photos marked as not
@@ -1041,6 +1052,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
               if (file != null) {
                 _doneKeys.add(item.stableId);
                 _failedAt.remove(item.stableId);
+                if (!_preparedController.isClosed) {
+                  _preparedController.add(item);
+                }
               } else {
                 // Download failed: retried after [retryAfter].
                 _failedAt[item.stableId] = DateTime.now();
