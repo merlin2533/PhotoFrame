@@ -576,6 +576,7 @@ class SmallPhotoCache {
   Future<File?> _scale(File full, File temp) async {
     final name = DebugTrace.baseName(full.path);
     File? small;
+    var colourRejected = false;
     try {
       DebugTrace.event('cache', 'native scale start $name');
       final result = await FlutterImageCompress.compressAndGetFile(
@@ -596,6 +597,7 @@ class SmallPhotoCache {
           small = out;
           DebugTrace.event('cache', 'native scale end $name ok');
         } else {
+          colourRejected = true;
           DebugTrace.event('cache', 'native scale end $name colour rejected');
         }
       } else {
@@ -610,6 +612,10 @@ class SmallPhotoCache {
       logRecoverableError('Native photo scaling failed, using the fallback',
           error: e, stackTrace: st);
     }
+    // A colour-rejected photo is not decoded by the Flutter engine: on large
+    // camera files that decode crashed the app. It counts as not convertible,
+    // and the original is shown instead.
+    if (colourRejected) return null;
     return small ?? await _scaleWithFlutter(full, temp);
   }
 
