@@ -20,6 +20,16 @@ class _FixedSettings extends AppSettingsController {
   Future<AppSettings> build() async => const AppSettings();
 }
 
+/// Settings fixed to [settings], so the job reads them without preferences.
+class _FixedSettingsWith extends AppSettingsController {
+  _FixedSettingsWith(this._settings);
+
+  final AppSettings _settings;
+
+  @override
+  Future<AppSettings> build() async => _settings;
+}
+
 /// Sources fixed to a caller-supplied list.
 class _FixedSources extends SourcesController {
   _FixedSources(this._initial);
@@ -91,6 +101,45 @@ Future<void> _settle() =>
     Future<void>.delayed(const Duration(milliseconds: 100));
 
 void main() {
+  test('the index is still refreshed but no preparation runs when it is off',
+      () async {
+    final good = MockPhotoSource(
+      id: 'good',
+      simulatedDelay: Duration.zero,
+      folderCount: 1,
+      itemsPerFolder: 3,
+    );
+    addTearDown(good.dispose);
+
+    String? stored;
+    final store = PhotoIndexStore(
+      read: () async => stored,
+      write: (json) async => stored = json,
+    );
+    final started = <List<PhotoItem>>[];
+    final container = ProviderContainer(overrides: [
+      settingsProvider.overrideWith(() => _FixedSettingsWith(
+            const AppSettings().copyWith(smallPhotoPreparation: false),
+          )),
+      sourcesProvider.overrideWith(() => _FixedSources([good])),
+      photoIndexStoreProvider.overrideWithValue(store),
+      smallPhotoWorkerProvider.overrideWith(() => _RecordingWorker(started)),
+    ]);
+    addTearDown(container.dispose);
+
+    await container.read(settingsProvider.future);
+    // The background run only works while the slideshow is shown.
+    container.read(slideshowVisibleProvider.notifier).setVisible(true);
+    container.read(backgroundJobsProvider);
+    // Wait until the run has saved the index and has finished.
+    await _waitUntil(() =>
+        container.read(backgroundJobsProvider) == false && stored != null);
+
+    final saved = await store.load();
+    expect(saved.items, isNotEmpty);
+    expect(started, isEmpty);
+  });
+
   test('a failing source keeps the others and only the working one is indexed',
       () async {
     final good = MockPhotoSource(

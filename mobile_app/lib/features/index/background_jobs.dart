@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/app_log.dart';
 import '../cache/small_photo_cache.dart';
+import '../settings/domain/app_settings.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
@@ -112,6 +113,9 @@ class BackgroundJobs extends Notifier<bool> {
     List<PhotoItem> items,
     List<PhotoSource> sources,
   ) async {
+    // Single gate for all background preparation (both calls in runOnce).
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+    if (!settings.preparationEnabled) return;
     // Random order: the copies that exist are a random sample of the library.
     await ref.read(smallPhotoWorkerProvider.notifier).start(
       List<PhotoItem>.of(items)..shuffle(),

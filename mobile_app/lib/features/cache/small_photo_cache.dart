@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +12,8 @@ import '../../core/utils/app_log.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/photo_item.dart';
 import '../sources/domain/photo_source.dart';
+import '../sources/local/local_folder_source.dart';
+import 'download_rate_meter.dart';
 
 /// Keeps a small, screen-sized JPEG of every photo on the device. The slideshow
 /// shows these files, so a photo from a network share is read once and then
@@ -19,30 +22,62 @@ import '../sources/domain/photo_source.dart';
 /// Files live in the app support directory and are not cleared on reload.
 class SmallPhotoCache {
   SmallPhotoCache({required Future<Directory> Function() directory})
-    : _directory = directory;
+      : _directory = directory;
 
   final Future<Directory> Function() _directory;
 
-  /// Scaling runs strictly one photo at a time. The lock is taken before the
-  /// job starts, and the timeout ([scaleTimeout]) applies to the job only, not
-  /// to the wait for the previous job, so a queued photo never times out while
-  /// it is still waiting. A stuck native call that exceeds the timeout still
-  /// runs in the background and may overlap with the next scaling, which is
-  /// accepted.
-  Future<void> _scalingTail = Future<void>.value();
+  /// The one shared FIFO queue for ALL heavy image work of this cache: decoding
+  /// for checks ([verify], [colorGrid]), scaling (native and Flutter) and the
+  /// colour comparison after scaling. At most one such job runs at a time, and
+  /// jobs run in the order they were queued. Entry points that take the queue:
+  /// [verifiedExisting] (the verify step) and [ensure] (the scaling step, which
+  /// includes its colour checks).
+  ///
+  /// Jobs run inside the queue must NOT call [_serial] again: the inner call
+  /// would wait for the job that is waiting for it. [colorGrid], [verify] and
+  /// [looksLikeOriginal] are plain functions for that reason.
+  ///
+  /// The lock is taken before the job starts, and the timeout ([scaleTimeout])
+  /// applies to the job only, not to the wait for the previous job, so a queued
+  /// job never times out while it is still waiting. A stuck native call that
+  /// exceeds the timeout still runs in the background and may overlap with the
+  /// next job, which is accepted.
+  Future<void> _queueTail = Future<void>.value();
 
-  /// After this duration a scaling job counts as failed and the lock is
+  /// Jobs of the shared queue that are running or waiting for their turn.
+  int _openConversions = 0;
+
+  /// Scaling and verification jobs that are running or waiting in the shared
+  /// queue right now.
+  int get openConversions => _openConversions;
+
+  /// Bytes downloaded by [ensure] since this cache was created. A cache hit
+  /// and a local source (which returns the original file) add nothing.
+  int _downloadedBytes = 0;
+
+  int get downloadedBytes => _downloadedBytes;
+
+  /// After this duration a queued job counts as failed and the lock is
   /// released.
   static const scaleTimeout = Duration(seconds: 45);
 
   Future<T> _serial<T>(Future<T> Function() job) {
     final done = Completer<void>();
-    final previous = _scalingTail;
-    _scalingTail = done.future;
+    final previous = _queueTail;
+    _queueTail = done.future;
+    _openConversions++;
     return previous
         .then((_) => job().timeout(scaleTimeout))
-        .whenComplete(done.complete);
+        .whenComplete(() {
+      _openConversions--;
+      done.complete();
+    });
   }
+
+  /// Runs [job] through the shared queue, exactly like the internal jobs do.
+  /// Only for tests, to occupy the queue with a controllable job.
+  @visibleForTesting
+  Future<T> runInQueueForTest<T>(Future<T> Function() job) => _serial(job);
 
   /// Keeps the temporary file names of concurrent calls apart.
   int _tempCounter = 0;
@@ -217,6 +252,10 @@ class SmallPhotoCache {
   /// The small file of [item], but only if it exists AND is intact (complete
   /// JPEG/PNG that decodes fully). A damaged file is deleted so it is
   /// prepared again, and `null` is returned.
+  ///
+  /// The stamp is checked before the queue, so a repeat check of a verified
+  /// file returns at once even while a scaling runs. The decoding check itself
+  /// waits in the shared queue (see [_serial]).
   Future<File?> verifiedExisting(PhotoItem item) async {
     final file = await existing(item);
     if (file == null) return null;
@@ -224,7 +263,13 @@ class SmallPhotoCache {
       final stat = await file.stat();
       final stamp = '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
       if (_verified[file.path] == stamp) return file;
-      if (await verify(file)) {
+      // The stamp is checked again inside the queue: another call may have
+      // verified the same file while this one was waiting.
+      final ok = await _serial(() async {
+        if (_verified[file.path] == stamp) return true;
+        return verify(file);
+      });
+      if (ok) {
         _verified[file.path] = stamp;
         return file;
       }
@@ -237,6 +282,8 @@ class SmallPhotoCache {
   }
 
   /// `true` when [file] is a complete image that decodes without error.
+  /// A plain function: [verifiedExisting] runs it inside the shared queue, so
+  /// it must not take the queue itself.
   static Future<bool> verify(File file) async {
     if (!await looksComplete(file, 0)) return false;
     return await colorGrid(file) != null;
@@ -265,11 +312,13 @@ class SmallPhotoCache {
     if (have != null) return have;
     try {
       var full = (await source.fetchToCache(item)).valueOrNull;
+      await _countDownload(source, full);
       // A download that is cut off (network share hiccup) must never become a
       // small copy: check it is complete, and try once more if not.
       if (full != null && !await looksComplete(full, 0)) {
         await _deleteIfTemp(full);
         full = (await source.fetchToCache(item)).valueOrNull;
+        await _countDownload(source, full);
         if (full != null && !await looksComplete(full, 0)) {
           await _deleteIfTemp(full);
           return null;
@@ -290,6 +339,7 @@ class SmallPhotoCache {
       );
       File? small;
       try {
+        // Scaling and its colour checks run as one job of the shared queue.
         small = await _serial(() => _scale(download, temp));
         if (small == null) return null;
         if (await target.exists()) await target.delete();
@@ -312,6 +362,17 @@ class SmallPhotoCache {
       );
       return null;
     }
+  }
+
+  /// Adds the size of [file], as returned by [PhotoSource.fetchToCache], to
+  /// [downloadedBytes]. Local folder sources return the original file, which
+  /// was not downloaded, so they add nothing. A file whose length cannot be
+  /// read counts as 0.
+  Future<void> _countDownload(PhotoSource source, File? file) async {
+    if (file == null || source is LocalFolderSource) return;
+    try {
+      _downloadedBytes += await file.length();
+    } catch (_) {}
   }
 
   Future<void> _deleteIfTemp(File file) async {
@@ -384,23 +445,33 @@ class SmallPhotoCache {
     return false;
   }
 
+  /// Runs only as a job of the shared queue (see [ensure]). Native scaling,
+  /// the colour checks and the Flutter fallback all happen in this one job.
   Future<File?> _scale(File full, File temp) async {
     File? small;
-    final result = await FlutterImageCompress.compressAndGetFile(
-      full.path,
-      temp.path,
-      // Sized for a full-screen tablet (about 2K); larger originals are
-      // scaled down, smaller ones stay as they are. Keeps storage small.
-      minWidth: 2048,
-      minHeight: 2048,
-      quality: 90,
-    );
-    if (result != null) {
-      final out = File(result.path);
-      // The native scaler mishandles some files (CMYK, odd colour profiles)
-      // and produces a purple/colour-cast picture. Compare the average colour
-      // with the original and reject such results.
-      if (await looksLikeOriginal(full, out)) small = out;
+    try {
+      final result = await FlutterImageCompress.compressAndGetFile(
+        full.path,
+        temp.path,
+        // Sized for a full-screen tablet (about 2K); larger originals are
+        // scaled down, smaller ones stay as they are. Keeps storage small.
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 90,
+      );
+      if (result != null) {
+        final out = File(result.path);
+        // The native scaler mishandles some files (CMYK, odd colour profiles)
+        // and produces a purple/colour-cast picture. Compare the average colour
+        // with the original and reject such results.
+        if (await looksLikeOriginal(full, out)) small = out;
+      }
+    } catch (e, st) {
+      // The native plugin throws on some files (a null reference inside the
+      // plugin). That must not fail the photo: the Flutter path below can
+      // still scale it.
+      logRecoverableError('Native photo scaling failed, using the fallback',
+          error: e, stackTrace: st);
     }
     return small ?? await _scaleWithFlutter(full, temp);
   }
@@ -414,6 +485,10 @@ class SmallPhotoCache {
   /// of [file], decoded small by Flutter's own codec (a full decode of the
   /// data, so truncated or broken files fail here). `null` when the file
   /// cannot be decoded.
+  ///
+  /// A plain function that does not take the queue lock: it is only called
+  /// from jobs that already run inside the shared queue ([verify] via
+  /// [verifiedExisting], and [_scale] via [ensure]).
   static Future<List<List<double>>?> colorGrid(File file) async {
     ui.Codec? codec;
     try {
@@ -456,6 +531,8 @@ class SmallPhotoCache {
   /// colour is close and no single cell of the grid differs strongly. If the
   /// original itself cannot be decoded by Flutter there is nothing to compare
   /// against, so the scaled file is accepted when it decodes.
+  /// Plain function: only called from [_scale], which runs inside the shared
+  /// queue, so it must not take the queue itself.
   static Future<bool> looksLikeOriginal(File original, File scaled) async {
     final b = await colorGrid(scaled);
     if (b == null) return false;
@@ -523,8 +600,8 @@ class SmallPhotoCache {
   }
 }
 
-final Provider<SmallPhotoCache>
-smallPhotoCacheProvider = Provider<SmallPhotoCache>(
+final Provider<SmallPhotoCache> smallPhotoCacheProvider =
+    Provider<SmallPhotoCache>(
   (ref) => SmallPhotoCache(
     directory: () async {
       final base = await getApplicationSupportDirectory();
@@ -576,6 +653,9 @@ class SmallPhotoStatus {
     this.total = 0,
     this.running = false,
     this.waiting = 0,
+    this.downloadedBytes = 0,
+    this.downloadRate = 0,
+    this.openConversions = 0,
   });
 
   final int done;
@@ -584,6 +664,17 @@ class SmallPhotoStatus {
 
   /// Photos still waiting in the queue behind the one being prepared.
   final int waiting;
+
+  /// Bytes downloaded by the current run so far.
+  final int downloadedBytes;
+
+  /// Download speed in bytes per second, averaged over the last ~10 seconds.
+  /// `0` when nothing is downloaded.
+  final double downloadRate;
+
+  /// Scaling and verification jobs open right now (running or waiting for the
+  /// shared queue).
+  final int openConversions;
 }
 
 /// Prepares the screen-sized copies in batches (size from the settings), one batch after
@@ -609,6 +700,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 
   /// When each photo last failed to prepare.
   final Map<String, DateTime> _failedAt = {};
+
+  /// Download speed of the current run, sampled by [_run]'s publish step.
+  final DownloadRateMeter _rateMeter = DownloadRateMeter();
 
   @override
   SmallPhotoStatus build() => const SmallPhotoStatus();
@@ -671,6 +765,25 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     if (_running || _queued.isEmpty) return;
     _running = true;
     final cache = ref.read(smallPhotoCacheProvider);
+    _rateMeter.reset();
+    final bytesAtStart = cache.downloadedBytes;
+
+    // Publishes the live counters. Called after every photo and by the timer
+    // below, so the download rate moves while a large photo is downloading.
+    void publish() {
+      _rateMeter.add(DateTime.now(), cache.downloadedBytes);
+      state = SmallPhotoStatus(
+        done: _done,
+        total: _total,
+        running: true,
+        waiting: _queued.length,
+        downloadedBytes: cache.downloadedBytes - bytesAtStart,
+        downloadRate: _rateMeter.bytesPerSecond,
+        openConversions: cache.openConversions,
+      );
+    }
+
+    final ticker = Timer.periodic(const Duration(seconds: 1), (_) => publish());
     try {
       while (_queued.isNotEmpty) {
         final batchSize =
@@ -695,24 +808,21 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
             }
           }
           _done++;
-          state = SmallPhotoStatus(
-            done: _done,
-            total: _total,
-            running: true,
-            waiting: _queued.length,
-          );
+          publish();
         }
         // Give the UI and the slideshow room between batches.
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
       state = SmallPhotoStatus(done: _done, total: _total);
     } finally {
+      ticker.cancel();
       _running = false;
     }
   }
 }
 
 final NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>
-smallPhotoWorkerProvider = NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(
+    smallPhotoWorkerProvider =
+    NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(
   SmallPhotoWorker.new,
 );

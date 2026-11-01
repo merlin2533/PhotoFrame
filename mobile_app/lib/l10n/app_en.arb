@@ -1,4 +1,8 @@
 {
+  "smallPhotoPreparationTitle": "Preparation (downscaling) enabled",
+  "@smallPhotoPreparationTitle": {"description": "Switch in the slideshow settings: preparation of the screen-sized copies on or off."},
+  "smallPhotoPreparationSubtitle": "Off: photos are shown unscaled; the slideshow then uses less background processing and memory.",
+  "@smallPhotoPreparationSubtitle": {"description": "Subtitle of the preparation (downscaling) switch."},
   "settingsLogTitle": "Log",
   "@settingsLogTitle": {"description": "Titel des Einstellungseintrags, der das Protokoll öffnet."},
   "settingsLogSubtitle": "View recent notices and errors of the app",
@@ -26,6 +30,13 @@
 
   "appTitle": "PhotoFrame",
 
+  "preparingTitle": "Preparing slideshow",
+  "preparingProgress": "{done} of {total} photos prepared",
+  "preparingProgressUnknown": "Preparing photos…",
+  "preparingProgressQueue": "{done} of {total} photos prepared · {waiting} in queue",
+  "preparingDownloaded": "{size} downloaded",
+  "preparingRate": "Speed: {rate}",
+  "preparingConversions": "Open conversions: {count}",
   "commonError": "Error: {message}",
   "commonCancel": "Cancel",
   "commonBack": "Back",

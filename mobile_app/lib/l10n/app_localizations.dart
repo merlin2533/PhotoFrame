@@ -98,6 +98,18 @@ abstract class AppLocalizations {
     Locale('en')
   ];
 
+  /// Schalter in den Diashow-Einstellungen: Vorbereitung der verkleinerten Kopien an oder aus.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorbereitung (Verkleinerung) aktiv'**
+  String get smallPhotoPreparationTitle;
+
+  /// Untertitel des Schalters Vorbereitung (Verkleinerung) aktiv.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus: Fotos werden unverkleinert gezeigt; die Diashow nutzt dann weniger Speicher-Verarbeitung im Hintergrund.'**
+  String get smallPhotoPreparationSubtitle;
+
   /// Titel des Einstellungseintrags, der das Protokoll öffnet.
   ///
   /// In de, this message translates to:
@@ -169,6 +181,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'PhotoFrame'**
   String get appTitle;
+
+  /// Titel der Ansicht, solange die Diashow auf die ersten vorbereiteten Fotos wartet.
+  ///
+  /// In de, this message translates to:
+  /// **'Diashow wird vorbereitet'**
+  String get preparingTitle;
+
+  /// Fortschrittstext der Vorbereitungsansicht, wenn die Anzahl bekannt ist.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total} Fotos vorbereitet'**
+  String preparingProgress(int done, int total);
+
+  /// Fortschrittstext der Vorbereitungsansicht, solange noch keine Anzahl feststeht.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotos werden vorbereitet…'**
+  String get preparingProgressUnknown;
+
+  /// Zeile mit Fortschritt und Warteschlange in der Vorbereitungsansicht, wenn die Anzahl bekannt ist.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total} Fotos vorbereitet · {waiting} in Warteschlange'**
+  String preparingProgressQueue(int done, int total, int waiting);
+
+  /// Zeile der Vorbereitungsansicht mit den bisher heruntergeladenen Bytes, z. B. '12.3 MB heruntergeladen'.
+  ///
+  /// In de, this message translates to:
+  /// **'{size} heruntergeladen'**
+  String preparingDownloaded(String size);
+
+  /// Zeile der Vorbereitungsansicht mit der aktuellen Download-Geschwindigkeit, z. B. 'Geschwindigkeit: 0 MB/s'.
+  ///
+  /// In de, this message translates to:
+  /// **'Geschwindigkeit: {rate}'**
+  String preparingRate(String rate);
+
+  /// Zeile der Vorbereitungsansicht mit der Anzahl offener Skalier- und Prüfvorgänge.
+  ///
+  /// In de, this message translates to:
+  /// **'Offene Konvertierungen: {count}'**
+  String preparingConversions(int count);
 
   /// Generische Fehleranzeige mit eingebetteter Fehlermeldung.
   ///

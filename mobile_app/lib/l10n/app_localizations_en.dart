@@ -9,6 +9,13 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get smallPhotoPreparationTitle => 'Preparation (downscaling) enabled';
+
+  @override
+  String get smallPhotoPreparationSubtitle =>
+      'Off: photos are shown unscaled; the slideshow then uses less background processing and memory.';
+
+  @override
   String get settingsLogTitle => 'Log';
 
   @override
@@ -44,6 +51,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appTitle => 'PhotoFrame';
+
+  @override
+  String get preparingTitle => 'Preparing slideshow';
+
+  @override
+  String preparingProgress(int done, int total) {
+    return '$done of $total photos prepared';
+  }
+
+  @override
+  String get preparingProgressUnknown => 'Preparing photos…';
+
+  @override
+  String preparingProgressQueue(int done, int total, int waiting) {
+    return '$done of $total photos prepared · $waiting in queue';
+  }
+
+  @override
+  String preparingDownloaded(String size) {
+    return '$size downloaded';
+  }
+
+  @override
+  String preparingRate(String rate) {
+    return 'Speed: $rate';
+  }
+
+  @override
+  String preparingConversions(int count) {
+    return 'Open conversions: $count';
+  }
 
   @override
   String commonError(String message) {

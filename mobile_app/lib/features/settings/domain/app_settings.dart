@@ -53,6 +53,7 @@ class AppSettings {
     this.dimStartMinutes = 22 * 60,
     this.dimEndMinutes = 6 * 60,
     this.onlyPreparedPhotos = true,
+    this.smallPhotoPreparation = true,
     // Cache
     this.cacheLimitBytes = 500 * 1024 * 1024,
     // Working-set pool
@@ -143,6 +144,11 @@ class AppSettings {
   /// Show only photos that have a checked, screen-sized copy on the device.
   /// Never shows raw downloads, which can be damaged (default on).
   final bool onlyPreparedPhotos;
+
+  /// Whether screen-sized copies are prepared at all (default on). Off: no
+  /// preparation job runs and the slideshow shows the raw downloads. Read it
+  /// through [preparationEnabled] / [onlyPreparedRuleActive], not directly.
+  final bool smallPhotoPreparation;
 
   // --- Cache ------------------------------------------------------------
   final int cacheLimitBytes;
@@ -263,6 +269,15 @@ class AppSettings {
 
   Duration get interval => Duration(seconds: intervalSeconds);
 
+  /// Whether screen-sized copies are prepared at all. Every place that starts
+  /// the preparation worker checks this - see [smallPhotoPreparation].
+  bool get preparationEnabled => smallPhotoPreparation;
+
+  /// Whether only checked screen-sized copies may be shown. Always false while
+  /// preparation is off, because nothing would ever be prepared. The stored
+  /// [onlyPreparedPhotos] value is left unchanged.
+  bool get onlyPreparedRuleActive => preparationEnabled && onlyPreparedPhotos;
+
   SlideshowConfig toSlideshowConfig() => SlideshowConfig(
         interval: interval,
         displayMode: displayMode,
@@ -290,6 +305,7 @@ class AppSettings {
     int? dimStartMinutes,
     int? dimEndMinutes,
     bool? onlyPreparedPhotos,
+    bool? smallPhotoPreparation,
     int? cacheLimitBytes,
     int? poolTargetSize,
     int? poolRefillIntervalHours,
@@ -338,6 +354,8 @@ class AppSettings {
       dimStartMinutes: dimStartMinutes ?? this.dimStartMinutes,
       dimEndMinutes: dimEndMinutes ?? this.dimEndMinutes,
       onlyPreparedPhotos: onlyPreparedPhotos ?? this.onlyPreparedPhotos,
+      smallPhotoPreparation:
+          smallPhotoPreparation ?? this.smallPhotoPreparation,
       cacheLimitBytes: cacheLimitBytes ?? this.cacheLimitBytes,
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
       poolRefillIntervalHours:
@@ -393,6 +411,7 @@ class AppSettings {
         'dimStartMinutes': dimStartMinutes,
         'dimEndMinutes': dimEndMinutes,
         'onlyPreparedPhotos': onlyPreparedPhotos,
+        'smallPhotoPreparation': smallPhotoPreparation,
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
@@ -454,6 +473,7 @@ class AppSettings {
       dimStartMinutes: json['dimStartMinutes'] as int? ?? 22 * 60,
       dimEndMinutes: json['dimEndMinutes'] as int? ?? 6 * 60,
       onlyPreparedPhotos: json['onlyPreparedPhotos'] as bool? ?? true,
+      smallPhotoPreparation: json['smallPhotoPreparation'] as bool? ?? true,
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 3,

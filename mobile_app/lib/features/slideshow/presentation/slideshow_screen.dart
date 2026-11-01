@@ -40,6 +40,7 @@ import 'widgets/clock_overlay.dart';
 import 'widgets/empty_state_view.dart';
 import 'widgets/ken_burns_effect.dart';
 import 'widgets/path_overlay.dart';
+import 'widgets/preparing_view.dart';
 import 'widgets/slide_renderer.dart';
 import 'widgets/source_label_overlay.dart';
 import 'widgets/touch_control_overlay.dart';
@@ -115,7 +116,16 @@ Future<void> clearNetworkCache({
 /// is out of scope for this milestone. `SlideshowEngine` itself is reused
 /// unchanged.
 class SlideshowScreen extends ConsumerStatefulWidget {
-  const SlideshowScreen({super.key});
+  const SlideshowScreen({
+    super.key,
+    this.preparedWaitLimit = defaultPreparedWaitLimit,
+  });
+
+  /// How long the start waits for the first prepared small copies before the
+  /// engine starts anyway (see `_preferPrepared`). Only tests pass another value.
+  final Duration preparedWaitLimit;
+
+  static const defaultPreparedWaitLimit = Duration(minutes: 3);
 
   @override
   ConsumerState<SlideshowScreen> createState() => _SlideshowScreenState();
@@ -126,6 +136,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   bool _paused = false;
   bool _loading = true;
   Object? _loadError;
+  // True only while the start path waits in `_preferPrepared` for the first
+  // prepared copies and no engine exists yet. `build` shows `PreparingView`
+  // then. Set and cleared by `_awaitPreparedAtStart`, which clears it on every
+  // exit (success, error, early return), and also in `dispose`.
+  bool _awaitingPrepared = false;
   // Minute timer for the night/dim overlays. Only runs while a night schedule
   // or the ambient dim window is configured (see `_syncMinuteTimer`). It bumps
   // `_minuteTick` instead of calling `setState`, so only the dim layers rebuild.
@@ -235,6 +250,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // provider state must not change.
     final visibility = _visibility;
     scheduleMicrotask(() => visibility.setVisible(false));
+    _awaitingPrepared = false;
     _nightTick?.cancel();
     _minuteTick.dispose();
     _ambientSub?.cancel();
@@ -476,13 +492,16 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (!mounted || _engine != engine || eligible.isEmpty) return;
 
       // Prepare a small, screen-sized copy of every photo in small batches.
-      unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
-        (List<PhotoItem>.of(eligible)..shuffle()),
-        {for (final s in sources) s.id: s},
-      ));
+      if (settings.preparationEnabled) {
+        unawaited(ref.read(smallPhotoWorkerProvider.notifier).start(
+          (List<PhotoItem>.of(eligible)..shuffle()),
+          {for (final s in sources) s.id: s},
+        ));
+      }
 
       final fresh = await _preferPrepared(
         await _todaysSelection(eligible, settings.selectionCount),
+        index: eligible,
       );
       // Nothing prepared yet (or the wait timed out): keep the photos already in
       // the pool rather than emptying it.
@@ -543,6 +562,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   /// on screen, so the next network photo is already in the cache when it is
   /// due. Local photos need no download and are skipped.
   void _prefetchNext() {
+    // Prefetching goes through the worker too, so it is skipped with it.
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+    if (!settings.preparationEnabled) return;
     final candidates = _itemsByKey.values.where((item) {
       final source = _sourcesById[item.sourceId];
       return source != null &&
@@ -563,33 +585,81 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         .then<void>((_) {}, onError: (Object _) {}));
   }
 
-  /// Photos that already have a screen-sized copy come first: while copies are
-  /// still being prepared, the slideshow shows only those. Falls back to all
-  /// photos when none is ready yet.
-  Future<List<PhotoItem>> _preferPrepared(List<PhotoItem> items) async {
+  /// Picks the photos to start with, in this order:
+  ///
+  /// 1. The prepared photos of [items] (today's selection).
+  /// 2. If none of them is prepared, the prepared photos of [index] (the whole
+  ///    photo index). The worker prepares photos in random order, so the
+  ///    prepared copies may lie outside the selection.
+  /// 3. Only if nothing is prepared anywhere, wait for the worker to finish the
+  ///    first copies, up to `preparedWaitLimit` (3 minutes by default).
+  ///
+  /// Without an [index] only steps 1 and 3 apply, for [items]. Raw downloads
+  /// are used only when `onlyPreparedPhotos` is off: then the photos of [items]
+  /// are returned when nothing is prepared anywhere. Preparation off counts as
+  /// `onlyPreparedPhotos` off (see `AppSettings.onlyPreparedRuleActive`).
+  Future<List<PhotoItem>> _preferPrepared(
+    List<PhotoItem> items, {
+    List<PhotoItem> index = const [],
+  }) async {
     final cache = ref.read(smallPhotoCacheProvider);
+    // False while preparation is off: raw downloads are then shown, and the
+    // start does not wait for prepared copies.
     final onlyPrepared =
-        ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
-    Future<List<PhotoItem>> prepared() async {
+        (ref.read(settingsProvider).value ?? const AppSettings())
+            .onlyPreparedRuleActive;
+    Future<List<PhotoItem>> preparedIn(List<PhotoItem> candidates) async {
       final list = <PhotoItem>[];
-      for (final item in items) {
+      for (final item in candidates) {
         if (await cache.existing(item) != null) list.add(item);
       }
       return list;
     }
 
+    Future<List<PhotoItem>> prepared() async {
+      final selected = await preparedIn(items);
+      if (selected.isNotEmpty) return selected;
+      return preparedIn(index);
+    }
+
     var list = await prepared();
     if (!onlyPrepared) return list.isEmpty ? items : list;
     // Only checked small copies are shown. While none exists yet, wait for the
-    // worker to finish the first ones (up to 3 minutes) instead of showing
-    // raw downloads.
-    final deadline = DateTime.now().add(const Duration(minutes: 3));
+    // worker to finish the first ones (up to `preparedWaitLimit`, 3 minutes by
+    // default) instead of showing raw downloads.
+    final deadline = DateTime.now().add(widget.preparedWaitLimit);
     while (list.isEmpty && mounted && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(seconds: 3));
       final status = ref.read(smallPhotoWorkerProvider);
       if (status.done > 0 || !status.running) list = await prepared();
     }
     return list;
+  }
+
+  /// Runs [_preferPrepared] for the start path with [_awaitingPrepared] set, so
+  /// the preparing view shows while the start waits. The flag is cleared in
+  /// `finally`, so it is reset whether the wait returns, throws, or the screen
+  /// is already gone. The engine is not built yet at this point, so the screen
+  /// keeps its loading state until the engine is set.
+  Future<List<PhotoItem>> _awaitPreparedAtStart(
+    List<PhotoItem> items, {
+    required List<PhotoItem> index,
+  }) async {
+    _setAwaitingPrepared(true);
+    try {
+      return await _preferPrepared(items, index: index);
+    } finally {
+      _setAwaitingPrepared(false);
+    }
+  }
+
+  void _setAwaitingPrepared(bool value) {
+    if (_awaitingPrepared == value) return;
+    if (mounted) {
+      setState(() => _awaitingPrepared = value);
+    } else {
+      _awaitingPrepared = value;
+    }
   }
 
   /// Handles a photo that cannot be shown.
@@ -656,10 +726,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           .toList();
       final List<PhotoItem> eligibleItems;
       if (indexed.isNotEmpty) {
-        eligibleItems = await _preferPrepared(await _todaysSelection(
-          _applyFavoritesFilter(indexed, settings, favorites),
-          settings.selectionCount,
-        ));
+        final candidates = _applyFavoritesFilter(indexed, settings, favorites);
+        eligibleItems = await _awaitPreparedAtStart(
+          await _todaysSelection(candidates, settings.selectionCount),
+          index: candidates,
+        );
       } else {
         eligibleItems = await _crawlEligible(
           sources,
@@ -920,7 +991,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsProvider);
 
-    if (_loading) {
+    // While the start waits for prepared copies, the engine-null branch below
+    // shows the preparing view (with the same action buttons) instead.
+    if (_loading && !_awaitingPrepared) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
@@ -986,7 +1059,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       return Stack(
         fit: StackFit.expand,
         children: [
-          const EmptyStateView(),
+          // Same action buttons either way; only the content changes.
+          _awaitingPrepared ? const PreparingView() : const EmptyStateView(),
           Positioned(
             top: 0,
             right: 0,
