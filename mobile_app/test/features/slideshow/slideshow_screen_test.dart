@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/index/photo_index_store.dart';
+import 'package:mobile_app/features/settings/domain/app_settings.dart';
+import 'package:mobile_app/features/settings/state/settings_providers.dart';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
@@ -51,6 +53,15 @@ class _FakeKioskModeController implements KioskModeController {
 /// single-`MockPhotoSource` registry, without touching secure-storage
 /// pruning (see `SourcesController.build`'s doc comment) - irrelevant noise
 /// for these tests.
+/// Pins the transition to fade: with the random default, one of the effects
+/// (zoom) makes pumpAndSettle time out, so these tests must not depend on the
+/// random pick.
+class _FixedSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async =>
+      const AppSettings(transition: SlideshowTransition.fade);
+}
+
 class _FixedSourcesController extends SourcesController {
   _FixedSourcesController(this._initial);
 
@@ -129,6 +140,7 @@ void main() {
       ProviderScope(
         overrides: [
           sourcesProvider.overrideWith(() => _FixedSourcesController([source])),
+          settingsProvider.overrideWith(_FixedSettings.new),
           alwaysOnControllerProvider.overrideWithValue(
             AlwaysOnController(wakelock: _FakeWakelock()),
           ),
