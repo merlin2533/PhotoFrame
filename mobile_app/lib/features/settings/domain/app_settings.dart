@@ -41,6 +41,7 @@ class AppSettings {
     this.ambientDimEnabled = false,
     this.dimStartMinutes = 22 * 60,
     this.dimEndMinutes = 6 * 60,
+    this.onlyPreparedPhotos = true,
     // Cache
     this.cacheLimitBytes = 500 * 1024 * 1024,
     // Working-set pool
@@ -125,6 +126,10 @@ class AppSettings {
   /// End of the dimming window, minutes since midnight (default 06:00).
   /// The window may cross midnight.
   final int dimEndMinutes;
+
+  /// Show only photos that have a checked, screen-sized copy on the device.
+  /// Never shows raw downloads, which can be damaged (default on).
+  final bool onlyPreparedPhotos;
 
   // --- Cache ------------------------------------------------------------
   final int cacheLimitBytes;
@@ -265,6 +270,7 @@ class AppSettings {
     bool? ambientDimEnabled,
     int? dimStartMinutes,
     int? dimEndMinutes,
+    bool? onlyPreparedPhotos,
     int? cacheLimitBytes,
     int? poolTargetSize,
     int? poolRefillIntervalHours,
@@ -311,6 +317,7 @@ class AppSettings {
       ambientDimEnabled: ambientDimEnabled ?? this.ambientDimEnabled,
       dimStartMinutes: dimStartMinutes ?? this.dimStartMinutes,
       dimEndMinutes: dimEndMinutes ?? this.dimEndMinutes,
+      onlyPreparedPhotos: onlyPreparedPhotos ?? this.onlyPreparedPhotos,
       cacheLimitBytes: cacheLimitBytes ?? this.cacheLimitBytes,
       poolTargetSize: poolTargetSize ?? this.poolTargetSize,
       poolRefillIntervalHours:
@@ -364,6 +371,7 @@ class AppSettings {
         'ambientDimEnabled': ambientDimEnabled,
         'dimStartMinutes': dimStartMinutes,
         'dimEndMinutes': dimEndMinutes,
+        'onlyPreparedPhotos': onlyPreparedPhotos,
         'cacheLimitBytes': cacheLimitBytes,
         'poolTargetSize': poolTargetSize,
         'poolRefillIntervalHours': poolRefillIntervalHours,
@@ -423,6 +431,7 @@ class AppSettings {
       ambientDimEnabled: json['ambientDimEnabled'] as bool? ?? false,
       dimStartMinutes: json['dimStartMinutes'] as int? ?? 22 * 60,
       dimEndMinutes: json['dimEndMinutes'] as int? ?? 6 * 60,
+      onlyPreparedPhotos: json['onlyPreparedPhotos'] as bool? ?? true,
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
       poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 3,

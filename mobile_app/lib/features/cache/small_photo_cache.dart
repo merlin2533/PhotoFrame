@@ -54,7 +54,7 @@ class SmallPhotoCache {
   }
 
   /// Name of the folder used before colours were checked (see above).
-  static const legacyDirectoryName = 'small_photos';
+  static const legacyDirectoryNames = ['small_photos', 'small_photos_v2'];
 
   /// Removes every prepared copy so they are created again.
   Future<void> clear() async {
@@ -199,7 +199,17 @@ class SmallPhotoCache {
     final have = await existing(item);
     if (have != null) return have;
     try {
-      final full = (await source.fetchToCache(item)).valueOrNull;
+      var full = (await source.fetchToCache(item)).valueOrNull;
+      // A download that is cut off (network share hiccup) must never become a
+      // small copy: check it is complete, and try once more if not.
+      if (full != null && !await looksComplete(full, item.size)) {
+        await _deleteIfTemp(full);
+        full = (await source.fetchToCache(item)).valueOrNull;
+        if (full != null && !await looksComplete(full, item.size)) {
+          await _deleteIfTemp(full);
+          return null;
+        }
+      }
       if (full == null) return null;
       final target = await _fileFor(item);
       // Written to a temporary name first: a half-written or broken file must
@@ -226,6 +236,47 @@ class SmallPhotoCache {
       logRecoverableError('Small photo could not be prepared',
           error: e, stackTrace: st);
       return null;
+    }
+  }
+
+  Future<void> _deleteIfTemp(File file) async {
+    if (file.parent.path == Directory.systemTemp.path && await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  /// `false` when [file] is shorter than the [expectedSize] the source
+  /// reported, or is a JPEG/PNG whose end marker is missing (truncated).
+  static Future<bool> looksComplete(File file, int expectedSize) async {
+    try {
+      final length = await file.length();
+      if (length == 0) return false;
+      if (expectedSize > 0 && length < expectedSize) return false;
+      final raf = await file.open();
+      try {
+        final head = await raf.read(8);
+        final tailLen = length < 64 ? length : 64;
+        await raf.setPosition(length - tailLen);
+        final tail = await raf.read(tailLen);
+        if (head.length >= 3 && head[0] == 0xFF && head[1] == 0xD8) {
+          // JPEG: must end with EOI (FF D9); trailing zero padding is fine.
+          var end = tail.length - 1;
+          while (end > 0 && tail[end] == 0) {
+            end--;
+          }
+          return end >= 1 && tail[end - 1] == 0xFF && tail[end] == 0xD9;
+        }
+        if (head.length >= 4 && head[0] == 0x89 && head[1] == 0x50) {
+          // PNG: last chunk is IEND.
+          final text = String.fromCharCodes(tail);
+          return text.contains('IEND');
+        }
+        return true; // other formats: only the size check applies
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
     }
   }
 

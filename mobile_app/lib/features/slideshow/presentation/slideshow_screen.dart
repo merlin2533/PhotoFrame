@@ -469,11 +469,28 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   /// photos when none is ready yet.
   Future<List<PhotoItem>> _preferPrepared(List<PhotoItem> items) async {
     final cache = ref.read(smallPhotoCacheProvider);
-    final prepared = <PhotoItem>[];
-    for (final item in items) {
-      if (await cache.existing(item) != null) prepared.add(item);
+    final onlyPrepared =
+        ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
+    Future<List<PhotoItem>> prepared() async {
+      final list = <PhotoItem>[];
+      for (final item in items) {
+        if (await cache.existing(item) != null) list.add(item);
+      }
+      return list;
     }
-    return prepared.isEmpty ? items : prepared;
+
+    var list = await prepared();
+    if (!onlyPrepared) return list.isEmpty ? items : list;
+    // Only checked small copies are shown. While none exists yet, wait for the
+    // worker to finish the first ones (up to 3 minutes) instead of showing
+    // raw downloads.
+    final deadline = DateTime.now().add(const Duration(minutes: 3));
+    while (list.isEmpty && mounted && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      final status = ref.read(smallPhotoWorkerProvider);
+      if (status.done > 0 || !status.running) list = await prepared();
+    }
+    return list;
   }
 
   /// A photo that cannot be fetched (file removed, share offline) is taken out
