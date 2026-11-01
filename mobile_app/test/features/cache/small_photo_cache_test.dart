@@ -75,6 +75,28 @@ void main() {
     });
   });
 
+  test('looksComplete detects truncated JPEG and short downloads', () async {
+    File write(String name, List<int> bytes) =>
+        File('${dir.path}${Platform.pathSeparator}$name')
+          ..writeAsBytesSync(bytes);
+    final whole = write('ok.jpg', [0xFF, 0xD8, 1, 2, 3, 0xFF, 0xD9]);
+    final cut = write('cut.jpg', [0xFF, 0xD8, 1, 2, 3, 4, 5]);
+    final padded = write('pad.jpg', [0xFF, 0xD8, 1, 0xFF, 0xD9, 0, 0, 0]);
+    expect(await SmallPhotoCache.looksComplete(whole, 7), isTrue);
+    expect(await SmallPhotoCache.looksComplete(cut, 7), isFalse);
+    expect(await SmallPhotoCache.looksComplete(padded, 8), isTrue);
+    // The source reported more bytes than arrived.
+    expect(await SmallPhotoCache.looksComplete(whole, 100), isFalse);
+    expect(await SmallPhotoCache.looksComplete(write('e.jpg', []), 0), isFalse);
+  });
+
+  test('onlyPreparedPhotos defaults to true and survives JSON', () {
+    expect(const AppSettings().onlyPreparedPhotos, isTrue);
+    final off = AppSettings.fromJson(
+        const AppSettings().copyWith(onlyPreparedPhotos: false).toJson());
+    expect(off.onlyPreparedPhotos, isFalse);
+  });
+
   test('clear removes the prepared copies', () async {
     final cache = SmallPhotoCache(directory: () async => dir);
     File('${dir.path}${Platform.pathSeparator}one.jpg').writeAsBytesSync([1]);

@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../cache/small_photo_cache.dart';
+import '../../../settings/state/settings_providers.dart';
+import '../../../../core/errors/failure.dart';
 import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
 import '../../domain/slideshow_config.dart';
@@ -93,6 +95,13 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
   Future<Result<File>> _resolve() async {
     final small = await ref.read(smallPhotoCacheProvider).existing(widget.item);
     if (small != null) return Result.ok(small);
+    // Raw downloads can be damaged (truncated or garbled), so by default only
+    // checked small copies are shown; the photo is skipped until one exists.
+    final onlyPrepared =
+        ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
+    if (onlyPrepared) {
+      return Result.err(const NotFound('Verkleinerte Kopie noch nicht fertig'));
+    }
     return widget.source.fetchToCache(widget.item);
   }
 

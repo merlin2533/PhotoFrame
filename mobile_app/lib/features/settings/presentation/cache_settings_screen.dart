@@ -200,6 +200,18 @@ class CacheSettingsScreen extends ConsumerWidget {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 24),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Nur geprüfte, verkleinerte Fotos anzeigen'),
+              subtitle: const Text(
+                  'Zeigt nie das heruntergeladene Original, das beschädigt '
+                  'sein kann. Fotos erscheinen, sobald ihre verkleinerte '
+                  'Kopie fertig und geprüft ist.'),
+              value: settings.onlyPreparedPhotos,
+              onChanged: (v) => notifier
+                  .updateSettings((s) => s.copyWith(onlyPreparedPhotos: v)),
+            ),
+            const SizedBox(height: 16),
             Text('Dias pro Batch: ${settings.smallPhotoBatchSize}',
                 style: Theme.of(context).textTheme.titleMedium),
             Slider(
