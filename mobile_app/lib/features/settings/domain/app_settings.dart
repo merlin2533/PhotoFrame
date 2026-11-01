@@ -45,7 +45,7 @@ class AppSettings {
     this.cacheLimitBytes = 500 * 1024 * 1024,
     // Working-set pool
     this.poolTargetSize = 1000,
-    this.poolRefillIntervalHours = 1,
+    this.poolRefillIntervalHours = 3,
     this.indexRefreshHours = 48,
     this.selectionCount = 1000,
     this.smallPhotoBatchSize = 5,
@@ -425,7 +425,7 @@ class AppSettings {
       dimEndMinutes: json['dimEndMinutes'] as int? ?? 6 * 60,
       cacheLimitBytes: json['cacheLimitBytes'] as int? ?? 500 * 1024 * 1024,
       poolTargetSize: json['poolTargetSize'] as int? ?? 1000,
-      poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 1,
+      poolRefillIntervalHours: json['poolRefillIntervalHours'] as int? ?? 3,
       indexRefreshHours: json['indexRefreshHours'] as int? ?? 48,
       selectionCount: json['selectionCount'] as int? ?? 1000,
       smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
