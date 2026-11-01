@@ -20,6 +20,17 @@ import 'package:mobile_app/features/sources/state/sources_providers.dart';
 import 'package:mobile_app/services/kiosk/kiosk_mode_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Pins the transition to fade (with the random default, zoom makes
+/// pumpAndSettle time out) and allows raw downloads, because a MockPhotoSource
+/// has no prepared small copy.
+class _FixedSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        onlyPreparedPhotos: false,
+      );
+}
+
 /// No-op [WakelockController] so widget tests never touch the real
 /// `wakelock_plus` platform channel (which isn't registered under
 /// `flutter test` and isn't the concern of this screen's tests anyway).
@@ -53,19 +64,6 @@ class _FakeKioskModeController implements KioskModeController {
 /// single-`MockPhotoSource` registry, without touching secure-storage
 /// pruning (see `SourcesController.build`'s doc comment) - irrelevant noise
 /// for these tests.
-/// Pins the transition to fade (with the random default, zoom makes
-/// pumpAndSettle time out) and allows raw downloads, because a MockPhotoSource
-/// has no prepared small copy.
-class _FixedSettings extends AppSettingsController {
-  @override
-  Future<AppSettings> build() async => const AppSettings(
-        transition: SlideshowTransition.fade,
-        onlyPreparedPhotos: false,
-      );
-}
-
-}
-
 class _FixedSourcesController extends SourcesController {
   _FixedSourcesController(this._initial);
 
