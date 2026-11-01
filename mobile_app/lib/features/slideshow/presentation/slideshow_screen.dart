@@ -486,6 +486,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
       final fresh = await _preferPrepared(
         await _todaysSelection(eligible, settings.selectionCount),
+        index: eligible,
       );
       // Nothing prepared yet (or the wait timed out): keep the photos already in
       // the pool rather than emptying it.
@@ -566,19 +567,37 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         .then<void>((_) {}, onError: (Object _) {}));
   }
 
-  /// Photos that already have a screen-sized copy come first: while copies are
-  /// still being prepared, the slideshow shows only those. Falls back to all
-  /// photos when none is ready yet.
-  Future<List<PhotoItem>> _preferPrepared(List<PhotoItem> items) async {
+  /// Picks the photos to start with, in this order:
+  ///
+  /// 1. The prepared photos of [items] (today's selection).
+  /// 2. If none of them is prepared, the prepared photos of [index] (the whole
+  ///    photo index). The worker prepares photos in random order, so the
+  ///    prepared copies may lie outside the selection.
+  /// 3. Only if nothing is prepared anywhere, wait for the worker to finish the
+  ///    first copies, up to `preparedWaitLimit` (3 minutes by default).
+  ///
+  /// Without an [index] only steps 1 and 3 apply, for [items]. Raw downloads
+  /// are used only when `onlyPreparedPhotos` is off: then the photos of [items]
+  /// are returned when nothing is prepared anywhere.
+  Future<List<PhotoItem>> _preferPrepared(
+    List<PhotoItem> items, {
+    List<PhotoItem> index = const [],
+  }) async {
     final cache = ref.read(smallPhotoCacheProvider);
     final onlyPrepared =
         ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
-    Future<List<PhotoItem>> prepared() async {
+    Future<List<PhotoItem>> preparedIn(List<PhotoItem> candidates) async {
       final list = <PhotoItem>[];
-      for (final item in items) {
+      for (final item in candidates) {
         if (await cache.existing(item) != null) list.add(item);
       }
       return list;
+    }
+
+    Future<List<PhotoItem>> prepared() async {
+      final selected = await preparedIn(items);
+      if (selected.isNotEmpty) return selected;
+      return preparedIn(index);
     }
 
     var list = await prepared();
@@ -600,10 +619,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   /// `finally`, so it is reset whether the wait returns, throws, or the screen
   /// is already gone. The engine is not built yet at this point, so the screen
   /// keeps its loading state until the engine is set.
-  Future<List<PhotoItem>> _awaitPreparedAtStart(List<PhotoItem> items) async {
+  Future<List<PhotoItem>> _awaitPreparedAtStart(
+    List<PhotoItem> items, {
+    required List<PhotoItem> index,
+  }) async {
     _setAwaitingPrepared(true);
     try {
-      return await _preferPrepared(items);
+      return await _preferPrepared(items, index: index);
     } finally {
       _setAwaitingPrepared(false);
     }
@@ -682,10 +704,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
           .toList();
       final List<PhotoItem> eligibleItems;
       if (indexed.isNotEmpty) {
-        eligibleItems = await _awaitPreparedAtStart(await _todaysSelection(
-          _applyFavoritesFilter(indexed, settings, favorites),
-          settings.selectionCount,
-        ));
+        final candidates = _applyFavoritesFilter(indexed, settings, favorites);
+        eligibleItems = await _awaitPreparedAtStart(
+          await _todaysSelection(candidates, settings.selectionCount),
+          index: candidates,
+        );
       } else {
         eligibleItems = await _crawlEligible(
           sources,
