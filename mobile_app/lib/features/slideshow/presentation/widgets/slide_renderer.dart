@@ -6,11 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../cache/small_photo_cache.dart';
+import '../../../settings/domain/app_settings.dart';
 import '../../../settings/state/settings_providers.dart';
-import '../../../../core/errors/failure.dart';
 import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
 import '../../domain/slideshow_config.dart';
@@ -107,8 +108,12 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     }
     // Raw downloads can be damaged (truncated or garbled), so by default only
     // checked small copies are shown; the photo is skipped until one exists.
-    final onlyPrepared =
-        ref.read(settingsProvider).value?.onlyPreparedPhotos ?? true;
+    // Wait for the settings instead of reading `.value`, which is still null on
+    // the first frame and would wrongly fall back to the default.
+    final settings = await ref
+        .read(settingsProvider.future)
+        .catchError((Object _) => const AppSettings());
+    final onlyPrepared = settings.onlyPreparedPhotos;
     if (onlyPrepared) {
       return Result.err(const NotFound('Verkleinerte Kopie noch nicht fertig'));
     }

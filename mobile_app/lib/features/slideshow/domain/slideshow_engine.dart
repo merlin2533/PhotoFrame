@@ -166,13 +166,14 @@ class SlideshowEngine {
       // Resolution failed (e.g. item vanished from its source); try the
       // next candidate rather than getting stuck on a dead entry.
       _pool.remove(entry.sourceId, entry.itemId);
-      _shuffleBag.updateItems(_pool.entries);
+      // ShuffleBag rejects an empty list, so an emptied pool is handled first.
       if (_pool.entries.isEmpty) {
         _currentEntry = null;
         _currentItem = null;
         _currentItemController.add(null);
         return;
       }
+      _shuffleBag.updateItems(_pool.entries);
       return _advance();
     }
 
