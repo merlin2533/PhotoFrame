@@ -225,7 +225,7 @@ class LocalFolderSource implements PhotoSource {
       if (!await dir.exists().timeout(timeout)) {
         return Result.err(
           NotFound(
-              'Folder no longer exists: $root (was it removed/unmounted?)'),
+              'Folder no longer exists: "$root" (was it removed/unmounted?)'),
         );
       }
       // Cheaply probe readability: listing lazily throws on the first
@@ -242,7 +242,7 @@ class LocalFolderSource implements PhotoSource {
         ConnectionStatus(
           reachable: true,
           latency: stopwatch.elapsed,
-          detail: 'Folder readable: $root',
+          detail: 'Folder readable: "$root"',
         ),
       );
     } on TimeoutException {
@@ -251,13 +251,13 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13 /* EACCES */;
       return Result.err(
         denied
-            ? PermissionDenied('Permission denied reading folder: $root',
+            ? PermissionDenied('Permission denied reading folder: "$root"',
                 cause: e)
-            : NotFound('Folder not accessible: $root', cause: e),
+            : NotFound('Folder not accessible: "$root"', cause: e),
       );
     } catch (e) {
       return Result.err(
-          NetworkError('Unexpected error checking folder: $root', cause: e));
+          NetworkError('Unexpected error checking folder: "$root"', cause: e));
     }
   }
 
@@ -312,9 +312,9 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       yield Result.err(
         denied
-            ? PermissionDenied('Permission denied listing folders under $root',
+            ? PermissionDenied('Permission denied listing folders under "$root"',
                 cause: e)
-            : NotFound('Folder not accessible: $root', cause: e),
+            : NotFound('Folder not accessible: "$root"', cause: e),
       );
     } catch (e) {
       yield Result.err(
@@ -395,9 +395,9 @@ class LocalFolderSource implements PhotoSource {
       yield Result.err(
         denied
             ? PermissionDenied(
-                'Permission denied listing images under ${folder.path}',
+                'Permission denied listing images under "${folder.path}"',
                 cause: e)
-            : NotFound('Folder not accessible: ${folder.path}', cause: e),
+            : NotFound('Folder not accessible: "${folder.path}"', cause: e),
       );
     } catch (e) {
       yield Result.err(
@@ -418,7 +418,7 @@ class LocalFolderSource implements PhotoSource {
     try {
       if (!await file.exists()) {
         return Result.err(
-          NotFound('File no longer exists: ${item.id} (medium removed?)'),
+          NotFound('File no longer exists: "${item.id}" (medium removed?)'),
         );
       }
       // Local source: the file is already on-device, no copy needed - see
@@ -428,9 +428,9 @@ class LocalFolderSource implements PhotoSource {
       final denied = e.osError?.errorCode == 13;
       return Result.err(
         denied
-            ? PermissionDenied('Permission denied reading file: ${item.id}',
+            ? PermissionDenied('Permission denied reading file: "${item.id}"',
                 cause: e)
-            : NotFound('File not accessible: ${item.id}', cause: e),
+            : NotFound('File not accessible: "${item.id}"', cause: e),
       );
     }
   }

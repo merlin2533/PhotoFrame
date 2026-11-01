@@ -120,7 +120,7 @@ class _SendConfigPushScreenState extends State<SendConfigPushScreen> {
       setState(() {
         _sending = false;
         _error =
-            'Für Frame $targetFrameId liegt noch kein Sicherheitsschlüssel auf dem Relay-Server vor - '
+            'Für Frame "$targetFrameId" liegt noch kein Sicherheitsschlüssel auf dem Relay-Server vor - '
             'eine verschlüsselte Konfiguration kann noch nicht gesendet werden.';
       });
       return;

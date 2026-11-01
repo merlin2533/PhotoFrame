@@ -85,7 +85,7 @@ class SharedAlbumPhotoSource implements PhotoSource, UploadablePhotoSource {
   Stream<Result<PhotoItem>> listImages(PhotoFolder folder,
       {bool recursive = true, CancellationToken? token}) async* {
     if (folder.id != _pairingId) {
-      yield Result.err(NotFound('Unknown shared-album folder: ${folder.id}'));
+      yield Result.err(NotFound('Unknown shared-album folder: "${folder.id}"'));
       return;
     }
 
