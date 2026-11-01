@@ -174,10 +174,14 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // Fixed time instead of pumpAndSettle: the background timers of the
+    // slideshow never let the tree settle, but the first slide is ready here.
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.byType(EmptyStateView), findsNothing);
-    expect(find.byType(SlideRenderer), findsOneWidget);
+    // During a fade two slides can be mounted at once, so only require that a
+    // slide is shown.
+    expect(find.byType(SlideRenderer), findsWidgets);
     // SlideRenderer's placeholder (see its doc comment on why it can't
     // decode MockPhotoSource's non-image bytes) still renders the item's
     // real name, so this confirms the *actual* resolved PhotoItem reached

@@ -13,23 +13,45 @@ import 'slideshow_config.dart';
 /// index, likely backed by drift) doesn't exist yet in this scaffold.
 typedef ItemResolver = Future<PhotoItem?> Function(PoolEntry entry);
 
-/// How many upcoming photos the slideshow prepares ahead of time, so they are
-/// already in the cache when they are shown.
+/// How many upcoming photos the slideshow prepares ahead of time when it
+/// starts, so they are already in the cache when they are shown. This is the
+/// start value of the prefetch ramp (see [prefetchCountAfter]).
 const int upcomingPhotoCount = 3;
+
+/// Upper limit for the number of photos prefetched ahead.
+const int maxPrefetchCount = 25;
+
+/// How much the prefetch count grows for every photo the slideshow shows.
+const int prefetchRampStep = 2;
+
+/// The number of photos to prefetch ahead after [shownCount] photos were shown
+/// since the engine was built. It starts at [upcomingPhotoCount], grows by
+/// [prefetchRampStep] per shown photo and never exceeds [maxPrefetchCount].
+/// Negative counts are treated as zero.
+///
+/// For example: 0 shown gives 3, 1 shown gives 5, 11 shown gives 25, and any
+/// higher count still gives 25.
+int prefetchCountAfter(int shownCount) {
+  final shown = shownCount < 0 ? 0 : shownCount;
+  final ramped = upcomingPhotoCount + prefetchRampStep * shown;
+  return ramped > maxPrefetchCount ? maxPrefetchCount : ramped;
+}
 
 /// Drives the slideshow: decides which item is currently shown, advances on
 /// a timer, and pulls the next candidates from a [WorkingSetPool] via a
 /// [ShuffleBag] so items rotate fairly without immediate repeats.
 ///
 /// Prefetching: the screen asks [upcomingEntries] for the next
-/// [upcomingPhotoCount] entries and prepares them (see `_prefetchNext` in
-/// `slideshow_screen.dart`). The engine itself does no I/O.
+/// [prefetchCountAfter] entries (the count ramps up while the slideshow runs)
+/// and prepares them (see `_prefetchNext` in `slideshow_screen.dart`). The
+/// engine itself does no I/O.
 class SlideshowEngine {
   SlideshowEngine({
     required WorkingSetPool pool,
     required Map<String, PhotoSource> sources,
     required ItemResolver resolveItem,
     SlideshowConfig config = const SlideshowConfig(),
+    this.isCached,
   })  : _pool = pool,
         _sources = sources,
         _resolveItem = resolveItem,
@@ -44,6 +66,15 @@ class SlideshowEngine {
       keyOf: (entry) => entry.key,
     );
   }
+
+  /// Synchronous check whether the photo of [entry] can be shown right away
+  /// (it is already on disk). It must not do any I/O. When it is `null`, every
+  /// entry counts as cached and the order is never changed.
+  ///
+  /// When the entry due next is not cached and at least one cached entry is in
+  /// the pool, the next cached entry is shown instead. The skipped entry stays
+  /// in the pool and is queued again, so it comes up later.
+  final bool Function(PoolEntry entry)? isCached;
 
   WorkingSetPool _pool;
   final Map<String, PhotoSource> _sources;
@@ -172,9 +203,48 @@ class SlideshowEngine {
     }
   }
 
+  /// The next entry in show order, from the lookahead buffer or the bag.
+  PoolEntry _takeInOrder() =>
+      _lookahead.isNotEmpty ? _lookahead.removeAt(0) : _shuffleBag.next();
+
+  /// Chooses the entry to show next. If the entry due next is not cached, the
+  /// next cached entry is returned instead, and the skipped one is queued again
+  /// at the end of the lookahead, so it stays in the pool for later. When
+  /// nothing in the pool is cached, the entry due next is returned unchanged.
+  ///
+  /// Synchronous and in-memory only: the [isCached] check does no I/O.
+  PoolEntry _takeNextEntry() {
+    final first = _takeInOrder();
+    final isCached = this.isCached;
+    if (isCached == null || isCached(first)) return first;
+    if (!_pool.entries.any(isCached)) return first;
+
+    final cachedIndex = _lookahead.indexWhere(isCached);
+    if (cachedIndex >= 0) {
+      final cached = _lookahead.removeAt(cachedIndex);
+      _lookahead.add(first);
+      return cached;
+    }
+    // The cached entry is not buffered yet: draw from the bag. Entries drawn
+    // on the way are buffered in order, so they are not lost. A full cycle
+    // over the pool reaches every entry, so the loop bound is generous.
+    final bagDraws = _pool.entries.length * 2;
+    for (var i = 0; i < bagDraws; i++) {
+      final candidate = _shuffleBag.next();
+      if (isCached(candidate)) {
+        _lookahead.add(first);
+        return candidate;
+      }
+      if (candidate.key != first.key &&
+          !_lookahead.any((other) => other.key == candidate.key)) {
+        _lookahead.add(candidate);
+      }
+    }
+    return first;
+  }
+
   Future<void> _advance() async {
-    final entry =
-        _lookahead.isNotEmpty ? _lookahead.removeAt(0) : _shuffleBag.next();
+    final entry = _takeNextEntry();
     final item = await _resolveItem(entry);
     if (item == null) {
       // Resolution failed (e.g. item vanished from its source); try the

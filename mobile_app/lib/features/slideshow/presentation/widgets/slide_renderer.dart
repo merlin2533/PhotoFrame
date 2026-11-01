@@ -47,12 +47,19 @@ class SlideRenderer extends ConsumerStatefulWidget {
     required this.source,
     required this.displayMode,
     this.onUnavailable,
+    this.onFileReady,
   });
 
   /// Called when the photo cannot be shown, so the slideshow can skip it. Not
   /// called for a result that arrives after the widget has moved on to another
   /// item.
   final ValueChanged<SlideUnavailableReason>? onUnavailable;
+
+  /// Called with [item] once a checked file for it is on disk (a prepared copy
+  /// or a complete raw download). The slideshow uses it to know which photos
+  /// can be shown without waiting. Not called for a late result, as with
+  /// [onUnavailable].
+  final ValueChanged<PhotoItem>? onFileReady;
 
   final PhotoItem item;
   final PhotoSource source;
@@ -103,6 +110,7 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
             : SlideUnavailableReason.unreadable);
         debugPrint('Fetch failed for ${requested.id}: $message');
       }
+      if (file != null && stillShown) widget.onFileReady?.call(requested);
       return file;
     }).catchError((Object e) {
       debugPrint('Fetch threw for ${requested.id}: $e');
