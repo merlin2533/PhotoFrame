@@ -63,6 +63,8 @@ class AppSettings {
     this.selectionCount = 1000,
     this.smallPhotoBatchSize = 5,
     this.poolNewImageQuota = 0.2,
+    this.rotationSwapPercent = 5,
+    this.rotationRenewalDays = 7,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
     this.disabledSourceIds = const [],
@@ -167,6 +169,15 @@ class AppSettings {
   /// prepared (1-50). Photos in a batch are scaled one after the other.
   final int smallPhotoBatchSize;
   final double poolNewImageQuota;
+
+  /// Share of the rotation pool swapped out each day, in percent (0-50, steps
+  /// of 5; 0 turns the daily swap off). Default 5. The swap runs once per
+  /// calendar day, see `rotation_swap.dart`.
+  final int rotationSwapPercent;
+
+  /// Days until the whole rotation pool has been renewed (1-30). Shown in the
+  /// slideshow settings next to [rotationSwapPercent].
+  final int rotationRenewalDays;
 
   // --- Favorites / date filter (P2) ---------------------------------------
 
@@ -313,6 +324,8 @@ class AppSettings {
     int? selectionCount,
     int? smallPhotoBatchSize,
     double? poolNewImageQuota,
+    int? rotationSwapPercent,
+    int? rotationRenewalDays,
     bool? favoritesOnlyMode,
     List<String>? disabledSourceIds,
     double? textScale,
@@ -364,6 +377,8 @@ class AppSettings {
       selectionCount: selectionCount ?? this.selectionCount,
       smallPhotoBatchSize: smallPhotoBatchSize ?? this.smallPhotoBatchSize,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
+      rotationSwapPercent: rotationSwapPercent ?? this.rotationSwapPercent,
+      rotationRenewalDays: rotationRenewalDays ?? this.rotationRenewalDays,
       favoritesOnlyMode: favoritesOnlyMode ?? this.favoritesOnlyMode,
       disabledSourceIds: disabledSourceIds ?? this.disabledSourceIds,
       textScale: textScale ?? this.textScale,
@@ -419,6 +434,8 @@ class AppSettings {
         'selectionCount': selectionCount,
         'smallPhotoBatchSize': smallPhotoBatchSize,
         'poolNewImageQuota': poolNewImageQuota,
+        'rotationSwapPercent': rotationSwapPercent,
+        'rotationRenewalDays': rotationRenewalDays,
         'favoritesOnlyMode': favoritesOnlyMode,
         'disabledSourceIds': disabledSourceIds,
         'textScale': textScale,
@@ -438,7 +455,7 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
-      intervalSeconds: json['intervalSeconds'] as int? ?? 10,
+      intervalSeconds: json['intervalSeconds'] as int? ?? 30,
       showSourceLabel: json['showSourceLabel'] as bool? ?? false,
       showCaptionOverlay: json['showCaptionOverlay'] as bool? ?? false,
       showImageDetails: json['showImageDetails'] as bool? ?? true,
@@ -481,6 +498,8 @@ class AppSettings {
       selectionCount: json['selectionCount'] as int? ?? 1000,
       smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
+      rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 5,
+      rotationRenewalDays: json['rotationRenewalDays'] as int? ?? 7,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
       highContrast: json['highContrast'] as bool? ?? false,

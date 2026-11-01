@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../sources/domain/photo_item.dart';
+import 'overlay_text_panel.dart';
 
-/// Small pill caption at the bottom left showing the photo's date and folder
-/// name. Same pill style as `SourceLabelOverlay` (which sits bottom right).
+/// Caption panel at the bottom left showing the photo's date and folder
+/// name. Same panel style as `SourceLabelOverlay` (which sits bottom right).
 /// Visibility is controlled by the caller via `AppSettings.showCaptionOverlay`.
 ///
 /// Sits at `bottom: 16`. When the clock or weather pill occupies that corner,
@@ -22,13 +23,8 @@ class CaptionOverlay extends StatelessWidget {
       left: 16,
       bottom: raised ? 64 : 16,
       child: IgnorePointer(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(text, style: const TextStyle(color: Colors.white)),
+        child: OverlayTextPanel(
+          child: Text(text, style: overlayTextStyle),
         ),
       ),
     );

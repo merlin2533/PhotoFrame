@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
+import '../../../../core/utils/debug_trace.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../cache/not_convertible_store.dart';
 import '../../../cache/small_photo_cache.dart';
 import '../../../settings/domain/app_settings.dart';
 import '../../../settings/state/settings_providers.dart';
@@ -46,12 +48,19 @@ class SlideRenderer extends ConsumerStatefulWidget {
     required this.source,
     required this.displayMode,
     this.onUnavailable,
+    this.onFileReady,
   });
 
   /// Called when the photo cannot be shown, so the slideshow can skip it. Not
   /// called for a result that arrives after the widget has moved on to another
   /// item.
   final ValueChanged<SlideUnavailableReason>? onUnavailable;
+
+  /// Called with [item] once a checked file for it is on disk (a prepared copy
+  /// or a complete raw download). The slideshow uses it to know which photos
+  /// can be shown without waiting. Not called for a late result, as with
+  /// [onUnavailable].
+  final ValueChanged<PhotoItem>? onFileReady;
 
   final PhotoItem item;
   final PhotoSource source;
@@ -102,6 +111,7 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
             : SlideUnavailableReason.unreadable);
         debugPrint('Fetch failed for ${requested.id}: $message');
       }
+      if (file != null && stillShown) widget.onFileReady?.call(requested);
       return file;
     }).catchError((Object e) {
       debugPrint('Fetch threw for ${requested.id}: $e');
@@ -129,9 +139,14 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     final settings = await ref
         .read(settingsProvider.future)
         .catchError((Object _) => const AppSettings());
+    // A photo that cannot be scaled never gets a small copy: its original is
+    // shown instead, and it is not prepared again.
+    final notConvertible = await ref
+        .read(notConvertibleStoreProvider)
+        .contains(widget.item.stableId);
     // Re-preparing a damaged copy is a preparation job, so it is skipped while
     // preparation is off.
-    if (hadFile && settings.preparationEnabled) {
+    if (hadFile && settings.preparationEnabled && !notConvertible) {
       unawaited(ref
           .read(smallPhotoWorkerProvider.notifier)
           .reprepare(widget.item, widget.source)
@@ -140,17 +155,36 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     // Raw downloads can be damaged (truncated or garbled), so by default only
     // checked small copies are shown; the photo is skipped until one exists.
     // With preparation off, the raw download is shown instead.
-    if (settings.onlyPreparedRuleActive) {
+    if (settings.onlyPreparedRuleActive && !notConvertible) {
       return (
         result: Result<File>.err(
             const NotFound('Verkleinerte Kopie noch nicht fertig')),
         notPreparedYet: true,
       );
     }
-    return (
-      result: await widget.source.fetchToCache(widget.item),
-      notPreparedYet: false,
+    // The raw download is the original file, so it must be complete: a
+    // truncated one would decode only partly (the rest is garbage on screen).
+    // It is checked with the same rule as the small copies, against the size
+    // the source reported. A photo without that proof is never shown.
+    final fetched = await widget.source.fetchToCache(widget.item);
+    final file = fetched.valueOrNull;
+    if (file == null) {
+      return (result: fetched, notPreparedYet: false);
+    }
+    final complete = await SmallPhotoCache.looksComplete(
+      file,
+      widget.item.size,
+      downloadIsOriginal: true,
     );
+    if (!complete) {
+      await cache.deleteIfTemp(file);
+      return (
+        result: Result<File>.err(
+            const NetworkError('Heruntergeladene Datei ist unvollständig')),
+        notPreparedYet: false,
+      );
+    }
+    return (result: fetched, notPreparedYet: false);
   }
 
   @override
@@ -185,25 +219,18 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
                   child: _PhotoImage(
                       item: widget.item, file: file, fit: BoxFit.cover),
                 ),
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: _aspectRatio,
-                    child: _PhotoImage(
-                        item: widget.item, file: file, fit: BoxFit.contain),
-                  ),
+                // The foreground fills the whole screen; BoxFit.contain scales
+                // the photo to the largest size that fits and keeps its aspect
+                // ratio. A fixed box would shrink it to the photo's ratio.
+                SizedBox.expand(
+                  child: _PhotoImage(
+                      item: widget.item, file: file, fit: BoxFit.contain),
                 ),
               ],
             );
         }
       },
     );
-  }
-
-  double get _aspectRatio {
-    final w = widget.item.width;
-    final h = widget.item.height;
-    if (w == null || h == null || h == 0) return 16 / 9;
-    return w / h;
   }
 }
 
@@ -238,19 +265,37 @@ class _PhotoImage extends StatelessWidget {
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final portrait = _isPortrait(item);
     final l10n = AppLocalizations.of(context);
+    final shown = file!;
+    final cacheWidth =
+        portrait ? null : (screen.width * devicePixelRatio).round();
+    final cacheHeight =
+        portrait ? (screen.height * devicePixelRatio).round() : null;
+    DebugTrace.event(
+      'slide',
+      'image.file ${DebugTrace.baseName(shown.path)} '
+          'bytes=${DebugTrace.fileLength(shown)} portrait=$portrait '
+          'decode=${cacheWidth ?? 'auto'}x${cacheHeight ?? 'auto'}',
+    );
     return Image.file(
-      file!,
+      shown,
       fit: fit,
-      cacheWidth: portrait ? null : (screen.width * devicePixelRatio).round(),
-      cacheHeight: portrait ? (screen.height * devicePixelRatio).round() : null,
-      errorBuilder: (context, err, stackTrace) => _PlaceholderBox(
-        item: item,
-        // The raw exception is only useful while developing; on the frame
-        // only the translated reason is shown.
-        reason: kDebugMode
-            ? '${l10n.slideDecodeFailed}: $err'
-            : l10n.slideDecodeFailed,
-      ),
+      cacheWidth: cacheWidth,
+      cacheHeight: cacheHeight,
+      errorBuilder: (context, err, stackTrace) {
+        DebugTrace.event(
+          'slide',
+          'errorBuilder ${DebugTrace.baseName(shown.path)} '
+              '${err.runtimeType}',
+        );
+        return _PlaceholderBox(
+          item: item,
+          // The raw exception is only useful while developing; on the frame
+          // only the translated reason is shown.
+          reason: kDebugMode
+              ? '${l10n.slideDecodeFailed}: $err'
+              : l10n.slideDecodeFailed,
+        );
+      },
     );
   }
 }

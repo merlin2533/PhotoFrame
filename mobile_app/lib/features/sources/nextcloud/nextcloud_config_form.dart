@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../index/background_jobs.dart';
 import '../domain/photo_source.dart';
 import '../state/sources_providers.dart';
 import 'nextcloud_config_form_model.dart';
@@ -197,6 +198,7 @@ class _NextcloudConfigFormScreenState
           await store.write(id, 'password', config.authPassword);
         }
         await ref.read(sourcesProvider.notifier).add(source);
+        unawaited(ref.read(backgroundJobsProvider.notifier).runOnce());
       }
     } catch (e) {
       if (!mounted) return;

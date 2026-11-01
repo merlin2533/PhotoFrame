@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../index/background_jobs.dart';
 import '../domain/photo_source.dart';
 import '../local/local_folder_source.dart';
 import '../mock/mock_photo_source.dart';
@@ -68,6 +69,7 @@ class AddSourceScreen extends ConsumerWidget {
     // `SourcesController.add`) - awaited so the screen only pops once that
     // has actually happened.
     await ref.read(sourcesProvider.notifier).add(source);
+    unawaited(ref.read(backgroundJobsProvider.notifier).runOnce());
     if (!context.mounted) return;
     context.pop();
   }
@@ -78,6 +80,7 @@ class AddSourceScreen extends ConsumerWidget {
               displayName:
                   'Test-Quelle ${DateTime.now().millisecondsSinceEpoch}'),
         );
+    unawaited(ref.read(backgroundJobsProvider.notifier).runOnce());
     if (!context.mounted) return;
     context.pop();
   }

@@ -26,6 +26,7 @@ import 'package:smb_connect/smb_connect.dart';
 
 import '../../../core/errors/failure.dart';
 import '../../../core/utils/cancellation_token.dart';
+import '../../../core/utils/debug_trace.dart';
 import '../../../core/utils/result.dart';
 import '../domain/media_type.dart';
 import '../domain/photo_folder.dart';
@@ -134,12 +135,16 @@ class SmbPhotoSource implements PhotoSource {
 
   SmbConnect? _connect;
 
-  /// When the current connection was opened. Connections are renewed every
-  /// [_connectionMaxAge]: the SMB library keeps writing to a socket the server
-  /// may already have closed, which surfaces as unhandled "StreamSink is closed"
-  /// errors on the device.
+  /// When the current connection was opened. A connection is only reused while
+  /// it is younger than [_connectionMaxAge]; older ones are closed and replaced.
+  /// The SMB library keeps writing to a socket the server may already have
+  /// closed (or that has gone slow), which surfaces as "StreamSink is closed"
+  /// errors and timeouts on the device.
   DateTime _connectedAt = DateTime.fromMillisecondsSinceEpoch(0);
-  static const _connectionMaxAge = Duration(seconds: 60);
+
+  /// A connection is reused only if it was established less than this long
+  /// ago (strictly less than: a connection aged exactly 10 s is replaced).
+  static const _connectionMaxAge = Duration(seconds: 10);
   bool _disposed = false;
   int _unsupportedCount = 0;
 
@@ -370,8 +375,7 @@ class SmbPhotoSource implements PhotoSource {
     try {
       final folder =
           await connect.file(_fullPath(relPath)).timeout(_stepTimeout);
-      final children =
-          await connect.listFiles(folder).timeout(_stepTimeout);
+      final children = await connect.listFiles(folder).timeout(_stepTimeout);
       return Result.ok(children);
     } on TimeoutException {
       _dropBrokenConnection(connect);
@@ -514,20 +518,54 @@ class SmbPhotoSource implements PhotoSource {
       {CancellationToken? token}) {
     final running = _inFlight[item.id];
     if (running != null) return running;
+    final name = DebugTrace.baseName(item.id);
+    DebugTrace.event('smb', 'download start $name');
     final download = _fetchOnce(item, token: token);
     _inFlight[item.id] = download;
-    return download.whenComplete(() => _inFlight.remove(item.id));
+    return download
+        .whenComplete(() => _inFlight.remove(item.id))
+        .then((result) {
+      DebugTrace.event(
+          'smb',
+          'download end $name ${result.isOk ? 'ok' : 'failed'} '
+              'bytes=${DebugTrace.fileLength(result.valueOrNull)}');
+      return result;
+    });
   }
 
+  /// Downloads [item] into the cache. The first attempt reuses the current
+  /// connection only if it is younger than [_connectionMaxAge] (see
+  /// [_ensureConnected]). If that attempt fails for any reason other than a
+  /// missing file, it is retried exactly once on a fresh connection; the
+  /// failed attempt has already dropped its connection and removed its partial
+  /// file. Cancellation is never retried.
   Future<Result<File>> _fetchOnce(PhotoItem item,
       {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
+    final first = await _fetchAttempt(item, token: token);
+    if (first.isOk || first.failureOrNull is NotFound) return first;
+    return _fetchAttempt(item, token: token);
+  }
+
+  /// One complete download attempt. The bytes are written to
+  /// `<target>.part` and renamed to the final name only after the whole stream
+  /// was read. On any failure the connection is dropped (unless cancelled) and
+  /// the partial file is deleted.
+  Future<Result<File>> _fetchAttempt(PhotoItem item,
+      {CancellationToken? token}) async {
     final connectResult = await _ensureConnected(const Duration(seconds: 8));
     if (connectResult.isErr) {
       return Result.err(connectResult.failureOrNull!);
     }
     final connect = connectResult.valueOrNull!;
+
+    final dir = _cacheDirectory ?? Directory.systemTemp;
+    final localFile = File(
+      '${dir.path}${Platform.pathSeparator}smb_${id}_${item.id.replaceAll('/', '_')}',
+    );
+    final partFile = File('${localFile.path}.part');
+    IOSink? sink;
 
     // Every network step has a timeout: on a dead socket the library never
     // answers, and a call without one would hold the preparation queue forever.
@@ -537,40 +575,60 @@ class SmbPhotoSource implements PhotoSource {
       if (!remoteFile.isExists) {
         return Result.err(NotFound('SMB file no longer exists: "${item.id}"'));
       }
-
-      final dir = _cacheDirectory ?? Directory.systemTemp;
-      final localFile = File(
-        '${dir.path}${Platform.pathSeparator}smb_${id}_${item.id.replaceAll('/', '_')}',
-      );
       await localFile.parent.create(recursive: true);
 
-      final sink = localFile.openWrite();
-      try {
-        final stream =
-            await connect.openRead(remoteFile).timeout(_stepTimeout);
-        await for (final chunk in stream.timeout(_stepTimeout)) {
-          token?.throwIfCancelled();
-          sink.add(chunk);
-        }
-        await sink.flush();
-      } finally {
-        await sink.close();
+      sink = partFile.openWrite();
+      final stream = await connect.openRead(remoteFile).timeout(_stepTimeout);
+      var written = 0;
+      await for (final chunk in stream.timeout(_stepTimeout)) {
+        token?.throwIfCancelled();
+        sink.add(chunk);
+        written += chunk.length;
       }
+      await sink.flush();
+      await sink.close();
+      sink = null;
+
+      if (written < remoteFile.size) {
+        // The stream ended early without an error: treat it as a failed read.
+        _dropBrokenConnection(connect);
+        await _discardPartial(null, partFile);
+        return Result.err(
+            NetworkError('Foto "${item.id}" wurde unvollständig geladen'));
+      }
+
+      await partFile.rename(localFile.path);
       return Result.ok(localFile);
     } on CancelledException {
+      await _discardPartial(sink, partFile);
       rethrow;
     } on TimeoutException {
+      await _discardPartial(sink, partFile);
       _dropBrokenConnection(connect);
       return Result.err(
           Timeout('Foto "${item.id}" konnte nicht rechtzeitig geladen werden'));
     } catch (e) {
       // A failed read leaves the socket in an unknown state. Drop it, so the
-      // next photo connects again instead of failing on the same socket.
+      // next attempt connects again instead of failing on the same socket.
+      await _discardPartial(sink, partFile);
       _dropBrokenConnection(connect);
       return Result.err(NetworkError(
           'Foto "${item.id}" konnte nicht geladen werden',
           cause: e));
     }
+  }
+
+  /// Closes [sink] (if still open) and deletes [partFile]. Errors are ignored:
+  /// this runs on failure paths where the original error is what matters.
+  static Future<void> _discardPartial(IOSink? sink, File partFile) async {
+    if (sink != null) {
+      try {
+        await sink.close();
+      } catch (_) {}
+    }
+    try {
+      if (await partFile.exists()) await partFile.delete();
+    } catch (_) {}
   }
 
   /// Closes [connect] and forgets it, but only if it is still the current

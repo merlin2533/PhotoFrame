@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../index/background_jobs.dart';
 import '../domain/photo_folder.dart';
 import '../domain/photo_source.dart';
 import '../state/sources_providers.dart';
@@ -172,6 +173,7 @@ class _ImmichConfigFormScreenState
         // by `add()` (same order as the Nextcloud form).
         await store.write(id, 'password', config.apiKey);
         await ref.read(sourcesProvider.notifier).add(source);
+        unawaited(ref.read(backgroundJobsProvider.notifier).runOnce());
       }
     } catch (e) {
       if (!mounted) return;

@@ -84,6 +84,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String preparingCacheCount(int count) {
+    return '$count photos in cache';
+  }
+
+  @override
+  String preparingSwapToday(int swapped, int pool) {
+    return 'Swapped today: $swapped of $pool';
+  }
+
+  @override
+  String preparingSwapDailyPercent(int percent) {
+    return 'Daily swap: $percent %';
+  }
+
+  @override
+  String preparingSwapDailyCount(int percent, int perDay) {
+    return 'Daily swap: $percent % ($perDay photos per day)';
+  }
+
+  @override
   String commonError(String message) {
     return 'Error: $message';
   }
@@ -424,4 +444,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get slideDecodeFailed => 'Cannot be decoded';
+
+  @override
+  String rotationSwapPercentLabel(int percent) {
+    return 'Daily share swapped: $percent %';
+  }
+
+  @override
+  String rotationRenewalDaysLabel(int days) {
+    return 'Whole pool renewed after $days days';
+  }
 }

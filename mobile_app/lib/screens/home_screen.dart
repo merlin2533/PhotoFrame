@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -6,26 +7,126 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/utils/app_log.dart';
+import '../features/cache/prepared_count_provider.dart';
 import '../features/cache/small_photo_cache.dart';
+import '../features/cache/small_photo_usage_provider.dart';
 import '../features/index/photo_index_store.dart';
+import '../features/settings/domain/app_settings.dart';
 import '../features/settings/state/settings_providers.dart';
+import '../features/slideshow/presentation/daily_swap_text.dart';
+import '../features/sources/domain/photo_item.dart';
 import '../features/sources/domain/photo_source.dart';
 import '../features/sources/state/sources_providers.dart';
+import '../l10n/app_localizations.dart';
 
 /// Start screen: a background photo from the index, the current status of
 /// sources, index and preparation, and the main actions.
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
+  late final SmallPhotoWorker _worker;
+
+  /// `true` when this screen started the worker run, so only this screen's
+  /// run is stopped when it is disposed.
+  bool _startedRun = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _worker = ref.read(smallPhotoWorkerProvider.notifier);
+    WidgetsBinding.instance.addObserver(this);
+    // Once, after the first frame: not on every rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_prepareInBackground());
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_startedRun) _worker.stop();
+    super.dispose();
+  }
+
+  /// The cache can change while the app is in the background (the slideshow
+  /// prepares photos, the system may clear files). On resume both counters
+  /// are read again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    ref.invalidate(smallPhotoCacheUsageProvider);
+    ref.invalidate(preparedCountProvider);
+  }
+
+  /// Starts the preparation of the photos that have no small copy yet, when
+  /// preparation is on and the cache is below its limit. Already prepared and
+  /// not convertible photos are skipped by the worker.
+  Future<void> _prepareInBackground() async {
+    try {
+      final settings = await ref.read(settingsProvider.future);
+      if (!mounted || !settings.preparationEnabled) return;
+      final sources = await ref.read(sourcesProvider.future);
+      ref.invalidate(smallPhotoCacheUsageProvider);
+      final usage = await ref.read(smallPhotoCacheUsageProvider.future);
+      if (!mounted || usage.totalBytes >= settings.cacheLimitBytes) return;
+      final snapshot = await ref.read(photoIndexStoreProvider).load();
+      if (!mounted) return;
+      final cache = ref.read(smallPhotoCacheProvider);
+      final disabled = settings.disabledSourceIds.toSet();
+      final sourcesById = {
+        for (final s in sources)
+          if (!disabled.contains(s.id)) s.id: s,
+      };
+      final pending = <PhotoItem>[];
+      for (final item in snapshot.items) {
+        if (!sourcesById.containsKey(item.sourceId)) continue;
+        if (await cache.existing(item) == null) pending.add(item);
+      }
+      if (!mounted || pending.isEmpty) return;
+      // Only a run that is not going yet is owned by this screen. A run of the
+      // background jobs is joined, but not stopped on dispose.
+      _startedRun = !ref.read(smallPhotoWorkerProvider).running;
+      await _worker.start(pending, sourcesById);
+    } catch (e, st) {
+      logRecoverableError(
+        'Preparation on the home screen could not start',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value ?? const <PhotoSource>[];
-    final disabled = ref.watch(settingsProvider).value?.disabledSourceIds ??
-        const <String>[];
-    final index = ref.watch(_homeIndexProvider);
+    final settings = ref.watch(settingsProvider).value ?? const AppSettings();
+    final disabled = settings.disabledSourceIds;
+    final index = ref.watch(indexSnapshotProvider);
     final background = ref.watch(_backgroundPhotoProvider);
     final worker = ref.watch(smallPhotoWorkerProvider);
-    final prepared = ref.watch(_preparedCountProvider);
+    final prepared = ref.watch(preparedCountProvider);
+
+    // The cache count is re-read when the app resumes (see
+    // didChangeAppLifecycleState) and after every finished photo (below). It
+    // is not re-scanned on every build: that would scan the cache folder on
+    // each worker status tick.
+    final usage = ref.watch(smallPhotoCacheUsageProvider);
+    // The counters move while photos are prepared: every finished photo
+    // re-reads the cache folder and the prepared count.
+    ref.listen<int>(
+      smallPhotoWorkerProvider.select((status) => status.done),
+      (_, __) {
+        ref.invalidate(smallPhotoCacheUsageProvider);
+        ref.invalidate(preparedCountProvider);
+      },
+    );
 
     final enabledCount = sources.where((s) => !disabled.contains(s.id)).length;
     final snapshot = index.value;
@@ -74,6 +175,27 @@ class HomeScreen extends ConsumerWidget {
                             ? '…'
                             : '${prepared.value} von ${snapshot.items.length}'
                                 '${worker.running ? ' (läuft, ${worker.waiting} wartend)' : ''}',
+                  ),
+                  _StatusRow(
+                    icon: Icons.download_done_outlined,
+                    label: 'Heruntergeladen',
+                    // The photos on disk in the small-photo cache: every photo
+                    // that was downloaded and scaled, across all sources.
+                    value: usage.value == null
+                        ? '…'
+                        : '${usage.value!.count} Fotos',
+                  ),
+                  // The daily swap, without the pool size: the pool lives in
+                  // the slideshow, so only the percent is known here.
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32, bottom: 6),
+                    child: Text(
+                      dailySwapLine(
+                        AppLocalizations.of(context),
+                        percent: settings.rotationSwapPercent,
+                      ),
+                      style: const TextStyle(color: Colors.white54),
+                    ),
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,
@@ -132,28 +254,10 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// The saved index, read once per visit to the start screen.
-final FutureProvider<IndexSnapshot> _homeIndexProvider =
-    FutureProvider.autoDispose<IndexSnapshot>(
-  (ref) => ref.watch(photoIndexStoreProvider).load(),
-);
-
-/// How many photos of the index have a screen-sized copy on disk.
-final FutureProvider<int> _preparedCountProvider =
-    FutureProvider.autoDispose<int>((ref) async {
-  final snapshot = await ref.watch(_homeIndexProvider.future);
-  final cache = ref.read(smallPhotoCacheProvider);
-  var count = 0;
-  for (final item in snapshot.items) {
-    if (await cache.existing(item) != null) count++;
-  }
-  return count;
-});
-
 /// A random prepared photo as the background (null if none is ready yet).
 final FutureProvider<File?> _backgroundPhotoProvider =
     FutureProvider.autoDispose<File?>((ref) async {
-  final snapshot = await ref.watch(_homeIndexProvider.future);
+  final snapshot = await ref.watch(indexSnapshotProvider.future);
   if (snapshot.items.isEmpty) return null;
   final cache = ref.read(smallPhotoCacheProvider);
   final random = math.Random();

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/caption_overlay.dart';
+import 'package:mobile_app/features/slideshow/presentation/widgets/overlay_text_panel.dart';
+import 'package:mobile_app/features/slideshow/presentation/widgets/source_label_overlay.dart';
 import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 
@@ -44,5 +46,51 @@ void main() {
       ),
     ));
     expect(find.text('09.08.2022  ·  Urlaub'), findsOneWidget);
+  });
+
+  testWidgets('CaptionOverlay text sits on a dark panel and is readable',
+      (tester) async {
+    const text = '09.08.2022  \u00b7  Urlaub';
+    await tester.pumpWidget(const MaterialApp(
+      home: Stack(
+        children: [CaptionOverlay(text: text)],
+      ),
+    ));
+
+    final label = find.text(text);
+    expect(label, findsOneWidget);
+    final panel =
+        find.ancestor(of: label, matching: find.byType(OverlayTextPanel));
+    expect(panel, findsOneWidget);
+
+    final container = tester.widget<Container>(
+      find.descendant(of: panel, matching: find.byType(Container)).first,
+    );
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.color, OverlayTextPanel.backgroundColor);
+    expect(decoration.color!.a, greaterThanOrEqualTo(0.6));
+    expect(decoration.borderRadius, isNotNull);
+
+    final style = tester.widget<Text>(label).style!;
+    expect(style.color, Colors.white);
+    expect(style.fontSize, greaterThanOrEqualTo(16));
+  });
+
+  testWidgets('SourceLabelOverlay text sits on the same dark panel',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Stack(
+        children: [SourceLabelOverlay(label: 'Nextcloud')],
+      ),
+    ));
+
+    final label = find.text('Nextcloud');
+    expect(label, findsOneWidget);
+    final panel =
+        find.ancestor(of: label, matching: find.byType(OverlayTextPanel));
+    expect(panel, findsOneWidget);
+    final style = tester.widget<Text>(label).style!;
+    expect(style.color, Colors.white);
+    expect(style.fontSize, greaterThanOrEqualTo(16));
   });
 }

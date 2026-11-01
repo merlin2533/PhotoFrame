@@ -65,10 +65,17 @@ class ShuffleBag<T> {
   /// Read-only view of the recent-draw history (most recent last).
   List<Object> get history => List.unmodifiable(_history);
 
+  /// Keys of the items drawn since the current cycle started. An item admitted
+  /// later is not queued again within the same cycle once it was drawn.
+  final Set<Object> _drawnInCycle = {};
+
   /// Replaces the working list, e.g. after the `WorkingSetPool` admitted or
   /// evicted entries. The current in-progress cycle's remaining queue is
-  /// filtered to drop items no longer present; if that empties the queue, a
-  /// fresh cycle is started immediately from the new list.
+  /// filtered to drop items no longer present. Items that were added to the
+  /// list and are neither queued nor drawn in this cycle are appended to the
+  /// end of the queue, in the order they were added: they are shown after the
+  /// photos already in the rotation, and the next cycle starts with a normal
+  /// shuffle. If the queue is empty, a fresh cycle is started from the new list.
   void updateItems(List<T> items) {
     if (items.isEmpty) {
       throw ArgumentError.value(items, 'items', 'must not be empty');
@@ -76,8 +83,17 @@ class ShuffleBag<T> {
     _source = List<T>.from(items);
     final validKeys = _source.map(_keyOf).toSet();
     _queue.removeWhere((item) => !validKeys.contains(_keyOf(item)));
+    _drawnInCycle.removeWhere((key) => !validKeys.contains(key));
     if (_queue.isEmpty) {
       _startNewCycle();
+      return;
+    }
+    final queuedKeys = _queue.map(_keyOf).toSet();
+    for (final item in _source) {
+      final key = _keyOf(item);
+      if (queuedKeys.contains(key) || _drawnInCycle.contains(key)) continue;
+      _queue.add(item);
+      queuedKeys.add(key);
     }
   }
 
@@ -86,6 +102,7 @@ class ShuffleBag<T> {
     _queue
       ..clear()
       ..addAll(shuffled);
+    _drawnInCycle.clear();
   }
 
   /// Draws the next item, honouring both "no repeat within this cycle" and
@@ -115,6 +132,7 @@ class ShuffleBag<T> {
     }
 
     final chosen = _queue.removeAt(chosenIndex);
+    _drawnInCycle.add(_keyOf(chosen));
     _recordShown(chosen);
     return chosen;
   }

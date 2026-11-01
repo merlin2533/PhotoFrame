@@ -224,6 +224,30 @@ abstract class AppLocalizations {
   /// **'Offene Konvertierungen: {count}'**
   String preparingConversions(int count);
 
+  /// Zeile der Vorbereitungsansicht mit der Anzahl der bereits vorbereiteten Fotos im Cache.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Fotos im Cache'**
+  String preparingCacheCount(int count);
+
+  /// Zeile der Vorbereitungsansicht: wie viele Fotos der Rotation heute ausgetauscht wurden (swapped) von der Größe des Rotations-Pools (pool).
+  ///
+  /// In de, this message translates to:
+  /// **'Heute ausgetauscht: {swapped} von {pool}'**
+  String preparingSwapToday(int swapped, int pool);
+
+  /// Zeile der Vorbereitungsansicht mit dem täglich getauschten Anteil in Prozent, wenn die Größe des Pools nicht bekannt ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Täglicher Austausch: {percent} %'**
+  String preparingSwapDailyPercent(int percent);
+
+  /// Zeile der Vorbereitungsansicht mit dem täglich getauschten Anteil in Prozent und der Anzahl Fotos pro Tag.
+  ///
+  /// In de, this message translates to:
+  /// **'Täglicher Austausch: {percent} % ({perDay} Fotos pro Tag)'**
+  String preparingSwapDailyCount(int percent, int perDay);
+
   /// Generische Fehleranzeige mit eingebetteter Fehlermeldung.
   ///
   /// In de, this message translates to:
@@ -817,6 +841,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Nicht dekodierbar'**
   String get slideDecodeFailed;
+
+  /// Schieberegler in den Diashow-Einstellungen: Anteil des Rotations-Pools, der jeden Tag ausgetauscht wird.
+  ///
+  /// In de, this message translates to:
+  /// **'Täglich getauschter Anteil: {percent} %'**
+  String rotationSwapPercentLabel(int percent);
+
+  /// Schieberegler in den Diashow-Einstellungen: Tage, bis der ganze Rotations-Pool erneuert ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Ganzer Pool erneuert sich nach {days} Tagen'**
+  String rotationRenewalDaysLabel(int days);
 }
 
 class _AppLocalizationsDelegate

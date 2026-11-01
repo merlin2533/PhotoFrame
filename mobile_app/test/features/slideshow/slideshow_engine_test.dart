@@ -284,5 +284,70 @@ void main() {
         engine.dispose();
       });
     });
+
+    test('upcomingEntries() returns the next N entries in show order',
+        () async {
+      final fixture = _buildFixture();
+      await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
+
+      fakeAsync((async) {
+        final engine = SlideshowEngine(
+          pool: fixture.pool,
+          sources: {fixture.source.id: fixture.source},
+          resolveItem: (entry) async => fixture.itemsByKey[entry.key],
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 30), noRepeatWindow: 1),
+        );
+
+        engine.start();
+        async.flushMicrotasks();
+
+        final upcoming = engine.upcomingEntries(3);
+        expect(upcoming, hasLength(3));
+        // Asking again does not change the order or draw extra entries.
+        expect(engine.upcomingEntries(3).map((e) => e.key),
+            upcoming.map((e) => e.key));
+
+        // The slideshow then shows exactly those entries, in that order.
+        for (final expected in upcoming) {
+          engine.skipToNext();
+          async.flushMicrotasks();
+          expect(engine.currentItem?.sourceId, expected.sourceId);
+          expect(engine.currentItem?.id, expected.itemId);
+        }
+
+        engine.dispose();
+      });
+    });
+
+    test('upcomingEntries() returns the entries in order, capped at 100',
+        () async {
+      final fixture = _buildFixture(folderCount: 5, itemsPerFolder: 30);
+      await _populate(fixture.source, fixture.pool, fixture.itemsByKey);
+
+      fakeAsync((async) {
+        final engine = SlideshowEngine(
+          pool: fixture.pool,
+          sources: {fixture.source.id: fixture.source},
+          resolveItem: (entry) async => fixture.itemsByKey[entry.key],
+          config: const SlideshowConfig(
+              interval: Duration(seconds: 30), noRepeatWindow: 1),
+        );
+
+        engine.start();
+        async.flushMicrotasks();
+
+        final upcoming = engine.upcomingEntries(maxAheadCount);
+        expect(upcoming, hasLength(maxAheadCount));
+        expect(engine.upcomingEntries(maxAheadCount).map((e) => e.key),
+            upcoming.map((e) => e.key));
+
+        // A smaller count is a prefix of the same order.
+        expect(engine.upcomingEntries(3).map((e) => e.key),
+            upcoming.take(3).map((e) => e.key));
+
+        engine.dispose();
+      });
+    });
   });
 }
