@@ -16,6 +16,17 @@ import '../../../sources/domain/photo_item.dart';
 import '../../../sources/domain/photo_source.dart';
 import '../../domain/slideshow_config.dart';
 
+/// Why a slide could not be shown, as reported to [SlideRenderer.onUnavailable].
+enum SlideUnavailableReason {
+  /// The photo is fine, but its screen-sized copy is not prepared yet (only
+  /// checked small copies are shown). It should be tried again later.
+  notPreparedYet,
+
+  /// The photo could not be fetched from its source (file removed, share
+  /// offline, ...).
+  unreadable,
+}
+
 /// Renders one [PhotoItem] according to the configured [DisplayMode].
 ///
 /// Fetches the real image bytes via `source.fetchToCache(item)` and decodes
@@ -37,8 +48,10 @@ class SlideRenderer extends ConsumerStatefulWidget {
     this.onUnavailable,
   });
 
-  /// Called when the photo cannot be fetched, so the slideshow can skip it.
-  final VoidCallback? onUnavailable;
+  /// Called when the photo cannot be shown, so the slideshow can skip it. Not
+  /// called for a result that arrives after the widget has moved on to another
+  /// item.
+  final ValueChanged<SlideUnavailableReason>? onUnavailable;
 
   final PhotoItem item;
   final PhotoSource source;
@@ -73,16 +86,25 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
     // directly, once per displayed item, which is enough to actually show
     // real photos and matches the app's current "resolve on demand" state
     // elsewhere in the engine.
-    _fileFuture = _resolve().then((result) {
-      if (result.valueOrNull == null) {
-        _fetchError = result.failureOrNull?.message;
-        widget.onUnavailable?.call();
-        debugPrint(
-            'Fetch failed for ${widget.item.id}: ${result.failureOrNull?.message}');
+    final requested = widget.item;
+    _fileFuture = _resolve().then<File?>((outcome) {
+      final file = outcome.result.valueOrNull;
+      // A late result for an item that is no longer shown must neither change
+      // this slide nor skip the item that is shown now.
+      final stillShown = mounted &&
+          widget.item.sourceId == requested.sourceId &&
+          widget.item.id == requested.id;
+      if (file == null && stillShown) {
+        final message = outcome.result.failureOrNull?.message;
+        _fetchError = message;
+        widget.onUnavailable?.call(outcome.notPreparedYet
+            ? SlideUnavailableReason.notPreparedYet
+            : SlideUnavailableReason.unreadable);
+        debugPrint('Fetch failed for ${requested.id}: $message');
       }
-      return result.valueOrNull;
+      return file;
     }).catchError((Object e) {
-      debugPrint('Fetch threw for ${widget.item.id}: $e');
+      debugPrint('Fetch threw for ${requested.id}: $e');
       return null;
     });
     // Trigger a rebuild once the fetch resolves even if didUpdateWidget's
@@ -93,13 +115,15 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
   }
 
   /// A prepared small file wins over a fresh download (see SmallPhotoCache).
-  Future<Result<File>> _resolve() async {
+  Future<({Result<File> result, bool notPreparedYet})> _resolve() async {
     // The file is checked again every time before it is shown; a damaged one
     // is deleted and prepared again.
     final cache = ref.read(smallPhotoCacheProvider);
     final hadFile = await cache.existing(widget.item) != null;
     final small = await cache.verifiedExisting(widget.item);
-    if (small != null) return Result.ok(small);
+    if (small != null) {
+      return (result: Result<File>.ok(small), notPreparedYet: false);
+    }
     if (hadFile) {
       unawaited(ref
           .read(smallPhotoWorkerProvider.notifier)
@@ -115,9 +139,16 @@ class _SlideRendererState extends ConsumerState<SlideRenderer> {
         .catchError((Object _) => const AppSettings());
     final onlyPrepared = settings.onlyPreparedPhotos;
     if (onlyPrepared) {
-      return Result.err(const NotFound('Verkleinerte Kopie noch nicht fertig'));
+      return (
+        result: Result<File>.err(
+            const NotFound('Verkleinerte Kopie noch nicht fertig')),
+        notPreparedYet: true,
+      );
     }
-    return widget.source.fetchToCache(widget.item);
+    return (
+      result: await widget.source.fetchToCache(widget.item),
+      notPreparedYet: false,
+    );
   }
 
   @override

@@ -56,22 +56,46 @@ const double _fixedAmbientDimOpacity = 0.6;
 /// Empties the network photo cache. Overridden in widget tests, where real
 /// file-system calls never complete under the fake clock.
 final Provider<Future<void> Function()> networkCacheCleanerProvider =
-    Provider<Future<void> Function()>((ref) => clearNetworkCache);
+    Provider<Future<void> Function()>(
+  (ref) => () => clearNetworkCache(
+        isWorkerRunning: () => ref.read(smallPhotoWorkerProvider).running,
+      ),
+);
 
 /// Downloaded photos of network sources live in the temp directory (see
 /// `fetchToCache` of the Nextcloud and SMB sources). Cleared on every
 /// (re)load so the cache never grows across sessions.
-Future<void> clearNetworkCache() async {
+///
+/// A file modified within [keepRecent] may still be downloaded or scaled, so it
+/// is kept. Nothing is removed while the small-photo worker is running
+/// ([isWorkerRunning]). That flag only turns true after the first photo of a
+/// run is done, so a run that has just started is covered by [keepRecent] alone.
+Future<void> clearNetworkCache({
+  Directory? directory,
+  bool Function()? isWorkerRunning,
+  Duration keepRecent = const Duration(minutes: 10),
+}) async {
   try {
-    final dir = Directory.systemTemp;
+    if (isWorkerRunning?.call() ?? false) {
+      debugPrint('Cache cleanup skipped: small photo worker is running');
+      return;
+    }
+    final dir = directory ?? Directory.systemTemp;
     if (!await dir.exists()) return;
+    final now = DateTime.now();
     await for (final entity in dir.list(followLinks: false)) {
       final name = entity.path.split(Platform.pathSeparator).last;
       if (entity is File &&
           (name.startsWith('nextcloud_') ||
               name.startsWith('smb_') ||
               name.startsWith('immich_'))) {
-        await entity.delete();
+        try {
+          final modified = (await entity.stat()).modified;
+          if (now.difference(modified) < keepRecent) continue;
+          await entity.delete();
+        } catch (e) {
+          debugPrint('Cache cleanup skipped $name: $e');
+        }
       }
     }
   } catch (e) {
@@ -127,6 +151,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
   /// How often the sources are re-scanned for new/removed photos.
   static const _refreshInterval = Duration(minutes: 15);
+
+  /// How long to wait before a refresh or reload that could not run yet (no
+  /// engine, or an empty pool), instead of waiting for the next periodic tick.
+  static const _retryDelay = Duration(seconds: 60);
+  Timer? _retryTimer;
 
   // Resolved once in `initState` and reused in `dispose`, rather than
   // calling `ref.read(...)` again there: if this whole widget (and its
@@ -199,6 +228,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _prefetchSub?.cancel();
     _refreshTimer?.cancel();
+    _retryTimer?.cancel();
     final engine = _engine;
     if (engine != null) {
       unawaited(_alwaysOnController.onSlideshowStopped());
@@ -379,7 +409,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Future<void> _backgroundRefresh() async {
     final engine = _engine;
     final pool = _pool;
-    if (_refreshing || engine == null || pool == null) return;
+    if (_refreshing) return;
+    // No engine yet (or none could be built): nothing to merge into. Try again
+    // soon instead of waiting for the screen to be reopened.
+    if (engine == null || pool == null) {
+      _scheduleRetry();
+      return;
+    }
     _refreshing = true;
     try {
       final sources = await ref.read(sourcesProvider.future);
@@ -435,6 +471,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       final fresh = await _preferPrepared(
         await _todaysSelection(eligible, settings.selectionCount),
       );
+      // Nothing prepared yet (or the wait timed out): keep the photos already in
+      // the pool rather than emptying it.
+      if (fresh.isEmpty || !mounted || _engine != engine) return;
       final freshKeys = {for (final i in fresh) '${i.sourceId}::${i.id}'};
       bool kept(String sourceId, String itemId) =>
           failed.contains(sourceId) || freshKeys.contains('$sourceId::$itemId');
@@ -450,11 +489,41 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       }
       _itemsByKey.removeWhere((_, item) => !kept(item.sourceId, item.id));
       if (pool.entries.isNotEmpty) engine.refreshPool(pool);
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Background refresh failed: $e');
     } finally {
       _refreshing = false;
+      // An empty pool is refreshed again soon, not only at the next periodic
+      // refresh.
+      if (mounted && _engine == engine && pool.entries.isEmpty) {
+        _scheduleRetry();
+      }
     }
+  }
+
+  /// Runs [_onRetry] once after [_retryDelay], replacing a pending retry.
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = Timer(_retryDelay, () => unawaited(_onRetry()));
+  }
+
+  /// Refreshes a running engine, or rebuilds a screen that shows the empty state
+  /// because no engine could be built. A failed load keeps its own retry button.
+  Future<void> _onRetry() async {
+    if (!mounted) return;
+    if (_engine != null) {
+      await _backgroundRefresh();
+      return;
+    }
+    if (_loadError != null) return;
+    if (_loading) {
+      // A load is still running; check again later.
+      _scheduleRetry();
+      return;
+    }
+    setState(() => _loading = true);
+    await _buildEngine();
   }
 
   /// Downloads one more photo from a network source while the current one is
@@ -510,16 +579,35 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     return list;
   }
 
-  /// A photo that cannot be fetched (file removed, share offline) is taken out
-  /// of the pool and the slideshow moves on to the next one.
-  void _skipUnavailable(PhotoItem item) {
+  /// Handles a photo that cannot be shown.
+  ///
+  /// A photo whose small copy is not prepared yet stays in the pool: the
+  /// slideshow's timer moves on, and the photo comes up again on a later turn,
+  /// by which time the copy may exist. A photo that cannot be read at all is
+  /// taken out of the pool, and the slideshow moves on to the next one.
+  void _skipUnavailable(PhotoItem item, SlideUnavailableReason reason) {
     final pool = _pool;
-    if (pool == null) return;
+    final engine = _engine;
+    if (pool == null || engine == null) return;
+    // A late result for a photo that is no longer on screen: ignore it.
+    final current = engine.currentItem;
+    if (current == null ||
+        current.sourceId != item.sourceId ||
+        current.id != item.id) {
+      return;
+    }
+    if (reason == SlideUnavailableReason.notPreparedYet) return;
+
     pool.remove(item.sourceId, item.id);
     _itemsByKey.remove('${item.sourceId}::${item.id}');
-    _engine?.refreshPool(pool);
-    // Empty pool: nothing left to show, so do not advance.
-    if (pool.entries.isNotEmpty) _next();
+    if (pool.entries.isEmpty) {
+      // Nothing left to show: the empty state is shown (see `build`). The
+      // engine is not given an empty list (ShuffleBag rejects it).
+      setState(() {});
+      return;
+    }
+    engine.refreshPool(pool);
+    _next();
   }
 
   Future<void> _buildEngine() async {
@@ -581,10 +669,13 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       if (!mounted) return;
 
       if (pool.entries.isEmpty) {
+        final previous = _engine;
         setState(() {
+          _engine = null;
           _loadError = errors.isEmpty ? null : errors.toSet().join('\n');
           _loading = false;
         });
+        unawaited(previous?.dispose());
         return;
       }
 
@@ -606,6 +697,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         await engine.dispose();
         return;
       }
+      final previous = _engine;
       setState(() {
         _engine = engine;
         _prefetchSub?.cancel();
@@ -613,6 +705,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
         _sourcesById = sourcesById;
         _loading = false;
       });
+      // A reload from the empty state replaces a running engine.
+      unawaited(previous?.dispose());
       // Read the remaining photos in the background; the pool is merged in
       // without interrupting the running slideshow.
       unawaited(_backgroundRefresh());
@@ -873,7 +967,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       );
     }
     final engine = _engine;
-    if (engine == null) {
+    // An emptied pool shows the same state as no engine at all.
+    final poolEmpty = _pool == null || _pool!.entries.isEmpty;
+    if (engine == null || poolEmpty) {
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -960,7 +1056,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
                         item: item,
                         source: itemSource,
                         displayMode: settings.displayMode,
-                        onUnavailable: () => _skipUnavailable(item),
+                        onUnavailable: (reason) =>
+                            _skipUnavailable(item, reason),
                       );
             if (item != null && effective.kenBurnsEnabled) {
               slide = KenBurnsEffect(

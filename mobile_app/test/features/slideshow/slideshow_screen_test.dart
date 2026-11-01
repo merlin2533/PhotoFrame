@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/core/errors/failure.dart';
+import 'package:mobile_app/core/utils/cancellation_token.dart';
+import 'package:mobile_app/core/utils/result.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/index/photo_index_store.dart';
 import 'package:mobile_app/features/settings/domain/app_settings.dart';
@@ -13,6 +16,7 @@ import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/slide_renderer.dart';
 import 'package:mobile_app/features/slideshow/state/slideshow_providers.dart';
+import 'package:mobile_app/features/sources/domain/photo_folder.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/domain/photo_source.dart';
 import 'package:mobile_app/features/sources/mock/mock_photo_source.dart';
@@ -185,6 +189,161 @@ void main() {
     await tester.pumpAndSettle();
     expect(kiosk.stopCalls, 1);
   });
+
+  testWidgets('a photo without a prepared copy stays in the pool',
+      (tester) async {
+    final source = _OnceListedSource();
+    addTearDown(source.dispose);
+    await tester.pumpWidget(_screenWith(source, _PreparedOnlySettings.new));
+
+    // Every photo is shown and skipped as "not prepared" several times over.
+    // Before, that emptied the pool and the empty state replaced the slides.
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.byType(EmptyStateView), findsNothing);
+    // During a fade two slides can be mounted at once, so only require that a
+    // slide is shown, not exactly one.
+    expect(find.byType(SlideRenderer), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('an emptied pool shows the empty state without an error',
+      (tester) async {
+    final source = _OnceListedSource(unreadable: true);
+    addTearDown(source.dispose);
+    await tester.pumpWidget(_screenWith(source, _RawSettings.new));
+
+    // Both photos cannot be read, so both are removed from the pool.
+    for (var i = 0;
+        i < 12 && find.byType(EmptyStateView).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.byType(EmptyStateView), findsOneWidget);
+    expect(find.byType(SlideRenderer), findsNothing);
+
+    // The engine keeps ticking on the emptied pool without an exception
+    // (ShuffleBag would throw on an empty list).
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.byType(EmptyStateView), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('clearNetworkCache keeps a recently modified download', () async {
+    final dir = await Directory.systemTemp.createTemp('cache_cleanup_test_');
+    addTearDown(() => dir.delete(recursive: true));
+    final recent = File('${dir.path}/smb_recent.jpg')
+      ..writeAsBytesSync([1, 2, 3]);
+    final old = File('${dir.path}/nextcloud_old.jpg')
+      ..writeAsBytesSync([1, 2, 3])
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+    final unrelated = File('${dir.path}/notes.txt')
+      ..writeAsBytesSync([1])
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+
+    await clearNetworkCache(directory: dir);
+
+    expect(recent.existsSync(), isTrue);
+    expect(old.existsSync(), isFalse);
+    expect(unrelated.existsSync(), isTrue);
+  });
+
+  test('clearNetworkCache does not run while the small photo worker runs',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('cache_cleanup_test_');
+    addTearDown(() => dir.delete(recursive: true));
+    final old = File('${dir.path}/smb_old.jpg')
+      ..writeAsBytesSync([1, 2, 3])
+      ..setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+
+    await clearNetworkCache(directory: dir, isWorkerRunning: () => true);
+
+    expect(old.existsSync(), isTrue);
+  });
+}
+
+/// Lists its photos on the first crawl only, so a background refresh finds
+/// nothing new and leaves the pool as it is. With [unreadable], every fetch
+/// fails, as for a removed file.
+class _OnceListedSource extends MockPhotoSource {
+  _OnceListedSource({this.unreadable = false})
+      : super(
+          id: 'mock-once',
+          folderCount: 1,
+          itemsPerFolder: 2,
+          simulatedDelay: Duration.zero,
+        );
+
+  final bool unreadable;
+  bool _listed = false;
+
+  @override
+  Stream<Result<PhotoFolder>> listFolders({
+    PhotoFolder? parent,
+    CancellationToken? token,
+  }) {
+    if (_listed) return const Stream<Result<PhotoFolder>>.empty();
+    _listed = true;
+    return super.listFolders(parent: parent, token: token);
+  }
+
+  @override
+  Future<Result<File>> fetchToCache(
+    PhotoItem item, {
+    CancellationToken? token,
+  }) async {
+    if (unreadable) return Result<File>.err(const NotFound('Datei fehlt'));
+    return super.fetchToCache(item, token: token);
+  }
+}
+
+/// Only prepared small copies are shown (the default), one slide per second.
+class _PreparedOnlySettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        intervalSeconds: 1,
+      );
+}
+
+/// Raw downloads are allowed too, one slide per second.
+class _RawSettings extends AppSettingsController {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        transition: SlideshowTransition.fade,
+        onlyPreparedPhotos: false,
+        intervalSeconds: 1,
+      );
+}
+
+/// The slideshow screen with one [source] and the stand-ins the screen tests
+/// above use (no file system, no wakelock, no kiosk channel, no worker).
+ProviderScope _screenWith(
+  PhotoSource source,
+  AppSettingsController Function() settings,
+) {
+  return ProviderScope(
+    overrides: [
+      sourcesProvider.overrideWith(() => _FixedSourcesController([source])),
+      settingsProvider.overrideWith(settings),
+      alwaysOnControllerProvider.overrideWithValue(
+        AlwaysOnController(wakelock: _FakeWakelock()),
+      ),
+      kioskModeControllerProvider
+          .overrideWithValue(_FakeKioskModeController()),
+      networkCacheCleanerProvider.overrideWithValue(() async {}),
+      smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
+      smallPhotoWorkerProvider.overrideWith(_NoWorker.new),
+      photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
+        read: () async => null,
+        write: (_) async {},
+      )),
+    ],
+    child: const MaterialApp(home: SlideshowScreen()),
+  );
 }
 
 /// Test stand-in: no prepared small files, no file-system access.
