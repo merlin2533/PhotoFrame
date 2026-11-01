@@ -170,6 +170,24 @@ abstract class AppLocalizations {
   /// **'PhotoFrame'**
   String get appTitle;
 
+  /// Titel der Ansicht, solange die Diashow auf die ersten vorbereiteten Fotos wartet.
+  ///
+  /// In de, this message translates to:
+  /// **'Diashow wird vorbereitet'**
+  String get preparingTitle;
+
+  /// Fortschrittstext der Vorbereitungsansicht, wenn die Anzahl bekannt ist.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total} Fotos vorbereitet'**
+  String preparingProgress(int done, int total);
+
+  /// Fortschrittstext der Vorbereitungsansicht, solange noch keine Anzahl feststeht.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotos werden vorbereitet…'**
+  String get preparingProgressUnknown;
+
   /// Generische Fehleranzeige mit eingebetteter Fehlermeldung.
   ///
   /// In de, this message translates to:

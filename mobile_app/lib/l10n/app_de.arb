@@ -27,6 +27,12 @@
   "appTitle": "PhotoFrame",
   "@appTitle": {"description": "Name der App, z. B. im Fenster-/Task-Titel."},
 
+  "preparingTitle": "Diashow wird vorbereitet",
+  "@preparingTitle": {"description": "Titel der Ansicht, solange die Diashow auf die ersten vorbereiteten Fotos wartet."},
+  "preparingProgress": "{done} von {total} Fotos vorbereitet",
+  "@preparingProgress": {"description": "Fortschrittstext der Vorbereitungsansicht, wenn die Anzahl bekannt ist.", "placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "preparingProgressUnknown": "Fotos werden vorbereitet…",
+  "@preparingProgressUnknown": {"description": "Fortschrittstext der Vorbereitungsansicht, solange noch keine Anzahl feststeht."},
   "commonError": "Fehler: {message}",
   "@commonError": {
     "description": "Generische Fehleranzeige mit eingebetteter Fehlermeldung.",

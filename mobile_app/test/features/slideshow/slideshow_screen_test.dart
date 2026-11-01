@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -14,13 +15,16 @@ import 'package:mobile_app/features/settings/state/settings_providers.dart';
 import 'package:mobile_app/features/slideshow/domain/always_on_controller.dart';
 import 'package:mobile_app/features/slideshow/presentation/slideshow_screen.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/empty_state_view.dart';
+import 'package:mobile_app/features/slideshow/presentation/widgets/preparing_view.dart';
 import 'package:mobile_app/features/slideshow/presentation/widgets/slide_renderer.dart';
 import 'package:mobile_app/features/slideshow/state/slideshow_providers.dart';
+import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_folder.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/domain/photo_source.dart';
 import 'package:mobile_app/features/sources/mock/mock_photo_source.dart';
 import 'package:mobile_app/features/sources/state/sources_providers.dart';
+import 'package:mobile_app/l10n/app_localizations.dart';
 import 'package:mobile_app/services/kiosk/kiosk_mode_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -232,6 +236,57 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+      'shows the preparing view while the start waits for prepared copies',
+      (tester) async {
+    final source = _mockWithOneSavedItem();
+    await tester.pumpWidget(_screenWith(
+      source,
+      _PreparedOnlySettings.new,
+      savedItems: _savedItemsOf(source),
+      preparedWaitLimit: const Duration(seconds: 1),
+    ));
+    await _pumpUntilPreparing(tester);
+
+    expect(find.byType(PreparingView), findsOneWidget);
+    expect(find.text('Diashow wird vorbereitet'), findsOneWidget);
+    // No worker progress yet (total 0): indeterminate bar, placeholder text.
+    expect(find.text('Fotos werden vorbereitet…'), findsOneWidget);
+    expect(find.byType(EmptyStateView), findsNothing);
+    // The action buttons of the empty state stay available.
+    expect(find.byTooltip('Neu laden'), findsOneWidget);
+    expect(find.byTooltip('Einstellungen'), findsOneWidget);
+
+    // Wait limit over: no prepared copy ever appeared, so no engine starts.
+    // The flag clears and the empty state comes back.
+    await _passWaitLimit(tester);
+    expect(find.byType(PreparingView), findsNothing);
+    expect(find.byType(EmptyStateView), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('the preparing view shows the small photo worker progress',
+      (tester) async {
+    final source = _mockWithOneSavedItem();
+    await tester.pumpWidget(_screenWith(
+      source,
+      _PreparedOnlySettings.new,
+      savedItems: _savedItemsOf(source),
+      preparedWaitLimit: const Duration(seconds: 1),
+      worker: _ProgressWorker.new,
+    ));
+    await _pumpUntilPreparing(tester);
+
+    expect(find.text('2 von 5 Fotos vorbereitet'), findsOneWidget);
+    final bar = tester
+        .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator));
+    expect(bar.value, closeTo(0.4, 1e-9));
+
+    await _passWaitLimit(tester);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('clearNetworkCache keeps a recently modified download', () async {
     final dir = await Directory.systemTemp.createTemp('cache_cleanup_test_');
     addTearDown(() => dir.delete(recursive: true));
@@ -321,10 +376,16 @@ class _RawSettings extends AppSettingsController {
 
 /// The slideshow screen with one [source] and the stand-ins the screen tests
 /// above use (no file system, no wakelock, no kiosk channel, no worker).
+///
+/// [savedItems] become the saved photo index, so the start path goes through
+/// `_preferPrepared`. [preparedWaitLimit] and [worker] override the defaults.
 ProviderScope _screenWith(
   PhotoSource source,
-  AppSettingsController Function() settings,
-) {
+  AppSettingsController Function() settings, {
+  List<PhotoItem> savedItems = const [],
+  Duration? preparedWaitLimit,
+  SmallPhotoWorker Function()? worker,
+}) {
   return ProviderScope(
     overrides: [
       sourcesProvider.overrideWith(() => _FixedSourcesController([source])),
@@ -332,18 +393,48 @@ ProviderScope _screenWith(
       alwaysOnControllerProvider.overrideWithValue(
         AlwaysOnController(wakelock: _FakeWakelock()),
       ),
-      kioskModeControllerProvider
-          .overrideWithValue(_FakeKioskModeController()),
+      kioskModeControllerProvider.overrideWithValue(_FakeKioskModeController()),
       networkCacheCleanerProvider.overrideWithValue(() async {}),
       smallPhotoCacheProvider.overrideWithValue(_NoSmallPhotoCache()),
-      smallPhotoWorkerProvider.overrideWith(_NoWorker.new),
-      photoIndexStoreProvider.overrideWithValue(PhotoIndexStore(
-        read: () async => null,
-        write: (_) async {},
-      )),
+      smallPhotoWorkerProvider.overrideWith(worker ?? _NoWorker.new),
+      photoIndexStoreProvider.overrideWithValue(_SavedIndexStore(savedItems)),
     ],
-    child: const MaterialApp(home: SlideshowScreen()),
+    child: MaterialApp(
+      locale: const Locale('de'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: SlideshowScreen(
+        preparedWaitLimit:
+            preparedWaitLimit ?? SlideshowScreen.defaultPreparedWaitLimit,
+      ),
+    ),
   );
+}
+
+/// Index store that returns [items] as the saved index (none when empty).
+class _SavedIndexStore extends PhotoIndexStore {
+  _SavedIndexStore(this.items)
+      : super(read: () async => null, write: (_) async {});
+
+  final List<PhotoItem> items;
+
+  @override
+  Future<IndexSnapshot> load() async {
+    if (items.isEmpty) return IndexSnapshot.empty;
+    return IndexSnapshot(items: items, savedAt: DateTime.now());
+  }
+}
+
+/// Test stand-in worker reporting fixed progress (2 of 5 prepared).
+class _ProgressWorker extends _NoWorker {
+  @override
+  SmallPhotoStatus build() =>
+      const SmallPhotoStatus(done: 2, total: 5, running: true, waiting: 3);
 }
 
 /// Test stand-in: no prepared small files, no file-system access.
@@ -361,4 +452,49 @@ class _NoWorker extends SmallPhotoWorker {
     List<PhotoItem> items,
     Map<String, PhotoSource> sourcesById,
   ) async {}
+}
+
+/// A mock source for the start-path tests; nothing in it is ever prepared.
+MockPhotoSource _mockWithOneSavedItem() => MockPhotoSource(
+      id: 'mock-prep',
+      folderCount: 1,
+      itemsPerFolder: 1,
+      simulatedDelay: Duration.zero,
+    );
+
+/// One saved index entry for [source], so the start path waits for prepared
+/// copies (see `_preferPrepared`).
+List<PhotoItem> _savedItemsOf(PhotoSource source) => [
+      PhotoItem(
+        id: 'folder-0-item-0',
+        sourceId: source.id,
+        folderId: 'folder-0',
+        name: 'mock_0_0.jpg',
+        mediaType: MediaType.image,
+        size: 1,
+        mtime: DateTime(2024),
+        width: 1920,
+        height: 1080,
+        takenAt: DateTime(2024),
+      ),
+    ];
+
+/// Pumps until the preparing view is on screen (the start path reaches the
+/// wait after a few async steps).
+Future<void> _pumpUntilPreparing(WidgetTester tester) async {
+  for (var i = 0;
+      i < 100 && find.byType(PreparingView).evaluate().isEmpty;
+      i++) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+}
+
+/// Lets the wait run out. Its deadline is measured with `DateTime.now()`,
+/// which the fake clock of `testWidgets` does not move, so real time has to
+/// pass first; the wait's 3 s poll then ends it.
+Future<void> _passWaitLimit(WidgetTester tester) async {
+  await tester
+      .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1100)));
+  await tester.pump(const Duration(seconds: 3));
+  await tester.pump();
 }
