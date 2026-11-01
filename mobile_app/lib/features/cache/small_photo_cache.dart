@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/utils/app_log.dart';
+import '../../core/utils/debug_trace.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/media_type.dart';
 import '../sources/domain/photo_item.dart';
@@ -340,6 +341,28 @@ class SmallPhotoCache {
     PhotoItem item, {
     Future<void> Function()? beforeScale,
   }) async {
+    final name = DebugTrace.baseName(item.id);
+    DebugTrace.event('cache', 'ensure start $name');
+    try {
+      final result = await _ensure(source, item, beforeScale: beforeScale);
+      DebugTrace.event(
+          'cache', 'ensure end $name ${result == null ? 'no file' : 'ok'}');
+      return result;
+    } on PhotoNotConvertibleException {
+      DebugTrace.event('cache', 'ensure end $name not convertible');
+      rethrow;
+    } catch (e) {
+      DebugTrace.event('cache', 'ensure end $name threw ${e.runtimeType}');
+      rethrow;
+    }
+  }
+
+  /// The body of [ensure]; see there.
+  Future<File?> _ensure(
+    PhotoSource source,
+    PhotoItem item, {
+    Future<void> Function()? beforeScale,
+  }) async {
     final have = await existing(item);
     if (have != null) return have;
     // Videos have no still image to scale: refused without a download.
@@ -551,8 +574,10 @@ class SmallPhotoCache {
   /// Runs only as a job of the shared queue (see [ensure]). Native scaling,
   /// the colour checks and the Flutter fallback all happen in this one job.
   Future<File?> _scale(File full, File temp) async {
+    final name = DebugTrace.baseName(full.path);
     File? small;
     try {
+      DebugTrace.event('cache', 'native scale start $name');
       final result = await FlutterImageCompress.compressAndGetFile(
         full.path,
         temp.path,
@@ -567,9 +592,18 @@ class SmallPhotoCache {
         // The native scaler mishandles some files (CMYK, odd colour profiles)
         // and produces a purple/colour-cast picture. Compare the average colour
         // with the original and reject such results.
-        if (await looksLikeOriginal(full, out)) small = out;
+        if (await looksLikeOriginal(full, out)) {
+          small = out;
+          DebugTrace.event('cache', 'native scale end $name ok');
+        } else {
+          DebugTrace.event('cache', 'native scale end $name colour rejected');
+        }
+      } else {
+        DebugTrace.event('cache', 'native scale end $name no file');
       }
     } catch (e, st) {
+      DebugTrace.event(
+          'cache', 'native scale end $name threw ${e.runtimeType}');
       // The native plugin throws on some files (a null reference inside the
       // plugin). That must not fail the photo: the Flutter path below can
       // still scale it.
@@ -655,6 +689,8 @@ class SmallPhotoCache {
   /// Fallback scaler using Flutter's own decoder (correct colours for every
   /// format it can read), re-encoded as JPEG to keep storage small.
   Future<File?> _scaleWithFlutter(File source, File temp) async {
+    final name = DebugTrace.baseName(source.path);
+    DebugTrace.event('cache', 'flutter scale start $name');
     ui.Codec? codec;
     try {
       final bytes = await source.readAsBytes();
@@ -678,7 +714,10 @@ class SmallPhotoCache {
       final image = (await codec.getNextFrame()).image;
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
-      if (data == null) return null;
+      if (data == null) {
+        DebugTrace.event('cache', 'flutter scale end $name no data');
+        return null;
+      }
       // Flutter decoded the colours correctly; the PNG is only handed to the
       // native encoder, which turns it into a small JPEG (no colour
       // conversion on this path, so the cast cannot come back).
@@ -689,8 +728,12 @@ class SmallPhotoCache {
         quality: 90,
         format: CompressFormat.jpeg,
       );
-      return await temp.writeAsBytes(jpeg, flush: true);
+      final written = await temp.writeAsBytes(jpeg, flush: true);
+      DebugTrace.event('cache', 'flutter scale end $name ok');
+      return written;
     } catch (e, st) {
+      DebugTrace.event(
+          'cache', 'flutter scale exception $name ${e.runtimeType}');
       logRecoverableError(
         'Fallback photo scaling failed',
         error: e,
@@ -967,6 +1010,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           }
           anyItemStarted = true;
           _queued.remove(item.stableId);
+          final traceName = DebugTrace.baseName(item.id);
+          DebugTrace.event('worker', 'item start $traceName');
+          var outcome = 'skipped';
           final source = _sources[item.sourceId];
           // A stalled network read must not stop the whole preparation: after a
           // minute the photo is skipped and the next one starts. The wait for an
@@ -981,6 +1027,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                     const Duration(seconds: 60) + maxBusyWait,
                     onTimeout: () => null,
                   );
+              outcome = file == null ? 'no file' : 'ok';
               if (file != null) {
                 _doneKeys.add(item.stableId);
                 _failedAt.remove(item.stableId);
@@ -989,6 +1036,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                 _failedAt[item.stableId] = DateTime.now();
               }
             } on PhotoNotConvertibleException catch (e) {
+              outcome = 'not convertible';
               // Never scaled again. Only real scaling errors are logged; the
               // expected refusals (video, other formats) are not errors.
               if (e.cause != null) {
@@ -1000,6 +1048,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
               }
               await _markNotConvertible(item);
             } catch (e, st) {
+              outcome = 'error ${e.runtimeType}';
               // Anything else must not stop the worker: log it, mark the
               // photo, and go on with the next one.
               logRecoverableError(
@@ -1010,6 +1059,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
               await _markNotConvertible(item);
             }
           }
+          DebugTrace.event('worker', 'item end $traceName $outcome');
           _done++;
           publish();
         }

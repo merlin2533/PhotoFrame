@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/utils/debug_trace.dart';
 import '../../index/working_set_pool.dart';
 import '../../sources/domain/photo_item.dart';
 import '../../sources/domain/photo_source.dart';
@@ -263,6 +264,7 @@ class SlideshowEngine {
       return _advance();
     }
 
+    DebugTrace.event('slideshow', 'advance ${item.stableId}');
     _pool.registerShown(entry.sourceId, entry.itemId);
     final shownEntry = _currentEntry;
     final shownItem = _currentItem;

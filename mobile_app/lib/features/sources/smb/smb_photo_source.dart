@@ -26,6 +26,7 @@ import 'package:smb_connect/smb_connect.dart';
 
 import '../../../core/errors/failure.dart';
 import '../../../core/utils/cancellation_token.dart';
+import '../../../core/utils/debug_trace.dart';
 import '../../../core/utils/result.dart';
 import '../domain/media_type.dart';
 import '../domain/photo_folder.dart';
@@ -374,8 +375,7 @@ class SmbPhotoSource implements PhotoSource {
     try {
       final folder =
           await connect.file(_fullPath(relPath)).timeout(_stepTimeout);
-      final children =
-          await connect.listFiles(folder).timeout(_stepTimeout);
+      final children = await connect.listFiles(folder).timeout(_stepTimeout);
       return Result.ok(children);
     } on TimeoutException {
       _dropBrokenConnection(connect);
@@ -518,9 +518,19 @@ class SmbPhotoSource implements PhotoSource {
       {CancellationToken? token}) {
     final running = _inFlight[item.id];
     if (running != null) return running;
+    final name = DebugTrace.baseName(item.id);
+    DebugTrace.event('smb', 'download start $name');
     final download = _fetchOnce(item, token: token);
     _inFlight[item.id] = download;
-    return download.whenComplete(() => _inFlight.remove(item.id));
+    return download
+        .whenComplete(() => _inFlight.remove(item.id))
+        .then((result) {
+      DebugTrace.event(
+          'smb',
+          'download end $name ${result.isOk ? 'ok' : 'failed'} '
+              'bytes=${DebugTrace.fileLength(result.valueOrNull)}');
+      return result;
+    });
   }
 
   /// Downloads [item] into the cache. The first attempt reuses the current
@@ -583,8 +593,8 @@ class SmbPhotoSource implements PhotoSource {
         // The stream ended early without an error: treat it as a failed read.
         _dropBrokenConnection(connect);
         await _discardPartial(null, partFile);
-        return Result.err(NetworkError(
-            'Foto "${item.id}" wurde unvollständig geladen'));
+        return Result.err(
+            NetworkError('Foto "${item.id}" wurde unvollständig geladen'));
       }
 
       await partFile.rename(localFile.path);
