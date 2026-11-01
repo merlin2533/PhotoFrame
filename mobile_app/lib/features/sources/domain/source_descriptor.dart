@@ -1,6 +1,6 @@
+import '../immich/immich_photo_source.dart';
 import '../local/local_folder_source.dart';
 import '../mock/mock_photo_source.dart';
-import '../immich/immich_photo_source.dart';
 import '../nextcloud/nextcloud_photo_source.dart';
 import '../smb/smb_photo_source.dart';
 import 'photo_source.dart';

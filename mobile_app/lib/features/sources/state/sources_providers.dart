@@ -128,7 +128,7 @@ class SourcesController extends AsyncNotifier<List<PhotoSource>> {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return [];
       return decoded
-          .whereType<Map>()
+          .whereType<Map<dynamic, dynamic>>()
           .map((e) => SourceDescriptor.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } on FormatException {

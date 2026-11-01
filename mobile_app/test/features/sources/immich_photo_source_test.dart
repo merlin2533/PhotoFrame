@@ -5,11 +5,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:mobile_app/core/errors/failure.dart';
 import 'package:mobile_app/core/utils/cancellation_token.dart';
+import 'package:mobile_app/core/utils/private_host.dart';
 import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_folder.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
 import 'package:mobile_app/features/sources/immich/immich_config_form_model.dart';
-import 'package:mobile_app/core/utils/private_host.dart';
 import 'package:mobile_app/features/sources/immich/immich_photo_source.dart';
 import 'package:test/test.dart';
 
