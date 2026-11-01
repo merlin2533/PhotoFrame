@@ -63,7 +63,7 @@ class AppSettings {
     this.selectionCount = 1000,
     this.smallPhotoBatchSize = 5,
     this.poolNewImageQuota = 0.2,
-    this.rotationSwapPercent = 10,
+    this.rotationSwapPercent = 5,
     this.rotationRenewalDays = 7,
     // Favorites / date filter (P2)
     this.favoritesOnlyMode = false,
@@ -170,8 +170,9 @@ class AppSettings {
   final int smallPhotoBatchSize;
   final double poolNewImageQuota;
 
-  /// Share of the rotation pool swapped out each day, in percent (5-50, steps
-  /// of 5). The swap runs once per calendar day, see `rotation_swap.dart`.
+  /// Share of the rotation pool swapped out each day, in percent (0-50, steps
+  /// of 5; 0 turns the daily swap off). Default 5. The swap runs once per
+  /// calendar day, see `rotation_swap.dart`.
   final int rotationSwapPercent;
 
   /// Days until the whole rotation pool has been renewed (1-30). Shown in the
@@ -497,7 +498,7 @@ class AppSettings {
       selectionCount: json['selectionCount'] as int? ?? 1000,
       smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
-      rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 10,
+      rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 5,
       rotationRenewalDays: json['rotationRenewalDays'] as int? ?? 7,
       favoritesOnlyMode: json['favoritesOnlyMode'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,

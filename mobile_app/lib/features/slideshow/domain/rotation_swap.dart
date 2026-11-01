@@ -3,14 +3,18 @@ import 'daily_selection.dart';
 
 /// Default share of the rotation pool that is swapped out each day, in percent.
 /// The live value is `AppSettings.rotationSwapPercent`; this is the default.
-const int defaultRotationSwapPercent = 10;
+const int defaultRotationSwapPercent = 5;
+
+/// App preferences key holding the day (`yyyy-MM-dd`) of the last daily swap.
+const String rotationSwapDayPrefsKey = 'rotation_swap_day_v1';
 
 /// Number of photos the daily swap replaces for a pool of [poolLength] photos:
 /// [percent] of the pool, rounded down. At least 1 once the pool has more than
-/// one photo, and never the whole pool, so the rotation keeps going.
+/// one photo, and never the whole pool, so the rotation keeps going. A
+/// [percent] of 0 means no daily swap at all, so the result is 0.
 int rotationSwapSize(int poolLength,
     {int percent = defaultRotationSwapPercent}) {
-  if (poolLength <= 1) return 0;
+  if (poolLength <= 1 || percent <= 0) return 0;
   final size = poolLength * percent ~/ 100;
   if (size < 1) return 1;
   return size >= poolLength ? poolLength - 1 : size;

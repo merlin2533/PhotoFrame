@@ -8,13 +8,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/utils/app_log.dart';
+import '../features/cache/prepared_count_provider.dart';
 import '../features/cache/small_photo_cache.dart';
 import '../features/cache/small_photo_usage_provider.dart';
 import '../features/index/photo_index_store.dart';
+import '../features/settings/domain/app_settings.dart';
 import '../features/settings/state/settings_providers.dart';
+import '../features/slideshow/presentation/daily_swap_text.dart';
 import '../features/sources/domain/photo_item.dart';
 import '../features/sources/domain/photo_source.dart';
 import '../features/sources/state/sources_providers.dart';
+import '../l10n/app_localizations.dart';
 
 /// Start screen: a background photo from the index, the current status of
 /// sources, index and preparation, and the main actions.
@@ -25,7 +29,8 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   late final SmallPhotoWorker _worker;
 
   /// `true` when this screen started the worker run, so only this screen's
@@ -36,6 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _worker = ref.read(smallPhotoWorkerProvider.notifier);
+    WidgetsBinding.instance.addObserver(this);
     // Once, after the first frame: not on every rebuild.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_prepareInBackground());
@@ -44,8 +50,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (_startedRun) _worker.stop();
     super.dispose();
+  }
+
+  /// The cache can change while the app is in the background (the slideshow
+  /// prepares photos, the system may clear files). On resume both counters
+  /// are read again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    ref.invalidate(smallPhotoCacheUsageProvider);
+    ref.invalidate(preparedCountProvider);
   }
 
   /// Starts the preparation of the photos that have no small copy yet, when
@@ -89,13 +106,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value ?? const <PhotoSource>[];
-    final disabled = ref.watch(settingsProvider).value?.disabledSourceIds ??
-        const <String>[];
-    final index = ref.watch(_homeIndexProvider);
+    final settings = ref.watch(settingsProvider).value ?? const AppSettings();
+    final disabled = settings.disabledSourceIds;
+    final index = ref.watch(indexSnapshotProvider);
     final background = ref.watch(_backgroundPhotoProvider);
     final worker = ref.watch(smallPhotoWorkerProvider);
-    final prepared = ref.watch(_preparedCountProvider);
+    final prepared = ref.watch(preparedCountProvider);
 
+    // The cache count is re-read when the app resumes (see
+    // didChangeAppLifecycleState) and after every finished photo (below). It
+    // is not re-scanned on every build: that would scan the cache folder on
+    // each worker status tick.
     final usage = ref.watch(smallPhotoCacheUsageProvider);
     // The counters move while photos are prepared: every finished photo
     // re-reads the cache folder and the prepared count.
@@ -103,7 +124,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       smallPhotoWorkerProvider.select((status) => status.done),
       (_, __) {
         ref.invalidate(smallPhotoCacheUsageProvider);
-        ref.invalidate(_preparedCountProvider);
+        ref.invalidate(preparedCountProvider);
       },
     );
 
@@ -164,6 +185,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ? '…'
                         : '${usage.value!.count} Fotos',
                   ),
+                  // The daily swap, without the pool size: the pool lives in
+                  // the slideshow, so only the percent is known here.
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32, bottom: 6),
+                    child: Text(
+                      dailySwapLine(
+                        AppLocalizations.of(context),
+                        percent: settings.rotationSwapPercent,
+                      ),
+                      style: const TextStyle(color: Colors.white54),
+                    ),
+                  ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,
                     label: 'Quellen',
@@ -221,28 +254,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// The saved index, read once per visit to the start screen.
-final FutureProvider<IndexSnapshot> _homeIndexProvider =
-    FutureProvider.autoDispose<IndexSnapshot>(
-  (ref) => ref.watch(photoIndexStoreProvider).load(),
-);
-
-/// How many photos of the index have a screen-sized copy on disk.
-final FutureProvider<int> _preparedCountProvider =
-    FutureProvider.autoDispose<int>((ref) async {
-  final snapshot = await ref.watch(_homeIndexProvider.future);
-  final cache = ref.read(smallPhotoCacheProvider);
-  var count = 0;
-  for (final item in snapshot.items) {
-    if (await cache.existing(item) != null) count++;
-  }
-  return count;
-});
-
 /// A random prepared photo as the background (null if none is ready yet).
 final FutureProvider<File?> _backgroundPhotoProvider =
     FutureProvider.autoDispose<File?>((ref) async {
-  final snapshot = await ref.watch(_homeIndexProvider.future);
+  final snapshot = await ref.watch(indexSnapshotProvider.future);
   if (snapshot.items.isEmpty) return null;
   final cache = ref.read(smallPhotoCacheProvider);
   final random = math.Random();

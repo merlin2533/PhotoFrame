@@ -241,12 +241,14 @@ void main() {
   });
 
   group('Daily swap', () {
-    test('a 100-photo pool swaps 10 photos by default, 20 at 20 percent', () {
-      expect(rotationSwapSize(100), 10);
+    test('a 100-photo pool swaps 5 photos by default, 20 at 20 percent', () {
+      expect(rotationSwapSize(100), 5);
       expect(rotationSwapSize(100, percent: 20), 20);
       expect(rotationSwapSize(100, percent: 5), 5);
       expect(rotationSwapSize(100, percent: 50), 50);
       expect(rotationSwapSize(1), 0);
+      // 0 percent turns the daily swap off.
+      expect(rotationSwapSize(100, percent: 0), 0);
       // Never the whole pool, and at least one photo for a small pool.
       expect(rotationSwapSize(2, percent: 50), 1);
     });

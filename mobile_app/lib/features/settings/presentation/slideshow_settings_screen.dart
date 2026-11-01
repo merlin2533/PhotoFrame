@@ -38,9 +38,9 @@ class SlideshowSettingsScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium),
             Slider(
               value: settings.rotationSwapPercent.toDouble(),
-              min: 5,
+              min: 0,
               max: 50,
-              divisions: 9,
+              divisions: 10,
               label: '${settings.rotationSwapPercent} %',
               onChanged: (v) => notifier.updateSettings(
                   (s) => s.copyWith(rotationSwapPercent: v.round())),
