@@ -6,7 +6,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../cache/small_photo_cache.dart';
 
 /// Full-screen progress shown while the slideshow waits for its first
-/// screen-sized photo copies (see `_preferPrepared` in `slideshow_screen.dart`),
+/// screen-sized photo copies (see `_startPool` in `slideshow_screen.dart`),
 /// instead of an empty screen.
 ///
 /// Watches [smallPhotoWorkerProvider], so the progress bar and the detail
