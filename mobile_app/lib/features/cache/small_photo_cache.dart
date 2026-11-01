@@ -19,7 +19,7 @@ import '../sources/domain/photo_source.dart';
 /// Files live in the app support directory and are not cleared on reload.
 class SmallPhotoCache {
   SmallPhotoCache({required Future<Directory> Function() directory})
-      : _directory = directory;
+    : _directory = directory;
 
   final Future<Directory> Function() _directory;
 
@@ -53,19 +53,24 @@ class SmallPhotoCache {
     if (_purgedOldVersion) return;
     _purgedOldVersion = true;
     for (final name in legacyDirectoryNames) {
-      final old = Directory(
-          '${dir.parent.path}${Platform.pathSeparator}$name');
+      final old = Directory('${dir.parent.path}${Platform.pathSeparator}$name');
       try {
         if (await old.exists()) await old.delete(recursive: true);
       } catch (e, st) {
-        logRecoverableError('Old small photo folder could not be removed',
-            error: e, stackTrace: st);
+        logRecoverableError(
+          'Old small photo folder could not be removed',
+          error: e,
+          stackTrace: st,
+        );
       }
     }
   }
 
   /// Name of the folder used before colours were checked (see above).
+  // The live folder is 'small_photos_v3'. Older folders are removed; listing
+  // the live folder here would delete the whole cache on every start.
   static const legacyDirectoryNames = ['small_photos', 'small_photos_v2'];
+  static const liveDirectoryName = 'small_photos_v3';
 
   /// Removes every prepared copy so they are created again.
   Future<void> clear() async {
@@ -102,7 +107,9 @@ class SmallPhotoCache {
   /// The first of [knownSourceIds] that [fileName] belongs to, or `null` when
   /// it belongs to none (for example a source that was removed).
   static String? sourceIdForFile(
-      String fileName, Iterable<String> knownSourceIds) {
+    String fileName,
+    Iterable<String> knownSourceIds,
+  ) {
     for (final id in knownSourceIds) {
       if (belongsToSource(fileName, id)) return id;
     }
@@ -148,7 +155,10 @@ class SmallPhotoCache {
       bySource: [
         for (final id in ids)
           SmallPhotoSourceUsage(
-              sourceId: id, count: counts[id]!, bytes: bytes[id]!),
+            sourceId: id,
+            count: counts[id]!,
+            bytes: bytes[id]!,
+          ),
       ],
       unassignedCount: unassignedCount,
       unassignedBytes: unassignedBytes,
@@ -184,8 +194,11 @@ class SmallPhotoCache {
         await file.delete();
         deleted++;
       } on FileSystemException catch (e, st) {
-        logRecoverableError('Small photo could not be deleted',
-            error: e, stackTrace: st);
+        logRecoverableError(
+          'Small photo could not be deleted',
+          error: e,
+          stackTrace: st,
+        );
       }
     }
     return deleted;
@@ -232,8 +245,11 @@ class SmallPhotoCache {
       final file = await _fileFor(item);
       return await file.exists() ? file : null;
     } catch (e, st) {
-      logRecoverableError('Small photo lookup failed',
-          error: e, stackTrace: st);
+      logRecoverableError(
+        'Small photo lookup failed',
+        error: e,
+        stackTrace: st,
+      );
       return null;
     }
   }
@@ -281,8 +297,11 @@ class SmallPhotoCache {
       }
       return target;
     } catch (e, st) {
-      logRecoverableError('Small photo could not be prepared',
-          error: e, stackTrace: st);
+      logRecoverableError(
+        'Small photo could not be prepared',
+        error: e,
+        stackTrace: st,
+      );
       return null;
     }
   }
@@ -432,7 +451,8 @@ class SmallPhotoCache {
         codec = longest > 2048
             ? await descriptor.instantiateCodec(
                 targetWidth: w >= h ? 2048 : null,
-                targetHeight: h > w ? 2048 : null)
+                targetHeight: h > w ? 2048 : null,
+              )
             : await descriptor.instantiateCodec();
       } finally {
         descriptor.dispose();
@@ -454,8 +474,11 @@ class SmallPhotoCache {
       );
       return await temp.writeAsBytes(jpeg, flush: true);
     } catch (e, st) {
-      logRecoverableError('Fallback photo scaling failed',
-          error: e, stackTrace: st);
+      logRecoverableError(
+        'Fallback photo scaling failed',
+        error: e,
+        stackTrace: st,
+      );
       return null;
     } finally {
       codec?.dispose();
@@ -463,20 +486,25 @@ class SmallPhotoCache {
   }
 }
 
-final Provider<SmallPhotoCache> smallPhotoCacheProvider =
-    Provider<SmallPhotoCache>(
+final Provider<SmallPhotoCache>
+smallPhotoCacheProvider = Provider<SmallPhotoCache>(
   (ref) => SmallPhotoCache(
     directory: () async {
       final base = await getApplicationSupportDirectory();
-      return Directory('${base.path}${Platform.pathSeparator}small_photos');
+      return Directory(
+        '${base.path}${Platform.pathSeparator}${SmallPhotoCache.liveDirectoryName}',
+      );
     },
   ),
 );
 
 /// Number and total size of the cached files of one source.
 class SmallPhotoSourceUsage {
-  const SmallPhotoSourceUsage(
-      {required this.sourceId, required this.count, required this.bytes});
+  const SmallPhotoSourceUsage({
+    required this.sourceId,
+    required this.count,
+    required this.bytes,
+  });
 
   final String sourceId;
   final int count;
@@ -506,8 +534,12 @@ class SmallPhotoCacheUsage {
 
 /// Progress of the background job that prepares the small files.
 class SmallPhotoStatus {
-  const SmallPhotoStatus(
-      {this.done = 0, this.total = 0, this.running = false, this.waiting = 0});
+  const SmallPhotoStatus({
+    this.done = 0,
+    this.total = 0,
+    this.running = false,
+    this.waiting = 0,
+  });
 
   final int done;
   final int total;
@@ -644,5 +676,6 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 }
 
 final NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>
-    smallPhotoWorkerProvider =
-    NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(SmallPhotoWorker.new);
+smallPhotoWorkerProvider = NotifierProvider<SmallPhotoWorker, SmallPhotoStatus>(
+  SmallPhotoWorker.new,
+);
