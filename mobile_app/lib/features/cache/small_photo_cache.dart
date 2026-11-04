@@ -10,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/utils/app_log.dart';
 import '../../core/utils/debug_trace.dart';
+import '../../services/cache/image_cache_manager.dart';
+import '../settings/domain/app_settings.dart';
 import '../settings/state/settings_providers.dart';
 import '../sources/domain/media_type.dart';
 import '../sources/domain/photo_item.dart';
@@ -38,16 +40,57 @@ class PhotoNotConvertibleException implements Exception {
   String toString() => 'PhotoNotConvertibleException: $reason';
 }
 
+/// Thrown by [SmallPhotoCache.ensure] when a new copy would exceed the cache
+/// limit and the least recently used copies cannot make room, because they
+/// were all written in the last [SmallPhotoCache.recentWindow]. Not an error:
+/// the worker ends its run and keeps the photo for the next one.
+class CacheLimitReachedException implements Exception {
+  const CacheLimitReachedException();
+
+  @override
+  String toString() => 'CacheLimitReachedException';
+}
+
+/// Free device storage below which no new small copy is written.
+const int minFreeStorageBytes = 1024 * 1024 * 1024;
+
+/// One file of the prepared folder, as listed by [SmallPhotoCache].
+class _CachedCopy {
+  const _CachedCopy({
+    required this.file,
+    required this.size,
+    required this.modified,
+  });
+
+  final File file;
+  final int size;
+  final DateTime modified;
+}
+
 /// Keeps a small, screen-sized JPEG of every photo on the device. The slideshow
 /// shows these files, so a photo from a network share is read once and then
 /// comes from local storage in full speed.
 ///
 /// Files live in the app support directory and are not cleared on reload.
 class SmallPhotoCache {
-  SmallPhotoCache({required Future<Directory> Function() directory})
-      : _directory = directory;
+  SmallPhotoCache({
+    required Future<Directory> Function() directory,
+    Future<int> Function()? freeSpace,
+  })  : _directory = directory,
+        _freeSpace = freeSpace ?? defaultGetFreeDiskSpaceBytes;
 
   final Future<Directory> Function() _directory;
+
+  /// Free device storage in bytes. Injected by tests.
+  final Future<int> Function() _freeSpace;
+
+  /// Copies modified within this window may be on screen, so they are never
+  /// removed to make room.
+  static const recentWindow = Duration(seconds: 60);
+
+  /// Names (with `.jpg`) of the copies removed to make room, until the worker
+  /// takes them with [takeEvictedNames].
+  final List<String> _evictedNames = [];
 
   /// The one shared FIFO queue for ALL heavy image work of this cache: decoding
   /// for checks ([verify], [colorGrid]), scaling (native and Flutter) and the
@@ -175,16 +218,75 @@ class SmallPhotoCache {
     return null;
   }
 
-  /// Every regular file in the cache folder. Empty while the folder does not
-  /// exist yet.
-  Future<List<File>> _cachedFiles() async {
+  /// The one scan of the cache folder: every regular file with its size and
+  /// modification time. Empty while the folder does not exist yet. A file that
+  /// vanished meanwhile is left out. [except] is not listed (the copy being
+  /// written).
+  Future<List<_CachedCopy>> _cachedEntries({File? except}) async {
     final dir = await _directory();
     if (!await dir.exists()) return [];
-    final files = <File>[];
+    final entries = <_CachedCopy>[];
     await for (final entity in dir.list(followLinks: false)) {
-      if (entity is File) files.add(entity);
+      if (entity is! File || entity.path == except?.path) continue;
+      try {
+        final stat = await entity.stat();
+        if (stat.type != FileSystemEntityType.file) continue;
+        entries.add(_CachedCopy(
+          file: entity,
+          size: stat.size,
+          modified: stat.modified,
+        ));
+      } on FileSystemException {
+        continue;
+      }
     }
-    return files;
+    return entries;
+  }
+
+  /// Removes the least recently modified copies, skipping those modified within
+  /// [recentWindow], until the folder holds at most [maxBytes] (without [keep]).
+  /// Returns `false` when it cannot get that low.
+  Future<bool> _evictUntil(int maxBytes, {required File keep}) async {
+    final entries = await _cachedEntries(except: keep);
+    var total = entries.fold(0, (sum, e) => sum + e.size);
+    if (total <= maxBytes) return true;
+    final cutoff = DateTime.now().subtract(recentWindow);
+    entries.sort((a, b) => a.modified.compareTo(b.modified));
+    for (final entry in entries) {
+      if (total <= maxBytes) return true;
+      if (entry.modified.isAfter(cutoff)) continue;
+      try {
+        await entry.file.delete();
+        total -= entry.size;
+        _evictedNames.add(_nameOf(entry.file));
+      } on FileSystemException catch (e, st) {
+        logRecoverableError(
+          'Small photo could not be removed to make room',
+          error: e,
+          stackTrace: st,
+        );
+      }
+    }
+    return total <= maxBytes;
+  }
+
+  /// Names of the copies removed to make room since the last call, so the
+  /// worker can forget them as prepared.
+  List<String> takeEvictedNames() {
+    final names = List<String>.of(_evictedNames);
+    _evictedNames.clear();
+    return names;
+  }
+
+  /// `true` when the device has at least [minFreeStorageBytes] free. Logs one
+  /// line when it does not.
+  Future<bool> _hasFreeStorage() async {
+    final free = await _freeSpace();
+    if (free >= minFreeStorageBytes) return true;
+    logRecoverableError(
+      'Small copy skipped, only ${free ~/ (1024 * 1024)} MB free on the device',
+    );
+    return false;
   }
 
   static String _nameOf(File file) => file.path.split(RegExp(r'[/\\]')).last;
@@ -198,16 +300,14 @@ class SmallPhotoCache {
     final bytes = {for (final id in ids) id: 0};
     var unassignedCount = 0;
     var unassignedBytes = 0;
-    for (final file in await _cachedFiles()) {
-      final size = await _sizeOf(file);
-      if (size == null) continue;
-      final id = sourceIdForFile(_nameOf(file), ids);
+    for (final entry in await _cachedEntries()) {
+      final id = sourceIdForFile(_nameOf(entry.file), ids);
       if (id == null) {
         unassignedCount++;
-        unassignedBytes += size;
+        unassignedBytes += entry.size;
       } else {
         counts[id] = counts[id]! + 1;
-        bytes[id] = bytes[id]! + size;
+        bytes[id] = bytes[id]! + entry.size;
       }
     }
     return SmallPhotoCacheUsage(
@@ -224,16 +324,6 @@ class SmallPhotoCache {
     );
   }
 
-  /// Size in bytes, or `null` when the file vanished meanwhile (for example
-  /// removed by a concurrent clear).
-  static Future<int?> _sizeOf(File file) async {
-    try {
-      return await file.length();
-    } on FileSystemException {
-      return null;
-    }
-  }
-
   /// Deletes the cache files of [sourceId] only. Returns how many were removed.
   Future<int> deleteForSource(String sourceId) =>
       _deleteWhere((name) => belongsToSource(name, sourceId));
@@ -247,7 +337,8 @@ class SmallPhotoCache {
 
   Future<int> _deleteWhere(bool Function(String fileName) matches) async {
     var deleted = 0;
-    for (final file in await _cachedFiles()) {
+    for (final entry in await _cachedEntries()) {
+      final file = entry.file;
       if (!matches(_nameOf(file))) continue;
       try {
         await file.delete();
@@ -332,24 +423,37 @@ class SmallPhotoCache {
   /// is queued. The worker uses it to hold back scaling while the slideshow is
   /// busy; downloads are never held.
   ///
-  /// Returns `null` when the download failed (a retry later may succeed).
+  /// Returns `null` when the download failed (a retry later may succeed), or
+  /// when the device has less than [minFreeStorageBytes] free (nothing is
+  /// written, the original is shown instead).
   /// Throws [PhotoNotConvertibleException] when the photo can never be scaled:
   /// it is a video, it is not a JPEG or PNG, or the scaling step returned no
   /// file or threw. The caller must not retry such a photo.
+  /// Throws [CacheLimitReachedException] when [cacheLimitBytes] is given and
+  /// the copy does not fit even after the oldest copies were removed.
   Future<File?> ensure(
     PhotoSource source,
     PhotoItem item, {
     Future<void> Function()? beforeScale,
+    int? cacheLimitBytes,
   }) async {
     final name = DebugTrace.baseName(item.id);
     DebugTrace.event('cache', 'ensure start $name');
     try {
-      final result = await _ensure(source, item, beforeScale: beforeScale);
+      final result = await _ensure(
+        source,
+        item,
+        beforeScale: beforeScale,
+        cacheLimitBytes: cacheLimitBytes,
+      );
       DebugTrace.event(
           'cache', 'ensure end $name ${result == null ? 'no file' : 'ok'}');
       return result;
     } on PhotoNotConvertibleException {
       DebugTrace.event('cache', 'ensure end $name not convertible');
+      rethrow;
+    } on CacheLimitReachedException {
+      DebugTrace.event('cache', 'ensure end $name cache limit reached');
       rethrow;
     } catch (e) {
       DebugTrace.event('cache', 'ensure end $name threw ${e.runtimeType}');
@@ -362,6 +466,7 @@ class SmallPhotoCache {
     PhotoSource source,
     PhotoItem item, {
     Future<void> Function()? beforeScale,
+    int? cacheLimitBytes,
   }) async {
     final have = await existing(item);
     if (have != null) return have;
@@ -423,6 +528,15 @@ class SmallPhotoCache {
         if (small == null) {
           throw const PhotoNotConvertibleException('Scaling returned no file');
         }
+        // Checked after scaling, right before the copy is written under its
+        // final name. A skipped copy is retried later, like a failed download.
+        if (!await _hasFreeStorage()) return null;
+        if (cacheLimitBytes != null) {
+          final room = cacheLimitBytes - await small.length();
+          if (!await _evictUntil(room, keep: small)) {
+            throw const CacheLimitReachedException();
+          }
+        }
         if (await target.exists()) await target.delete();
         await small.rename(target.path);
       } finally {
@@ -436,6 +550,8 @@ class SmallPhotoCache {
       }
       return target;
     } on PhotoNotConvertibleException {
+      rethrow;
+    } on CacheLimitReachedException {
       rethrow;
     } catch (e, st) {
       logRecoverableError(
@@ -1033,6 +1149,8 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                     defaultBatchSize)
                 .clamp(1, 50);
         final batch = _queued.values.take(batchSize).toList();
+        final cacheLimit = ref.read(settingsProvider).value?.cacheLimitBytes ??
+            const AppSettings().cacheLimitBytes;
         for (final item in batch) {
           if (_stopRequested) break;
           if (anyItemStarted) {
@@ -1045,6 +1163,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
           final traceName = DebugTrace.baseName(item.id);
           DebugTrace.event('worker', 'item start $traceName');
           var outcome = 'skipped';
+          var limitReached = false;
           final source = _sources[item.sourceId];
           // A stalled network read must not stop the whole preparation: after a
           // minute the photo is skipped and the next one starts. The wait for an
@@ -1054,7 +1173,12 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
               !await _notConvertible.contains(item.stableId)) {
             try {
               final file = await cache
-                  .ensure(source, item, beforeScale: _waitForSlideshow)
+                  .ensure(
+                    source,
+                    item,
+                    beforeScale: _waitForSlideshow,
+                    cacheLimitBytes: cacheLimit,
+                  )
                   .timeout(
                     const Duration(seconds: 60) + maxBusyWait,
                     onTimeout: () => null,
@@ -1082,6 +1206,11 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                 );
               }
               await _markNotConvertible(item);
+            } on CacheLimitReachedException {
+              // Not an error and not a failure: the photo stays queued and the
+              // run ends below, until the cache is below the limit again.
+              limitReached = true;
+              outcome = 'cache limit reached';
             } catch (e, st) {
               outcome = 'error ${e.runtimeType}';
               // Anything else must not stop the worker: log it, mark the
@@ -1093,6 +1222,19 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
               );
               await _markNotConvertible(item);
             }
+          }
+          // Copies removed to make room are no longer prepared.
+          final evicted = cache.takeEvictedNames();
+          if (evicted.isNotEmpty) {
+            _doneKeys.removeWhere(
+              (id) =>
+                  evicted.contains('${SmallPhotoCache.baseNameFor(id)}.jpg'),
+            );
+          }
+          if (limitReached) {
+            _queued[item.stableId] = item;
+            _stopRequested = true;
+            break;
           }
           DebugTrace.event('worker', 'item end $traceName $outcome');
           _done++;

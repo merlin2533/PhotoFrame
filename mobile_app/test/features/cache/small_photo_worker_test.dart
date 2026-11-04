@@ -29,6 +29,9 @@ class _FakeCache extends SmallPhotoCache {
 
   /// The scaling step throws: ensure throws a plain error wrapped by the cache.
   final Set<String> throwing;
+
+  /// The cache limit blocks these: ensure throws [CacheLimitReachedException].
+  final Set<String> limited = {};
   final List<String> calls = [];
   final List<DateTime> callTimes = [];
 
@@ -37,12 +40,16 @@ class _FakeCache extends SmallPhotoCache {
     PhotoSource source,
     PhotoItem item, {
     Future<void> Function()? beforeScale,
+    int? cacheLimitBytes,
   }) async {
     calls.add(item.id);
     callTimes.add(DateTime.now());
     if (notScalable.contains(item.id)) {
       throw const PhotoNotConvertibleException(
           'Format is neither JPEG nor PNG');
+    }
+    if (limited.contains(item.id)) {
+      throw const CacheLimitReachedException();
     }
     if (throwing.contains(item.id)) {
       throw PhotoNotConvertibleException(
@@ -128,6 +135,33 @@ void main() {
         reason: 'pause before item ${i + 1}',
       );
     }
+  });
+
+  test('reaching the cache limit ends the run without error and keeps the rest',
+      () async {
+    final cache = _FakeCache()..limited.addAll(['a', 'b', 'c']);
+    final container = _container(cache);
+    final worker = container.read(smallPhotoWorkerProvider.notifier);
+    final source =
+        MockPhotoSource(id: 'src', folderCount: 1, itemsPerFolder: 0);
+
+    await worker
+        .start([_item('a'), _item('b'), _item('c')], {source.id: source});
+
+    // The first photo hit the limit: the run stopped there, nothing failed.
+    expect(cache.calls, hasLength(1));
+    var status = container.read(smallPhotoWorkerProvider);
+    expect(status.running, isFalse);
+    expect(status.done, 0);
+    expect(status.total, 3);
+
+    // Once the cache is below the limit again, the next run prepares them.
+    cache.limited.clear();
+    await worker.start([], {source.id: source});
+
+    expect(cache.calls, hasLength(4));
+    status = container.read(smallPhotoWorkerProvider);
+    expect(status.done, 3);
   });
 
   test('a failed photo is not retried within the hour', () async {
