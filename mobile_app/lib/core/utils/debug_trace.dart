@@ -53,24 +53,53 @@ class DebugTrace {
     }
   }
 
-  /// Appends one line `<ISO time> <tag> <message>` to the trace file.
+  /// Number of lines kept in memory by [event], also in release builds.
+  static const memoryLines = 200;
+
+  /// The last [memoryLines] lines, kept in memory whether or not the file is
+  /// written. Read by [recentLines] in release builds.
+  static final List<String> _memory = <String>[];
+
+  /// Appends one line `<ISO time> <tag> <message>` to the trace file and to
+  /// the in-memory list of [recentLines].
   ///
-  /// The write is synchronous and flushed, so the line is on disk when this
-  /// returns. Never throws: any failure is ignored.
+  /// The file write is synchronous and flushed, so the line is on disk when
+  /// this returns. Never throws: any failure is ignored.
   static void event(String tag, String message) {
+    final text = message.replaceAll(RegExp(r'[\r\n]+'), ' ');
+    final line = '${DateTime.now().toIso8601String()} $tag $text';
+    _memory.add(line);
+    if (_memory.length > memoryLines) _memory.removeAt(0);
     if (!isActive) return;
     final file = _file;
     if (file == null) return;
     try {
-      final text = message.replaceAll(RegExp(r'[\r\n]+'), ' ');
       file.writeAsStringSync(
-        '${DateTime.now().toIso8601String()} $tag $text\n',
+        '$line\n',
         mode: FileMode.append,
         flush: true,
       );
     } catch (_) {
       // Never let tracing break the app.
     }
+  }
+
+  /// The last [max] trace lines, oldest first, for a crash report.
+  ///
+  /// In debug builds these are the last lines of the trace file. In release
+  /// builds, or when the file cannot be read, they are the in-memory lines of
+  /// [event]. Never throws.
+  static List<String> recentLines(int max) {
+    if (max <= 0) return const [];
+    if (isActive && _file != null) {
+      try {
+        final lines = _file!.readAsLinesSync();
+        return lines.sublist(lines.length > max ? lines.length - max : 0);
+      } catch (_) {
+        // Fall through to the in-memory lines.
+      }
+    }
+    return _memory.sublist(_memory.length > max ? _memory.length - max : 0);
   }
 
   /// Last path segment of [path], for logging without the folder names.

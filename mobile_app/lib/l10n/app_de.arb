@@ -272,5 +272,21 @@
   "rotationSwapPercentLabel": "Täglich getauschter Anteil: {percent} %",
   "@rotationSwapPercentLabel": {"description": "Schieberegler in den Diashow-Einstellungen: Anteil des Rotations-Pools, der jeden Tag ausgetauscht wird.", "placeholders": {"percent": {"type": "int"}}},
   "rotationRenewalDaysLabel": "Ganzer Pool erneuert sich nach {days} Tagen",
-  "@rotationRenewalDaysLabel": {"description": "Schieberegler in den Diashow-Einstellungen: Tage, bis der ganze Rotations-Pool erneuert ist.", "placeholders": {"days": {"type": "int"}}}
+  "@rotationRenewalDaysLabel": {"description": "Schieberegler in den Diashow-Einstellungen: Tage, bis der ganze Rotations-Pool erneuert ist.", "placeholders": {"days": {"type": "int"}}},
+  "settingsCrashReportTitle": "Absturzbericht senden",
+  "@settingsCrashReportTitle": {"description": "Titel des Menüpunkts für den Absturzbericht."},
+  "settingsCrashReportSubtitle": "Sendet Diagnosedaten an den Entwickler. Keine Fotonamen, keine Zugangsdaten.",
+  "@settingsCrashReportSubtitle": {"description": "Untertitel des Menüpunkts Absturzbericht senden."},
+  "crashReportConfirmTitle": "Absturzbericht senden?",
+  "@crashReportConfirmTitle": {"description": "Titel des Bestätigungsdialogs für den Absturzbericht."},
+  "crashReportConfirmBody": "Gesendet werden: die letzten Einträge der Ablaufverfolgung, App-Version, Gerätemodell, Android-Version, Cache-Anzahl und -Größe, Cache-Limit, Vorbereitungs-Schalter und Anzahl der Quellen. Keine Fotonamen, keine Adressen, keine Zugangsdaten.",
+  "@crashReportConfirmBody": {"description": "Erklärtext im Bestätigungsdialog des Absturzberichts."},
+  "crashReportConfirmCancel": "Abbrechen",
+  "@crashReportConfirmCancel": {"description": "Schaltfläche im Absturzbericht-Dialog: nichts senden."},
+  "crashReportConfirmSend": "Senden",
+  "@crashReportConfirmSend": {"description": "Schaltfläche im Absturzbericht-Dialog: Bericht senden."},
+  "crashReportErrorReportsOff": "Fehlerberichte sind ausgeschaltet",
+  "@crashReportErrorReportsOff": {"description": "Hinweis, wenn der Absturzbericht wegen des Schalters Fehlerberichte senden nicht gesendet wird."},
+  "crashReportSent": "Absturzbericht gesendet",
+  "@crashReportSent": {"description": "Bestätigung nach dem Senden des Absturzberichts."}
 }
