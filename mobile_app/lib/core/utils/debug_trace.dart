@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// A crash-safe event trace for field debugging.
 ///
@@ -12,8 +14,12 @@ import 'package:path_provider/path_provider.dart';
 /// last seconds before a crash are still on disk afterwards.
 ///
 /// The trace is active only in debug builds (`kDebugMode`) or when the app is
-/// built with `--dart-define=DEBUG_TRACE=true`. In release builds every call
-/// returns at once and nothing is written.
+/// built with `--dart-define=DEBUG_TRACE=true`. In release builds nothing is
+/// written to the file.
+///
+/// Every event is also added as a Sentry breadcrumb in all builds, so the
+/// last events are attached to the next event sent, including native crash
+/// reports. Sentry keeps the last 100 breadcrumbs, so no buffer is kept here.
 ///
 /// Rules for callers: short messages only, no file contents, no secrets, no
 /// user names and no host names. File names are fine.
@@ -53,11 +59,14 @@ class DebugTrace {
     }
   }
 
-  /// Appends one line `<ISO time> <tag> <message>` to the trace file.
+  /// Appends one line `<ISO time> <tag> <message>` to the trace file and adds
+  /// the same event as a Sentry breadcrumb.
   ///
-  /// The write is synchronous and flushed, so the line is on disk when this
-  /// returns. Never throws: any failure is ignored.
+  /// The file write is synchronous and flushed, so the line is on disk when
+  /// this returns. The breadcrumb is added in every build, the file only while
+  /// [isActive]. Never throws: any failure is ignored.
   static void event(String tag, String message) {
+    _addBreadcrumb(tag, message);
     if (!isActive) return;
     final file = _file;
     if (file == null) return;
@@ -70,6 +79,21 @@ class DebugTrace {
       );
     } catch (_) {
       // Never let tracing break the app.
+    }
+  }
+
+  /// Adds the event to Sentry. Errors are ignored, Sentry must not break the
+  /// caller.
+  static void _addBreadcrumb(String tag, String message) {
+    try {
+      unawaited(Sentry.addBreadcrumb(Breadcrumb(
+        message: message,
+        category: tag,
+        level: SentryLevel.info,
+        timestamp: DateTime.now(),
+      )).catchError((_) {}));
+    } catch (_) {
+      // Tracing is a debugging aid; it must never throw into the app.
     }
   }
 

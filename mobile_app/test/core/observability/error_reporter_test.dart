@@ -222,13 +222,29 @@ void main() {
       );
     }
 
-    test('removes breadcrumbs, user and request data', () async {
+    test('removes user and request data', () async {
       final event = await redactSentryEvent(buildEvent(), Hint());
 
       expect(event, isNotNull);
-      expect(event!.breadcrumbs, isNull);
-      expect(event.user, isNull);
+      expect(event!.user, isNull);
       expect(event.request, isNull);
+    });
+
+    test('keeps breadcrumbs and scrubs photo names and URLs in their messages',
+        () async {
+      final event = SentryEvent(breadcrumbs: [
+        Breadcrumb(
+          message:
+              'ensure end IMG_1.jpg from https://nas.local/Fotos/IMG_1.jpg',
+        ),
+      ]);
+
+      final result = await redactSentryEvent(event, Hint());
+
+      expect(result, isNotNull);
+      expect(result!.breadcrumbs, hasLength(1));
+      expect(result.breadcrumbs!.single.message,
+          'ensure end [redacted] from [redacted]');
     });
 
     test('scrubs the message and the exception value', () async {
