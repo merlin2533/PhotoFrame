@@ -24,6 +24,19 @@ void main() {
       expect(scrubSensitiveText('file:///storage/emulated/0/a'), '[redacted]');
     });
 
+    test('replaces RAW camera file names', () {
+      for (final name in [
+        'IMG_1.CR3',
+        'DSC_2.RAF',
+        'P1.ORF',
+        'P2.RW2',
+        'S.SRW'
+      ]) {
+        expect(scrubSensitiveText('Datei $name'), 'Datei [redacted]',
+            reason: name);
+      }
+    });
+
     test('replaces Windows drive paths and UNC paths', () {
       expect(
         scrubSensitiveText(r'Pfad C:\Users\markus\Bilder\Urlaub ok'),

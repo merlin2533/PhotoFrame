@@ -168,5 +168,7 @@
   "crashReportErrorReportsOff": "Error reports are switched off",
   "@crashReportErrorReportsOff": {"description": "Message when the crash report is not sent because the send error reports switch is off."},
   "crashReportSent": "Crash report sent",
-  "@crashReportSent": {"description": "Confirmation after the crash report was sent."}
+  "@crashReportSent": {"description": "Confirmation after the crash report was sent."},
+  "crashReportFailed": "Crash report could not be sent",
+  "@crashReportFailed": {"description": "Message when the crash report could not be prepared or sent."}
 }

@@ -487,4 +487,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get crashReportSent => 'Absturzbericht gesendet';
+
+  @override
+  String get crashReportFailed => 'Absturzbericht konnte nicht gesendet werden';
 }

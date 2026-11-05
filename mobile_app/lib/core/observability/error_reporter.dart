@@ -31,7 +31,8 @@ void setErrorReportingEnabled(bool enabled) {
 
 /// Photo and video file extensions (case-insensitive).
 const String _mediaExtensions =
-    r'(?:jpe?g|png|heic|heif|webp|gif|bmp|tiff?|dng|raw|cr2|nef|arw|'
+    r'(?:jpe?g|png|heic|heif|webp|gif|bmp|tiff?|dng|raw|cr2|cr3|nef|arw|'
+    r'raf|orf|rw2|srw|'
     r'mp4|mov|m4v|3gp|avi|mkv|webm)';
 
 /// Source and config file extensions. Paths ending in one of these are kept

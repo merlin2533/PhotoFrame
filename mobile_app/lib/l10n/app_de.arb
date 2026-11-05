@@ -288,5 +288,7 @@
   "crashReportErrorReportsOff": "Fehlerberichte sind ausgeschaltet",
   "@crashReportErrorReportsOff": {"description": "Hinweis, wenn der Absturzbericht wegen des Schalters Fehlerberichte senden nicht gesendet wird."},
   "crashReportSent": "Absturzbericht gesendet",
-  "@crashReportSent": {"description": "Bestätigung nach dem Senden des Absturzberichts."}
+  "@crashReportSent": {"description": "Bestätigung nach dem Senden des Absturzberichts."},
+  "crashReportFailed": "Absturzbericht konnte nicht gesendet werden",
+  "@crashReportFailed": {"description": "Hinweis, wenn der Absturzbericht nicht vorbereitet oder gesendet werden konnte."}
 }

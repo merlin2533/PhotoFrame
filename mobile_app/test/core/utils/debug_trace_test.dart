@@ -97,6 +97,21 @@ void main() {
     expect(lines[2], endsWith(' slide step 5'));
   });
 
+  test('recentLines() reads only the tail of a large trace file', () async {
+    await DebugTrace.startup(directory: () async => tempDir);
+    final padding = 'x' * 120;
+    final written = [for (var i = 1; i <= 2000; i++) '$padding line $i'];
+    traceFile().writeAsStringSync('${written.join('\n')}\n');
+
+    final lines = DebugTrace.recentLines(3);
+
+    expect(lines, [
+      endsWith('$padding line 1998'),
+      endsWith('$padding line 1999'),
+      endsWith('$padding line 2000'),
+    ]);
+  });
+
   test('recentLines() falls back to the memory lines when the file is gone',
       () async {
     final missing = Directory('${tempDir.path}/does/not/exist');

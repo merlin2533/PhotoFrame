@@ -46,6 +46,11 @@ Map<String, Object> buildUserCrashReportData({
 Future<void> sendUserCrashReport(Map<String, Object> data) async {
   await Sentry.captureMessage(
     kUserCrashReportMessage,
-    withScope: (scope) => scope.setContexts(kUserCrashReportContext, data),
+    withScope: (scope) => applyUserCrashReportScope(scope, data),
   );
+}
+
+/// Puts [data] into the [kUserCrashReportContext] context of [scope].
+void applyUserCrashReportScope(Scope scope, Map<String, Object> data) {
+  scope.setContexts(kUserCrashReportContext, data);
 }

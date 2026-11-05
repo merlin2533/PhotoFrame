@@ -480,4 +480,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get crashReportSent => 'Crash report sent';
+
+  @override
+  String get crashReportFailed => 'Crash report could not be sent';
 }

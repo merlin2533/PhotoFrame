@@ -9,9 +9,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/observability/error_reporter.dart';
 import '../../../core/observability/user_crash_report.dart';
+import '../../../core/utils/app_log.dart';
 import '../../../core/utils/debug_trace.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../cache/small_photo_cache.dart';
+import '../../cache/small_photo_usage_provider.dart';
 import '../../sources/state/sources_providers.dart';
 import '../domain/app_settings.dart';
 import '../state/settings_providers.dart';
@@ -206,32 +207,45 @@ Future<void> _confirmAndSendCrashReport(
   );
   if (confirmed != true) return;
 
-  final settings = ref.read(settingsProvider).value ?? const AppSettings();
-  final cache = ref.read(smallPhotoCacheProvider);
-  final sources = await ref.read(sourcesProvider.future);
-  final usage = await cache.usage(sources.map((source) => source.id));
-  final package = await PackageInfo.fromPlatform();
-  var deviceModel = 'unknown';
-  var androidVersion = 'unknown';
-  if (Platform.isAndroid) {
-    final android = await DeviceInfoPlugin().androidInfo;
-    deviceModel = android.model;
-    androidVersion = android.version.release;
-  }
+  try {
+    // Awaited, not .value: the report must never carry the default settings.
+    final settings = await ref.read(settingsProvider.future);
+    // Fresh scan: the cached usage may predate the last cache change.
+    ref.invalidate(smallPhotoCacheUsageProvider);
+    final usage = await ref.read(smallPhotoCacheUsageProvider.future);
+    final sources = await ref.read(sourcesProvider.future);
+    final package = await PackageInfo.fromPlatform();
+    var deviceModel = 'unknown';
+    var androidVersion = 'unknown';
+    if (Platform.isAndroid) {
+      final android = await DeviceInfoPlugin().androidInfo;
+      deviceModel = android.model;
+      androidVersion = android.version.release;
+    }
 
-  await sendUserCrashReport(buildUserCrashReportData(
-    appVersion: package.version,
-    build: package.buildNumber,
-    deviceModel: deviceModel,
-    androidVersion: androidVersion,
-    cacheFiles: usage.count,
-    cacheBytes: usage.totalBytes,
-    cacheLimitBytes: settings.cacheLimitBytes,
-    preparationEnabled: settings.preparationEnabled,
-    sourceCount: sources.length,
-    traceLines: DebugTrace.recentLines(kUserCrashReportTraceLines),
-  ));
-  messenger.showSnackBar(SnackBar(content: Text(l10n.crashReportSent)));
+    await sendUserCrashReport(buildUserCrashReportData(
+      appVersion: package.version,
+      build: package.buildNumber,
+      deviceModel: deviceModel,
+      androidVersion: androidVersion,
+      cacheFiles: usage.count,
+      cacheBytes: usage.totalBytes,
+      cacheLimitBytes: settings.cacheLimitBytes,
+      preparationEnabled: settings.preparationEnabled,
+      sourceCount: sources.length,
+      traceLines: DebugTrace.recentLines(kUserCrashReportTraceLines),
+    ));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.crashReportSent)));
+  } catch (error, stackTrace) {
+    logRecoverableError(
+      'Crash report could not be sent',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.crashReportFailed)),
+    );
+  }
 }
 
 /// Short git commit hash the app was built from. Injected at build time with

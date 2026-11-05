@@ -901,6 +901,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Absturzbericht gesendet'**
   String get crashReportSent;
+
+  /// Hinweis, wenn der Absturzbericht nicht vorbereitet oder gesendet werden konnte.
+  ///
+  /// In de, this message translates to:
+  /// **'Absturzbericht konnte nicht gesendet werden'**
+  String get crashReportFailed;
 }
 
 class _AppLocalizationsDelegate
