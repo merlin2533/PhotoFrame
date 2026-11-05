@@ -264,13 +264,22 @@ void configureErrorReporting(SentryFlutterOptions options) {
 }
 
 /// Sentry `beforeSend` hook: drops the event while reporting is switched
-/// off, and otherwise removes breadcrumbs, user, request, debug image and
-/// host details and scrubs every remaining string with [scrubSensitiveText].
+/// off, and otherwise scrubs every breadcrumb message, removes user, request,
+/// debug image and host details, and scrubs every remaining string with
+/// [scrubSensitiveText].
 FutureOr<SentryEvent?> redactSentryEvent(SentryEvent event, Hint hint) {
   if (!_errorReportingEnabled) return null;
 
+  // Breadcrumbs stay (they carry the trace before a crash), with messages
+  // scrubbed. Each message is scrubbed the same way as the event message.
+  final breadcrumbs = event.breadcrumbs;
+  if (breadcrumbs != null) {
+    for (final crumb in breadcrumbs) {
+      crumb.message = scrubNullable(crumb.message);
+    }
+  }
+
   event
-    ..breadcrumbs = null
     ..user = null
     ..request = null
     ..serverName = null

@@ -31,6 +31,11 @@ void main() {
     expect(DateTime.tryParse(lines[0].split(' ').first), isNotNull);
   });
 
+  test('event() does not throw without Sentry initialised', () {
+    expect(() => DebugTrace.event('cache', 'ensure end a.jpg ok'),
+        returnsNormally);
+  });
+
   test('event() keeps a message with line breaks on one line', () async {
     await DebugTrace.startup(directory: () async => tempDir);
 
