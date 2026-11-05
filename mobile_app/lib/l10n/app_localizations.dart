@@ -853,6 +853,60 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Ganzer Pool erneuert sich nach {days} Tagen'**
   String rotationRenewalDaysLabel(int days);
+
+  /// Titel des Menüpunkts für den Absturzbericht.
+  ///
+  /// In de, this message translates to:
+  /// **'Absturzbericht senden'**
+  String get settingsCrashReportTitle;
+
+  /// Untertitel des Menüpunkts Absturzbericht senden.
+  ///
+  /// In de, this message translates to:
+  /// **'Sendet Diagnosedaten an den Entwickler. Keine Fotonamen, keine Zugangsdaten.'**
+  String get settingsCrashReportSubtitle;
+
+  /// Titel des Bestätigungsdialogs für den Absturzbericht.
+  ///
+  /// In de, this message translates to:
+  /// **'Absturzbericht senden?'**
+  String get crashReportConfirmTitle;
+
+  /// Erklärtext im Bestätigungsdialog des Absturzberichts.
+  ///
+  /// In de, this message translates to:
+  /// **'Gesendet werden: die letzten Einträge der Ablaufverfolgung, App-Version, Gerätemodell, Android-Version, Cache-Anzahl und -Größe, Cache-Limit, Vorbereitungs-Schalter und Anzahl der Quellen. Keine Fotonamen, keine Adressen, keine Zugangsdaten.'**
+  String get crashReportConfirmBody;
+
+  /// Schaltfläche im Absturzbericht-Dialog: nichts senden.
+  ///
+  /// In de, this message translates to:
+  /// **'Abbrechen'**
+  String get crashReportConfirmCancel;
+
+  /// Schaltfläche im Absturzbericht-Dialog: Bericht senden.
+  ///
+  /// In de, this message translates to:
+  /// **'Senden'**
+  String get crashReportConfirmSend;
+
+  /// Hinweis, wenn der Absturzbericht wegen des Schalters Fehlerberichte senden nicht gesendet wird.
+  ///
+  /// In de, this message translates to:
+  /// **'Fehlerberichte sind ausgeschaltet'**
+  String get crashReportErrorReportsOff;
+
+  /// Bestätigung nach dem Senden des Absturzberichts.
+  ///
+  /// In de, this message translates to:
+  /// **'Absturzbericht gesendet'**
+  String get crashReportSent;
+
+  /// Hinweis, wenn der Absturzbericht nicht vorbereitet oder gesendet werden konnte.
+  ///
+  /// In de, this message translates to:
+  /// **'Absturzbericht konnte nicht gesendet werden'**
+  String get crashReportFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -1,11 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../../core/observability/error_reporter.dart';
+import '../../../core/observability/user_crash_report.dart';
+import '../../../core/utils/app_log.dart';
+import '../../../core/utils/debug_trace.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../cache/small_photo_usage_provider.dart';
+import '../../sources/state/sources_providers.dart';
 import '../domain/app_settings.dart';
 import '../state/settings_providers.dart';
 
@@ -140,6 +148,12 @@ class SettingsScreen extends ConsumerWidget {
                 : null,
           ),
           ListTile(
+            leading: const Icon(Icons.send_outlined),
+            title: Text(l10n.settingsCrashReportTitle),
+            subtitle: Text(l10n.settingsCrashReportSubtitle),
+            onTap: () => unawaited(_confirmAndSendCrashReport(context, ref)),
+          ),
+          ListTile(
             leading: const Icon(Icons.language_outlined),
             title: Text(l10n.settingsLanguageTitle),
             subtitle: Text(l10n.settingsLanguageSubtitle),
@@ -155,6 +169,81 @@ class SettingsScreen extends ConsumerWidget {
           const _AppVersionFooter(),
         ],
       ),
+    );
+  }
+}
+
+/// Asks first, then sends one user crash report. While error reporting is
+/// switched off it shows a snackbar and sends nothing.
+Future<void> _confirmAndSendCrashReport(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  if (!isErrorReportingEnabled) {
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.crashReportErrorReportsOff)),
+    );
+    return;
+  }
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(l10n.crashReportConfirmTitle),
+      content: Text(l10n.crashReportConfirmBody),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: Text(l10n.crashReportConfirmCancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(l10n.crashReportConfirmSend),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+
+  try {
+    // Awaited, not .value: the report must never carry the default settings.
+    final settings = await ref.read(settingsProvider.future);
+    // Fresh scan: the cached usage may predate the last cache change.
+    ref.invalidate(smallPhotoCacheUsageProvider);
+    final usage = await ref.read(smallPhotoCacheUsageProvider.future);
+    final sources = await ref.read(sourcesProvider.future);
+    final package = await PackageInfo.fromPlatform();
+    var deviceModel = 'unknown';
+    var androidVersion = 'unknown';
+    if (Platform.isAndroid) {
+      final android = await DeviceInfoPlugin().androidInfo;
+      deviceModel = android.model;
+      androidVersion = android.version.release;
+    }
+
+    await sendUserCrashReport(buildUserCrashReportData(
+      appVersion: package.version,
+      build: package.buildNumber,
+      deviceModel: deviceModel,
+      androidVersion: androidVersion,
+      cacheFiles: usage.count,
+      cacheBytes: usage.totalBytes,
+      cacheLimitBytes: settings.cacheLimitBytes,
+      preparationEnabled: settings.preparationEnabled,
+      sourceCount: sources.length,
+      traceLines: DebugTrace.recentLines(kUserCrashReportTraceLines),
+    ));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.crashReportSent)));
+  } catch (error, stackTrace) {
+    logRecoverableError(
+      'Crash report could not be sent',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.crashReportFailed)),
     );
   }
 }

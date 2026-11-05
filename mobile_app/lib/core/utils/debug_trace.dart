@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -59,26 +60,87 @@ class DebugTrace {
     }
   }
 
-  /// Appends one line `<ISO time> <tag> <message>` to the trace file and adds
-  /// the same event as a Sentry breadcrumb.
+  /// Number of lines kept in memory by [event], also in release builds.
+  static const memoryLines = 200;
+
+  /// The last [memoryLines] events, kept raw in memory whether or not the
+  /// file is written. Formatted only by [recentLines], so release builds pay
+  /// for one small object per call.
+  static final List<_TraceEntry> _memory = <_TraceEntry>[];
+
+  /// Appends one line `<ISO time> <tag> <message>` to the trace file, keeps the
+  /// raw event in memory for [recentLines] and adds the same event as a Sentry
+  /// breadcrumb.
   ///
   /// The file write is synchronous and flushed, so the line is on disk when
   /// this returns. The breadcrumb is added in every build, the file only while
   /// [isActive]. Never throws: any failure is ignored.
   static void event(String tag, String message) {
+    final entry = _TraceEntry(DateTime.now(), tag, message);
+    _memory.add(entry);
+    if (_memory.length > memoryLines) _memory.removeAt(0);
     _addBreadcrumb(tag, message);
     if (!isActive) return;
     final file = _file;
     if (file == null) return;
     try {
-      final text = message.replaceAll(RegExp(r'[\r\n]+'), ' ');
       file.writeAsStringSync(
-        '${DateTime.now().toIso8601String()} $tag $text\n',
+        '${entry.format()}\n',
         mode: FileMode.append,
         flush: true,
       );
     } catch (_) {
       // Never let tracing break the app.
+    }
+  }
+
+  /// The last [max] trace lines, oldest first, for a crash report.
+  ///
+  /// In debug builds these are the last lines of the trace file, read from its
+  /// end. In release builds, or when the file cannot be read, they are the
+  /// in-memory events of [event]. Never throws.
+  static List<String> recentLines(int max) {
+    if (max <= 0) return const [];
+    final file = _file;
+    if (isActive && file != null) {
+      try {
+        return _readTail(file, max);
+      } catch (_) {
+        // Fall through to the in-memory events.
+      }
+    }
+    final start = _memory.length > max ? _memory.length - max : 0;
+    return [for (final entry in _memory.sublist(start)) entry.format()];
+  }
+
+  /// The last [max] lines of [file]. Reads backwards from the end in growing
+  /// windows, so a long trace file is never loaded as a whole.
+  static List<String> _readTail(File file, int max) {
+    final raf = file.openSync();
+    try {
+      final length = raf.lengthSync();
+      var window = 16 * 1024;
+      while (true) {
+        final start = length > window ? length - window : 0;
+        raf.setPositionSync(start);
+        final text = utf8.decode(
+          raf.readSync(length - start),
+          allowMalformed: true,
+        );
+        final lines = text.split('\n');
+        if (lines.last.isEmpty) lines.removeLast();
+        // Unless the window starts at the file start, its first piece is a
+        // partial line.
+        if (start == 0 || lines.length > max + 1) {
+          final complete = start == 0 ? lines : lines.sublist(1);
+          return complete.sublist(
+            complete.length > max ? complete.length - max : 0,
+          );
+        }
+        window *= 2;
+      }
+    } finally {
+      raf.closeSync();
     }
   }
 
@@ -128,5 +190,20 @@ class DebugTrace {
     } catch (_) {
       // Keep the old content if the file cannot be rewritten.
     }
+  }
+}
+
+/// One traced event, kept raw until a line is needed.
+class _TraceEntry {
+  const _TraceEntry(this.time, this.tag, this.message);
+
+  final DateTime time;
+  final String tag;
+  final String message;
+
+  /// `<ISO time> <tag> <message>` on one line: line breaks become spaces.
+  String format() {
+    final text = message.replaceAll(RegExp(r'[\r\n]+'), ' ');
+    return '${time.toIso8601String()} $tag $text';
   }
 }

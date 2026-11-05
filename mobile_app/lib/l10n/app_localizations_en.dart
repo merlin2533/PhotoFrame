@@ -454,4 +454,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String rotationRenewalDaysLabel(int days) {
     return 'Whole pool renewed after $days days';
   }
+
+  @override
+  String get settingsCrashReportTitle => 'Send crash report';
+
+  @override
+  String get settingsCrashReportSubtitle =>
+      'Sends diagnostic data to the developer. No photo names, no credentials.';
+
+  @override
+  String get crashReportConfirmTitle => 'Send crash report?';
+
+  @override
+  String get crashReportConfirmBody =>
+      'Sent: the latest trace entries, app version, device model, Android version, cache count and size, cache limit, preparation switch and number of sources. No photo names, no addresses, no credentials.';
+
+  @override
+  String get crashReportConfirmCancel => 'Cancel';
+
+  @override
+  String get crashReportConfirmSend => 'Send';
+
+  @override
+  String get crashReportErrorReportsOff => 'Error reports are switched off';
+
+  @override
+  String get crashReportSent => 'Crash report sent';
+
+  @override
+  String get crashReportFailed => 'Crash report could not be sent';
 }

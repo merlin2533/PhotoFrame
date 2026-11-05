@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'user_crash_report.dart';
+
 /// Client DSN of the GlitchTip project that receives error reports.
 ///
 /// A client DSN only allows submitting events to that one project. It is
@@ -31,7 +33,8 @@ void setErrorReportingEnabled(bool enabled) {
 
 /// Photo and video file extensions (case-insensitive).
 const String _mediaExtensions =
-    r'(?:jpe?g|png|heic|heif|webp|gif|bmp|tiff?|dng|raw|cr2|nef|arw|'
+    r'(?:jpe?g|png|heic|heif|webp|gif|bmp|tiff?|dng|raw|cr2|cr3|nef|arw|'
+    r'raf|orf|rw2|srw|'
     r'mp4|mov|m4v|3gp|avi|mkv|webm)';
 
 /// Source and config file extensions. Paths ending in one of these are kept
@@ -272,9 +275,11 @@ FutureOr<SentryEvent?> redactSentryEvent(SentryEvent event, Hint hint) {
 
   // Breadcrumbs stay (they carry the trace before a crash), with messages
   // scrubbed. Each message is scrubbed the same way as the event message.
-  final breadcrumbs = event.breadcrumbs;
-  if (breadcrumbs != null) {
-    for (final crumb in breadcrumbs) {
+  // The user crash report drops them: its dialog lists its fields only.
+  if (event.message?.formatted == kUserCrashReportMessage) {
+    event.breadcrumbs = null;
+  } else {
+    for (final crumb in event.breadcrumbs ?? const <Breadcrumb>[]) {
       crumb.message = scrubNullable(crumb.message);
     }
   }
