@@ -112,7 +112,7 @@ void main() {
     expect(container.read(smallPhotoWorkerProvider).done, 1);
   });
 
-  test('the wait for an idle slideshow ends after 30 seconds', () {
+  test('the wait for an idle slideshow ends after 60 seconds', () {
     fakeAsync((async) {
       final container = ProviderContainer(
         overrides: [
@@ -128,11 +128,11 @@ void main() {
       var finished = false;
       worker.waitForSlideshowForTest().then((_) => finished = true);
 
-      async.elapse(const Duration(seconds: 29));
-      expect(finished, isFalse, reason: 'still waiting before the 30 s cap');
+      async.elapse(const Duration(seconds: 59));
+      expect(finished, isFalse, reason: 'still waiting before the 60 s cap');
 
       async.elapse(const Duration(seconds: 2));
-      expect(finished, isTrue, reason: 'proceeds after the 30 s cap');
+      expect(finished, isTrue, reason: 'proceeds after the 60 s cap');
     });
   });
 
