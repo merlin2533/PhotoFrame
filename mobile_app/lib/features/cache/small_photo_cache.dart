@@ -405,7 +405,15 @@ class SmallPhotoCache {
   Future<File?> existing(PhotoItem item) async {
     try {
       final file = await _fileFor(item);
-      return await file.exists() ? file : null;
+      if (!await file.exists()) return null;
+      try {
+        // A copy that is looked up is about to be shown: it counts as recently
+        // used, so making room removes copies nobody asks for first.
+        await file.setLastModified(DateTime.now());
+      } on FileSystemException {
+        // Best effort only: the copy is still a valid hit.
+      }
+      return file;
     } catch (e, st) {
       logRecoverableError(
         'Small photo lookup failed',
@@ -430,12 +438,16 @@ class SmallPhotoCache {
   /// it is a video, it is not a JPEG or PNG, or the scaling step returned no
   /// file or threw. The caller must not retry such a photo.
   /// Throws [CacheLimitReachedException] when [cacheLimitBytes] is given and
-  /// the copy does not fit even after the oldest copies were removed.
+  /// the copy does not fit. With [evictToFit] the oldest copies are removed to
+  /// make room; without it nothing is removed and a full cache throws before
+  /// anything is downloaded (bulk preparation must not replace copies it made
+  /// itself, that would never end).
   Future<File?> ensure(
     PhotoSource source,
     PhotoItem item, {
     Future<void> Function()? beforeScale,
     int? cacheLimitBytes,
+    bool evictToFit = true,
   }) async {
     final name = DebugTrace.baseName(item.id);
     DebugTrace.event('cache', 'ensure start $name');
@@ -445,6 +457,7 @@ class SmallPhotoCache {
         item,
         beforeScale: beforeScale,
         cacheLimitBytes: cacheLimitBytes,
+        evictToFit: evictToFit,
       );
       DebugTrace.event(
           'cache', 'ensure end $name ${result == null ? 'no file' : 'ok'}');
@@ -467,12 +480,19 @@ class SmallPhotoCache {
     PhotoItem item, {
     Future<void> Function()? beforeScale,
     int? cacheLimitBytes,
+    bool evictToFit = true,
   }) async {
     final have = await existing(item);
     if (have != null) return have;
     // Videos have no still image to scale: refused without a download.
     if (item.mediaType == MediaType.video) {
       throw const PhotoNotConvertibleException('Video, no still image');
+    }
+    // A full cache that may not make room is detected before the download, so
+    // no bandwidth is spent on a copy that could not be kept.
+    if (cacheLimitBytes != null && !evictToFit) {
+      final used = (await _cachedEntries()).fold(0, (sum, e) => sum + e.size);
+      if (used >= cacheLimitBytes) throw const CacheLimitReachedException();
     }
     try {
       var full = (await source.fetchToCache(item)).valueOrNull;
@@ -533,7 +553,12 @@ class SmallPhotoCache {
         if (!await _hasFreeStorage()) return null;
         if (cacheLimitBytes != null) {
           final room = cacheLimitBytes - await small.length();
-          if (!await _evictUntil(room, keep: small)) {
+          final fits = evictToFit
+              ? await _evictUntil(room, keep: small)
+              : (await _cachedEntries(except: small))
+                      .fold(0, (sum, e) => sum + e.size) <=
+                  room;
+          if (!fits) {
             throw const CacheLimitReachedException();
           }
         }
@@ -1006,6 +1031,10 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// Set by [stop] while a run is going; the run ends after the current photo.
   bool _stopRequested = false;
 
+  /// stableIds of photos about to be shown ([prioritize]). Only these may
+  /// remove other copies when the cache is full.
+  final Set<String> _priorityKeys = {};
+
   /// stableIds of photos whose small copy exists (prepared in this session).
   final Set<String> _doneKeys = {};
 
@@ -1074,6 +1103,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     _sources[source.id] = source;
     if (_doneKeys.contains(item.stableId) || _failedRecently(item)) return;
     if (await _notConvertible.contains(item.stableId)) return;
+    _priorityKeys.add(item.stableId);
     final wasQueued = _queued.containsKey(item.stableId);
     final rest = Map<String, PhotoItem>.of(_queued)..remove(item.stableId);
     _queued
@@ -1178,6 +1208,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                     item,
                     beforeScale: _waitForSlideshow,
                     cacheLimitBytes: cacheLimit,
+                    evictToFit: _priorityKeys.contains(item.stableId),
                   )
                   .timeout(
                     const Duration(seconds: 60) + maxBusyWait,
@@ -1231,8 +1262,13 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
                   evicted.contains('${SmallPhotoCache.baseNameFor(id)}.jpg'),
             );
           }
+          _priorityKeys.remove(item.stableId);
           if (limitReached) {
-            _queued[item.stableId] = item;
+            // The cache is full and bulk preparation may not make room: the
+            // rest of the queue cannot be kept either. Dropped, so the
+            // progress ends at what fits instead of counting photos that
+            // would only replace each other. A later [start] queues them again.
+            _queued.clear();
             _stopRequested = true;
             break;
           }

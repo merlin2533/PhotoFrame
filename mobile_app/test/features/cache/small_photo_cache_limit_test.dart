@@ -134,6 +134,43 @@ void main() {
         isFalse);
   });
 
+  test('without evictToFit a full cache throws before the download and keeps '
+      'every copy', () async {
+    final old = await _copy(cacheDir, 'old.jpg', 1000, const Duration(hours: 4));
+    final cache = _ScalingCache(directory: () async => cacheDir);
+    final source = _JpegSource(download);
+
+    await expectLater(
+      cache.ensure(
+        source,
+        _item('photo.jpg'),
+        cacheLimitBytes: 1000,
+        evictToFit: false,
+      ),
+      throwsA(isA<CacheLimitReachedException>()),
+    );
+
+    expect(old.existsSync(), isTrue);
+    expect(cache.takeEvictedNames(), isEmpty);
+    expect(cache.downloadedBytes, 0);
+  });
+
+  test('without evictToFit a copy is still written while there is room',
+      () async {
+    final old = await _copy(cacheDir, 'old.jpg', 300, const Duration(hours: 4));
+    final cache = _ScalingCache(directory: () async => cacheDir);
+
+    final result = await cache.ensure(
+      _JpegSource(download),
+      _item('photo.jpg'),
+      cacheLimitBytes: 1000,
+      evictToFit: false,
+    );
+
+    expect(result, isNotNull);
+    expect(old.existsSync(), isTrue);
+  });
+
   test('writes no copy when the free space is below the floor', () async {
     final old = await _copy(cacheDir, 'old.jpg', 300, const Duration(hours: 4));
     final cache = _ScalingCache(

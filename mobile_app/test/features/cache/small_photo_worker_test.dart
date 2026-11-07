@@ -41,6 +41,7 @@ class _FakeCache extends SmallPhotoCache {
     PhotoItem item, {
     Future<void> Function()? beforeScale,
     int? cacheLimitBytes,
+    bool evictToFit = true,
   }) async {
     calls.add(item.id);
     callTimes.add(DateTime.now());
@@ -137,7 +138,7 @@ void main() {
     }
   });
 
-  test('reaching the cache limit ends the run without error and keeps the rest',
+  test('reaching the cache limit ends the run and drops the rest of the queue',
       () async {
     final cache = _FakeCache()..limited.addAll(['a', 'b', 'c']);
     final container = _container(cache);
@@ -148,16 +149,19 @@ void main() {
     await worker
         .start([_item('a'), _item('b'), _item('c')], {source.id: source});
 
-    // The first photo hit the limit: the run stopped there, nothing failed.
+    // The first photo hit the limit: the run stopped there, nothing failed, and
+    // the progress ends at what fits instead of counting photos that could
+    // only replace each other.
     expect(cache.calls, hasLength(1));
     var status = container.read(smallPhotoWorkerProvider);
     expect(status.running, isFalse);
     expect(status.done, 0);
-    expect(status.total, 3);
+    expect(status.total, 0);
 
-    // Once the cache is below the limit again, the next run prepares them.
+    // Once the cache is below the limit again, a new start prepares them.
     cache.limited.clear();
-    await worker.start([], {source.id: source});
+    await worker
+        .start([_item('a'), _item('b'), _item('c')], {source.id: source});
 
     expect(cache.calls, hasLength(4));
     status = container.read(smallPhotoWorkerProvider);
