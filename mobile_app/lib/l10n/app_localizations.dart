@@ -955,6 +955,324 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Einstellungen'**
   String get overlaySettings;
+
+  /// Untertitel der Startseite, solange noch keine Quelle eingerichtet ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Quelle eingerichtet'**
+  String get homeNoSourceYet;
+
+  /// Untertitel der Startseite: wie viele Quellen aktiv sind.
+  ///
+  /// In de, this message translates to:
+  /// **'{enabled} von {total} Quellen aktiv'**
+  String homeSourcesActive(int enabled, int total);
+
+  /// Statuszeile der Startseite: Anzahl der Fotos im Index.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotos im Index'**
+  String get homePhotosInIndex;
+
+  /// Statuszeile der Startseite: Zeitpunkt des letzten Index-Stands.
+  ///
+  /// In de, this message translates to:
+  /// **'Index-Stand'**
+  String get homeIndexStand;
+
+  /// Wert der Statuszeile Index-Stand, solange der Index leer ist.
+  ///
+  /// In de, this message translates to:
+  /// **'noch nicht aufgebaut'**
+  String get homeIndexNotBuilt;
+
+  /// Statuszeile der Startseite: Anzahl der verkleinerten Fotos.
+  ///
+  /// In de, this message translates to:
+  /// **'Verkleinert'**
+  String get homePreparedStatus;
+
+  /// Wert der Statuszeile Verkleinert, ohne laufende Vorbereitung.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total}'**
+  String homePreparedCount(int done, int total);
+
+  /// Wert der Statuszeile Verkleinert, während die Vorbereitung läuft.
+  ///
+  /// In de, this message translates to:
+  /// **'{done} von {total} (läuft, {waiting} wartend)'**
+  String homePreparedRunning(int done, int total, int waiting);
+
+  /// Statuszeile der Startseite: Fotos im Download-Cache.
+  ///
+  /// In de, this message translates to:
+  /// **'Heruntergeladen'**
+  String get homeDownloadedStatus;
+
+  /// Wert der Statuszeile Heruntergeladen.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Fotos'**
+  String homeDownloadedCount(int count);
+
+  /// Hauptbutton der Startseite, startet die Diashow.
+  ///
+  /// In de, this message translates to:
+  /// **'Diashow starten'**
+  String get homeStartSlideshow;
+
+  /// Aktionskachel der Startseite, öffnet die Übersicht.
+  ///
+  /// In de, this message translates to:
+  /// **'Übersicht'**
+  String get homeOverview;
+
+  /// Hinweistext unter den Aktionen der Startseite.
+  ///
+  /// In de, this message translates to:
+  /// **'In der Diashow erreichst du diese Seite über das Haus-Symbol.'**
+  String get homeSlideshowHint;
+
+  /// Überschrift des Intervall-Schiebereglers in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Intervall: {seconds} s'**
+  String slideshowSettingsInterval(int seconds);
+
+  /// Wertanzeige (Tooltip) des Intervall-Schiebereglers in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'{seconds} s'**
+  String slideshowSettingsIntervalValue(int seconds);
+
+  /// Abschnittsüberschrift Overlays in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Overlays'**
+  String get slideshowSettingsOverlays;
+
+  /// Schalter in den Diashow-Einstellungen: Quelle im Overlay anzeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Ordnername/Quelle anzeigen'**
+  String get slideshowSettingsShowSourceLabel;
+
+  /// Schalter in den Diashow-Einstellungen: Bildunterschrift mit Datum anzeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Datum als Bildunterschrift anzeigen'**
+  String get slideshowSettingsShowCaption;
+
+  /// Untertitel des Schalters Datum als Bildunterschrift.
+  ///
+  /// In de, this message translates to:
+  /// **'Unten links: Aufnahmedatum und Ordner'**
+  String get slideshowSettingsShowCaptionSubtitle;
+
+  /// Schalter in den Diashow-Einstellungen: Uhr anzeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Uhr anzeigen'**
+  String get slideshowSettingsShowClock;
+
+  /// Schalter in den Diashow-Einstellungen: Uhr oben links statt unten links.
+  ///
+  /// In de, this message translates to:
+  /// **'Uhr oben links'**
+  String get slideshowSettingsClockAtTop;
+
+  /// Untertitel des Schalters Uhr oben links.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus: unten links'**
+  String get slideshowSettingsClockAtTopSubtitle;
+
+  /// Abschnittsüberschrift Anzeige-Modus in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Anzeige-Modus'**
+  String get slideshowSettingsDisplayMode;
+
+  /// Option Anzeige-Modus: Bild ganz einpassen.
+  ///
+  /// In de, this message translates to:
+  /// **'Einpassen (contain)'**
+  String get slideshowSettingsDisplayContain;
+
+  /// Option Anzeige-Modus: Bild ausfüllen und zuschneiden.
+  ///
+  /// In de, this message translates to:
+  /// **'Ausfüllen (cover)'**
+  String get slideshowSettingsDisplayCover;
+
+  /// Option Anzeige-Modus: Bild mit unscharfem Hintergrund.
+  ///
+  /// In de, this message translates to:
+  /// **'Unscharfer Hintergrund'**
+  String get slideshowSettingsDisplayBlurred;
+
+  /// Untertitel der Option Unscharfer Hintergrund.
+  ///
+  /// In de, this message translates to:
+  /// **'Löst Hochkantbilder ohne schwarze Balken'**
+  String get slideshowSettingsDisplayBlurredSubtitle;
+
+  /// Abschnittsüberschrift Übergänge in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Übergänge'**
+  String get slideshowSettingsTransitions;
+
+  /// Übergang: überblenden.
+  ///
+  /// In de, this message translates to:
+  /// **'Überblenden (fade)'**
+  String get slideshowSettingsTransFade;
+
+  /// Übergang: schieben.
+  ///
+  /// In de, this message translates to:
+  /// **'Schieben (slide)'**
+  String get slideshowSettingsTransSlide;
+
+  /// Übergang: einzoomen und einblenden.
+  ///
+  /// In de, this message translates to:
+  /// **'Zoom (einblenden)'**
+  String get slideshowSettingsTransZoom;
+
+  /// Übergang: nach oben schieben.
+  ///
+  /// In de, this message translates to:
+  /// **'Hochschieben (slide up)'**
+  String get slideshowSettingsTransSlideUp;
+
+  /// Übergang: weichzeichnen.
+  ///
+  /// In de, this message translates to:
+  /// **'Weichzeichnen (blur)'**
+  String get slideshowSettingsTransBlur;
+
+  /// Übergang: umklappen.
+  ///
+  /// In de, this message translates to:
+  /// **'Umklappen (flip)'**
+  String get slideshowSettingsTransFlip;
+
+  /// Übergang: bei jedem Bild ein zufälliger anderer.
+  ///
+  /// In de, this message translates to:
+  /// **'Zufall (jeweils ein anderer)'**
+  String get slideshowSettingsTransRandom;
+
+  /// Übergang: keiner.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Übergang'**
+  String get slideshowSettingsTransNone;
+
+  /// Schalter in den Diashow-Einstellungen: langsamer Zoom/Pan.
+  ///
+  /// In de, this message translates to:
+  /// **'Ken-Burns-Effekt'**
+  String get slideshowSettingsKenBurns;
+
+  /// Untertitel des Schalters Ken-Burns-Effekt.
+  ///
+  /// In de, this message translates to:
+  /// **'Langsamer Zoom/Pan auf dem Bild'**
+  String get slideshowSettingsKenBurnsSubtitle;
+
+  /// Schalter in den Diashow-Einstellungen: zwei Hochkantbilder nebeneinander.
+  ///
+  /// In de, this message translates to:
+  /// **'Hochkant-Paar-Layout'**
+  String get slideshowSettingsPortraitPair;
+
+  /// Untertitel des Schalters Hochkant-Paar-Layout.
+  ///
+  /// In de, this message translates to:
+  /// **'Zwei aufeinanderfolgende Hochkantbilder nebeneinander'**
+  String get slideshowSettingsPortraitPairSubtitle;
+
+  /// Abschnittsüberschrift Anzeige (Einzelbild oder Raster) in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Anzeige'**
+  String get slideshowSettingsLayout;
+
+  /// Auswahl Anzeige: ein Bild pro Folie.
+  ///
+  /// In de, this message translates to:
+  /// **'Einzelbild'**
+  String get slideshowSettingsLayoutSingle;
+
+  /// Auswahl Anzeige: vier Bilder im Raster pro Folie.
+  ///
+  /// In de, this message translates to:
+  /// **'2×2 Raster'**
+  String get slideshowSettingsLayoutGrid;
+
+  /// Abschnittsüberschrift Bilddetails in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Bilddetails'**
+  String get slideshowSettingsImageDetails;
+
+  /// Schalter in den Diashow-Einstellungen: Bilddetails anzeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Ordner und Datum anzeigen'**
+  String get slideshowSettingsImageDetailsSwitch;
+
+  /// Untertitel des Schalters Ordner und Datum anzeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Unten im Bild: Quelle, Ordner, Aufnahmedatum'**
+  String get slideshowSettingsImageDetailsSubtitle;
+
+  /// Auswahl Position der Bilddetails: links.
+  ///
+  /// In de, this message translates to:
+  /// **'Links'**
+  String get slideshowSettingsLeft;
+
+  /// Auswahl Position der Bilddetails: rechts.
+  ///
+  /// In de, this message translates to:
+  /// **'Rechts'**
+  String get slideshowSettingsRight;
+
+  /// Abschnittsüberschrift Favoriten und Datum in den Diashow-Einstellungen.
+  ///
+  /// In de, this message translates to:
+  /// **'Favoriten & Datum'**
+  String get slideshowSettingsFavoritesAndDate;
+
+  /// Schalter in den Diashow-Einstellungen: nur favorisierte Bilder zeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Nur Favoriten zeigen'**
+  String get slideshowSettingsFavoritesOnly;
+
+  /// Untertitel des Schalters Nur Favoriten zeigen.
+  ///
+  /// In de, this message translates to:
+  /// **'Diashow speist sich nur aus favorisierten Bildern'**
+  String get slideshowSettingsFavoritesOnlySubtitle;
+
+  /// Schalter in den Diashow-Einstellungen: Bilder von diesem Tag früherer Jahre bevorzugen.
+  ///
+  /// In de, this message translates to:
+  /// **'Heute vor N Jahren bevorzugen'**
+  String get slideshowSettingsOnThisDay;
+
+  /// Untertitel des Schalters Heute vor N Jahren bevorzugen.
+  ///
+  /// In de, this message translates to:
+  /// **'Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen'**
+  String get slideshowSettingsOnThisDaySubtitle;
 }
 
 class _AppLocalizationsDelegate

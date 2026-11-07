@@ -507,4 +507,185 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get overlaySettings => 'Settings';
+
+  @override
+  String get homeNoSourceYet => 'No source set up yet';
+
+  @override
+  String homeSourcesActive(int enabled, int total) {
+    return '$enabled of $total sources active';
+  }
+
+  @override
+  String get homePhotosInIndex => 'Photos in index';
+
+  @override
+  String get homeIndexStand => 'Index status';
+
+  @override
+  String get homeIndexNotBuilt => 'not built yet';
+
+  @override
+  String get homePreparedStatus => 'Downscaled';
+
+  @override
+  String homePreparedCount(int done, int total) {
+    return '$done of $total';
+  }
+
+  @override
+  String homePreparedRunning(int done, int total, int waiting) {
+    return '$done of $total (running, $waiting waiting)';
+  }
+
+  @override
+  String get homeDownloadedStatus => 'Downloaded';
+
+  @override
+  String homeDownloadedCount(int count) {
+    return '$count photos';
+  }
+
+  @override
+  String get homeStartSlideshow => 'Start slideshow';
+
+  @override
+  String get homeOverview => 'Overview';
+
+  @override
+  String get homeSlideshowHint =>
+      'In the slideshow, you reach this page with the home icon.';
+
+  @override
+  String slideshowSettingsInterval(int seconds) {
+    return 'Interval: $seconds s';
+  }
+
+  @override
+  String slideshowSettingsIntervalValue(int seconds) {
+    return '$seconds s';
+  }
+
+  @override
+  String get slideshowSettingsOverlays => 'Overlays';
+
+  @override
+  String get slideshowSettingsShowSourceLabel => 'Show folder name/source';
+
+  @override
+  String get slideshowSettingsShowCaption => 'Show date as caption';
+
+  @override
+  String get slideshowSettingsShowCaptionSubtitle =>
+      'Bottom left: capture date and folder';
+
+  @override
+  String get slideshowSettingsShowClock => 'Show clock';
+
+  @override
+  String get slideshowSettingsClockAtTop => 'Clock at top left';
+
+  @override
+  String get slideshowSettingsClockAtTopSubtitle => 'Off: bottom left';
+
+  @override
+  String get slideshowSettingsDisplayMode => 'Display mode';
+
+  @override
+  String get slideshowSettingsDisplayContain => 'Fit (contain)';
+
+  @override
+  String get slideshowSettingsDisplayCover => 'Fill (cover)';
+
+  @override
+  String get slideshowSettingsDisplayBlurred => 'Blurred background';
+
+  @override
+  String get slideshowSettingsDisplayBlurredSubtitle =>
+      'Shows portrait photos without black bars';
+
+  @override
+  String get slideshowSettingsTransitions => 'Transitions';
+
+  @override
+  String get slideshowSettingsTransFade => 'Crossfade (fade)';
+
+  @override
+  String get slideshowSettingsTransSlide => 'Slide';
+
+  @override
+  String get slideshowSettingsTransZoom => 'Zoom (fade in)';
+
+  @override
+  String get slideshowSettingsTransSlideUp => 'Slide up';
+
+  @override
+  String get slideshowSettingsTransBlur => 'Blur';
+
+  @override
+  String get slideshowSettingsTransFlip => 'Flip';
+
+  @override
+  String get slideshowSettingsTransRandom =>
+      'Random (a different one each time)';
+
+  @override
+  String get slideshowSettingsTransNone => 'No transition';
+
+  @override
+  String get slideshowSettingsKenBurns => 'Ken Burns effect';
+
+  @override
+  String get slideshowSettingsKenBurnsSubtitle =>
+      'Slow zoom/pan over the image';
+
+  @override
+  String get slideshowSettingsPortraitPair => 'Portrait pair layout';
+
+  @override
+  String get slideshowSettingsPortraitPairSubtitle =>
+      'Two consecutive portrait photos side by side';
+
+  @override
+  String get slideshowSettingsLayout => 'Layout';
+
+  @override
+  String get slideshowSettingsLayoutSingle => 'Single photo';
+
+  @override
+  String get slideshowSettingsLayoutGrid => '2×2 grid';
+
+  @override
+  String get slideshowSettingsImageDetails => 'Photo details';
+
+  @override
+  String get slideshowSettingsImageDetailsSwitch => 'Show folder and date';
+
+  @override
+  String get slideshowSettingsImageDetailsSubtitle =>
+      'At the bottom of the photo: source, folder, capture date';
+
+  @override
+  String get slideshowSettingsLeft => 'Left';
+
+  @override
+  String get slideshowSettingsRight => 'Right';
+
+  @override
+  String get slideshowSettingsFavoritesAndDate => 'Favorites & date';
+
+  @override
+  String get slideshowSettingsFavoritesOnly => 'Show favorites only';
+
+  @override
+  String get slideshowSettingsFavoritesOnlySubtitle =>
+      'The slideshow only uses favorite photos';
+
+  @override
+  String get slideshowSettingsOnThisDay =>
+      'Prefer photos from this day in earlier years';
+
+  @override
+  String get slideshowSettingsOnThisDaySubtitle =>
+      'Prefers showing photos from this day in the past';
 }

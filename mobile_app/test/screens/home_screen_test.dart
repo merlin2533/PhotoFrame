@@ -129,6 +129,8 @@ void main() {
         ProviderScope.containerOf(tester.element(find.byType(HomeScreen)));
     (container.read(smallPhotoWorkerProvider.notifier) as _FakeWorker)
         .finishOne();
+    // The counters are re-read at most every 5 s (throttled in the listener).
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
 
     expect(find.text('8 Fotos'), findsOneWidget);

@@ -413,8 +413,12 @@ class SmallPhotoCache {
       if (!await file.exists()) return null;
       try {
         // A copy that is looked up is about to be shown: it counts as recently
-        // used, so making room removes copies nobody asks for first.
-        await file.setLastModified(DateTime.now());
+        // used, so making room removes copies nobody asks for first. Touched
+        // at most once a minute, so repeat lookups keep the mtime stable.
+        final age = DateTime.now().difference(await file.lastModified());
+        if (age > const Duration(minutes: 1)) {
+          await file.setLastModified(DateTime.now());
+        }
       } on FileSystemException {
         // Best effort only: the copy is still a valid hit.
       }
