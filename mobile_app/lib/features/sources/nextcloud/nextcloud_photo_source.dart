@@ -429,18 +429,29 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
       {CancellationToken? token}) async {
     _checkNotDisposed();
     token?.throwIfCancelled();
+    File? part;
     try {
       final dir = _cacheDirectory ?? Directory.systemTemp;
       final localFile = File(
         '${dir.path}${Platform.pathSeparator}nextcloud_${id}_${item.id.replaceAll('/', '_')}',
       );
       await localFile.parent.create(recursive: true);
-      await _client.read2File(_davPath(item.id), localFile.path);
+      // Written to `.part` and renamed only when complete, so an aborted
+      // download never leaves a truncated file under the final name.
+      part = File('${localFile.path}.part');
+      await _client.read2File(_davPath(item.id), part.path);
       token?.throwIfCancelled();
+      await part.rename(localFile.path);
       return Result.ok(localFile);
     } on CancelledException {
+      try {
+        if (part != null && await part.exists()) await part.delete();
+      } catch (_) {}
       rethrow;
     } catch (e) {
+      try {
+        if (part != null && await part.exists()) await part.delete();
+      } catch (_) {}
       return Result.err(
           _mapError(e, context: 'Fetching Nextcloud file "${item.id}"'));
     }

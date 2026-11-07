@@ -211,6 +211,16 @@ class CacheSettingsScreen extends ConsumerWidget {
               onChanged: (v) => notifier
                   .updateSettings((s) => s.copyWith(onlyPreparedPhotos: v)),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Verkleinern nur beim Laden'),
+              subtitle: const Text(
+                  'Die Fotos werden nur verkleinert, solange das Gerät am '
+                  'Strom hängt. Schont den Akku und die CPU.'),
+              value: settings.smallPhotoOnlyWhileCharging,
+              onChanged: (v) => notifier.updateSettings(
+                  (s) => s.copyWith(smallPhotoOnlyWhileCharging: v)),
+            ),
             const SizedBox(height: 16),
             Text('Dias pro Batch: ${settings.smallPhotoBatchSize}',
                 style: Theme.of(context).textTheme.titleMedium),

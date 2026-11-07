@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -429,6 +429,33 @@ class SmallPhotoCache {
     }
   }
 
+  /// Names of all files in the cache folder: one listing instead of one
+  /// [existing] per photo. Does not touch modification times, so it is not a
+  /// "recently used" hit.
+  Future<Set<String>> existingFileNames() async {
+    try {
+      final dir = await _directory();
+      await dir.create(recursive: true);
+      await _purgeOldVersion(dir);
+      final names = <String>{};
+      await for (final entity in dir.list(followLinks: false)) {
+        if (entity is File) names.add(_nameOf(entity));
+      }
+      return names;
+    } catch (e, st) {
+      logRecoverableError(
+        'Small photo listing failed',
+        error: e,
+        stackTrace: st,
+      );
+      return <String>{};
+    }
+  }
+
+  /// File name of the small copy of [item], as [_fileFor] names it.
+  static String fileNameFor(PhotoItem item) =>
+      '${baseNameFor(item.stableId)}.jpg';
+
   /// Makes sure the small file exists: downloads the photo if needed, scales it
   /// down and removes the full-size download.
   ///
@@ -851,66 +878,6 @@ class SmallPhotoCache {
     }
     return mean.every((m) => m.abs() <= 30);
   }
-
-  /// Fallback scaler using Flutter's own decoder (correct colours for every
-  /// format it can read), re-encoded as JPEG to keep storage small.
-  // ignore: unused_element
-  Future<File?> _scaleWithFlutter(File source, File temp) async {
-    final name = DebugTrace.baseName(source.path);
-    DebugTrace.event('cache', 'flutter scale start $name');
-    ui.Codec? codec;
-    try {
-      final bytes = await source.readAsBytes();
-      // The size is read from the header only (no full decode), and the
-      // image is then decoded once, already scaled.
-      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      final descriptor = await ui.ImageDescriptor.encoded(buffer);
-      try {
-        final w = descriptor.width, h = descriptor.height;
-        final longest = w > h ? w : h;
-        codec = longest > scaleLongSide
-            ? await descriptor.instantiateCodec(
-                targetWidth: w >= h ? scaleLongSide : null,
-                targetHeight: h > w ? scaleLongSide : null,
-              )
-            : await descriptor.instantiateCodec();
-      } finally {
-        descriptor.dispose();
-        buffer.dispose();
-      }
-      final image = (await codec.getNextFrame()).image;
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      if (data == null) {
-        DebugTrace.event('cache', 'flutter scale end $name no data');
-        return null;
-      }
-      // Flutter decoded the colours correctly; the PNG is only handed to the
-      // native encoder, which turns it into a small JPEG (no colour
-      // conversion on this path, so the cast cannot come back).
-      final jpeg = await FlutterImageCompress.compressWithList(
-        Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
-        minWidth: scaleLongSide,
-        minHeight: scaleLongSide,
-        quality: jpegQuality,
-        format: CompressFormat.jpeg,
-      );
-      final written = await temp.writeAsBytes(jpeg, flush: true);
-      DebugTrace.event('cache', 'flutter scale end $name ok');
-      return written;
-    } catch (e, st) {
-      DebugTrace.event(
-          'cache', 'flutter scale exception $name ${e.runtimeType}');
-      logRecoverableError(
-        'Fallback photo scaling failed',
-        error: e,
-        stackTrace: st,
-      );
-      return null;
-    } finally {
-      codec?.dispose();
-    }
-  }
 }
 
 final Provider<SmallPhotoCache> smallPhotoCacheProvider =
@@ -999,6 +966,13 @@ class SmallPhotoStatus {
 /// - A failed download is retried after [retryAfter] (hourly).
 /// - A photo that cannot be scaled (see [PhotoNotConvertibleException]) is
 ///   written to the persistent [NotConvertibleStore] and never scaled again.
+/// Whether the device is charging. Overridden in tests.
+final Provider<Future<bool> Function()> isChargingProvider =
+    Provider<Future<bool> Function()>((ref) => () async {
+          final state = await Battery().batteryState;
+          return state == BatteryState.charging || state == BatteryState.full;
+        });
+
 class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// Default batch size; the real value comes from the settings.
   static const defaultBatchSize = 5;
@@ -1018,6 +992,9 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
   /// Longest wait for the slideshow to become idle before a scaling starts
   /// anyway (per item).
   static const maxBusyWait = Duration(seconds: 60);
+
+  /// How often the worker checks the charging state while it waits for power.
+  static const chargingPollInterval = Duration(seconds: 30);
 
   bool _running = false;
   int _done = 0;
@@ -1145,6 +1122,18 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
     }
   }
 
+  /// With the setting `smallPhotoOnlyWhileCharging` on, waits until the device
+  /// charges (or the worker is stopped). Does nothing when the setting is off.
+  Future<void> _waitForCharging() async {
+    final isCharging = ref.read(isChargingProvider);
+    while (!_stopRequested &&
+        (ref.read(settingsProvider).value?.smallPhotoOnlyWhileCharging ??
+            false) &&
+        !await isCharging()) {
+      await Future<void>.delayed(chargingPollInterval);
+    }
+  }
+
   /// Runs [_waitForSlideshow] for tests.
   @visibleForTesting
   Future<void> waitForSlideshowForTest() => _waitForSlideshow();
@@ -1187,6 +1176,8 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
         final cacheLimit = ref.read(settingsProvider).value?.cacheLimitBytes ??
             const AppSettings().cacheLimitBytes;
         for (final item in batch) {
+          if (_stopRequested) break;
+          await _waitForCharging();
           if (_stopRequested) break;
           if (anyItemStarted) {
             // Give the UI and the slideshow room between two items.

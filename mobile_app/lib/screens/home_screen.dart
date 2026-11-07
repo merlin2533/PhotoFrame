@@ -85,9 +85,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           if (!disabled.contains(s.id)) s.id: s,
       };
       final pending = <PhotoItem>[];
+      final names = await cache.existingFileNames();
       for (final item in snapshot.items) {
         if (!sourcesById.containsKey(item.sourceId)) continue;
-        if (await cache.existing(item) == null) pending.add(item);
+        if (!names.contains(SmallPhotoCache.fileNameFor(item))) {
+          pending.add(item);
+        }
       }
       if (!mounted || pending.isEmpty) return;
       // Only a run that is not going yet is owned by this screen. A run of the

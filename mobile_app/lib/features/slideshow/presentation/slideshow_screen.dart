@@ -1060,13 +1060,8 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   }
 
   Future<void> _buildEngine() async {
-    // Awaited: the cache must be empty before the first photo is downloaded.
-    await ref.read(networkCacheCleanerProvider)();
-    // The cleaner removed the files, so nothing is known to be cached any more.
-    _cachedKeys.clear();
-    _cacheEpoch++;
-    _retiredKeys.clear();
-    _replacementRequested.clear();
+    // Started now, awaited below before any photo is read or downloaded.
+    final cleaning = ref.read(networkCacheCleanerProvider)();
     try {
       // `sourcesProvider` now loads its descriptor list (and re-attaches
       // credentials) from storage asynchronously - see
@@ -1075,7 +1070,18 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // of racing it with an empty/stale source list; a load failure is
       // caught below just like an engine-build failure, surfacing the same
       // "loading failed" state instead of crashing unhandled.
-      final sources = await ref.read(sourcesProvider.future);
+      final loaded = await Future.wait<Object>([
+        ref.read(sourcesProvider.future),
+        ref.read(photoIndexStoreProvider).load(),
+      ]);
+      final sources = loaded[0] as List<PhotoSource>;
+      final snapshot = loaded[1] as IndexSnapshot;
+      await cleaning;
+      // The cleaner removed the files, so nothing is known to be cached any more.
+      _cachedKeys.clear();
+      _cacheEpoch++;
+      _retiredKeys.clear();
+      _replacementRequested.clear();
       if (!mounted) return;
       final settings = ref.read(settingsProvider).value ?? const AppSettings();
       final favorites = ref.read(favoritesStoreProvider);
@@ -1089,7 +1095,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       // (see the refresh call after the engine has started).
       // A saved index (see PhotoIndexStore) gives a full photo list at once;
       // without one, start with the first photos found by a crawl.
-      final snapshot = await ref.read(photoIndexStoreProvider).load();
       final indexed = snapshot.items
           .where((i) =>
               sourcesById.containsKey(i.sourceId) &&

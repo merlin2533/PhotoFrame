@@ -170,5 +170,21 @@
   "crashReportSent": "Crash report sent",
   "@crashReportSent": {"description": "Confirmation after the crash report was sent."},
   "crashReportFailed": "Crash report could not be sent",
-  "@crashReportFailed": {"description": "Message when the crash report could not be prepared or sent."}
+  "@crashReportFailed": {"description": "Message when the crash report could not be prepared or sent."},
+  "overlayResume": "Resume",
+  "@overlayResume": {"description": "Tooltip of the play button in the slideshow overlay while paused."},
+  "overlayPause": "Pause",
+  "@overlayPause": {"description": "Tooltip of the pause button in the slideshow overlay."},
+  "overlayNextPhoto": "Next photo",
+  "@overlayNextPhoto": {"description": "Tooltip of the skip-next button (next photo) in the slideshow overlay."},
+  "overlayFavoriteRemove": "Remove favorite",
+  "@overlayFavoriteRemove": {"description": "Tooltip of the heart button in the slideshow overlay when the photo is a favorite."},
+  "overlayFavoriteAdd": "Mark as favorite",
+  "@overlayFavoriteAdd": {"description": "Tooltip of the heart button in the slideshow overlay when the photo is not a favorite."},
+  "overlayInfo": "Info",
+  "@overlayInfo": {"description": "Tooltip of the info button in the slideshow overlay."},
+  "overlayHome": "Home",
+  "@overlayHome": {"description": "Tooltip of the home button in the slideshow overlay."},
+  "overlaySettings": "Settings",
+  "@overlaySettings": {"description": "Tooltip of the settings button in the slideshow overlay."}
 }

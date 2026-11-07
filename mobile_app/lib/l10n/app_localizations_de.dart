@@ -490,4 +490,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get crashReportFailed => 'Absturzbericht konnte nicht gesendet werden';
+
+  @override
+  String get overlayResume => 'Weiter';
+
+  @override
+  String get overlayPause => 'Pause';
+
+  @override
+  String get overlayNextPhoto => 'Nächstes Bild';
+
+  @override
+  String get overlayFavoriteRemove => 'Favorit entfernen';
+
+  @override
+  String get overlayFavoriteAdd => 'Als Favorit markieren';
+
+  @override
+  String get overlayInfo => 'Info';
+
+  @override
+  String get overlayHome => 'Startseite';
+
+  @override
+  String get overlaySettings => 'Einstellungen';
 }

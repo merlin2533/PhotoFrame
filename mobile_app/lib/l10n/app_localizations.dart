@@ -907,6 +907,54 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Absturzbericht konnte nicht gesendet werden'**
   String get crashReportFailed;
+
+  /// Tooltip des Play-Buttons im Diashow-Overlay, wenn pausiert.
+  ///
+  /// In de, this message translates to:
+  /// **'Weiter'**
+  String get overlayResume;
+
+  /// Tooltip des Pause-Buttons im Diashow-Overlay.
+  ///
+  /// In de, this message translates to:
+  /// **'Pause'**
+  String get overlayPause;
+
+  /// Tooltip des Weiter-Buttons (nächstes Bild) im Diashow-Overlay.
+  ///
+  /// In de, this message translates to:
+  /// **'Nächstes Bild'**
+  String get overlayNextPhoto;
+
+  /// Tooltip des Herz-Buttons im Diashow-Overlay, wenn das Bild Favorit ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Favorit entfernen'**
+  String get overlayFavoriteRemove;
+
+  /// Tooltip des Herz-Buttons im Diashow-Overlay, wenn das Bild kein Favorit ist.
+  ///
+  /// In de, this message translates to:
+  /// **'Als Favorit markieren'**
+  String get overlayFavoriteAdd;
+
+  /// Tooltip des Info-Buttons im Diashow-Overlay.
+  ///
+  /// In de, this message translates to:
+  /// **'Info'**
+  String get overlayInfo;
+
+  /// Tooltip des Startseiten-Buttons im Diashow-Overlay.
+  ///
+  /// In de, this message translates to:
+  /// **'Startseite'**
+  String get overlayHome;
+
+  /// Tooltip des Einstellungen-Buttons im Diashow-Overlay.
+  ///
+  /// In de, this message translates to:
+  /// **'Einstellungen'**
+  String get overlaySettings;
 }
 
 class _AppLocalizationsDelegate

@@ -290,5 +290,21 @@
   "crashReportSent": "Absturzbericht gesendet",
   "@crashReportSent": {"description": "Bestätigung nach dem Senden des Absturzberichts."},
   "crashReportFailed": "Absturzbericht konnte nicht gesendet werden",
-  "@crashReportFailed": {"description": "Hinweis, wenn der Absturzbericht nicht vorbereitet oder gesendet werden konnte."}
+  "@crashReportFailed": {"description": "Hinweis, wenn der Absturzbericht nicht vorbereitet oder gesendet werden konnte."},
+  "overlayResume": "Weiter",
+  "@overlayResume": {"description": "Tooltip des Play-Buttons im Diashow-Overlay, wenn pausiert."},
+  "overlayPause": "Pause",
+  "@overlayPause": {"description": "Tooltip des Pause-Buttons im Diashow-Overlay."},
+  "overlayNextPhoto": "Nächstes Bild",
+  "@overlayNextPhoto": {"description": "Tooltip des Weiter-Buttons (nächstes Bild) im Diashow-Overlay."},
+  "overlayFavoriteRemove": "Favorit entfernen",
+  "@overlayFavoriteRemove": {"description": "Tooltip des Herz-Buttons im Diashow-Overlay, wenn das Bild Favorit ist."},
+  "overlayFavoriteAdd": "Als Favorit markieren",
+  "@overlayFavoriteAdd": {"description": "Tooltip des Herz-Buttons im Diashow-Overlay, wenn das Bild kein Favorit ist."},
+  "overlayInfo": "Info",
+  "@overlayInfo": {"description": "Tooltip des Info-Buttons im Diashow-Overlay."},
+  "overlayHome": "Startseite",
+  "@overlayHome": {"description": "Tooltip des Startseiten-Buttons im Diashow-Overlay."},
+  "overlaySettings": "Einstellungen",
+  "@overlaySettings": {"description": "Tooltip des Einstellungen-Buttons im Diashow-Overlay."}
 }
