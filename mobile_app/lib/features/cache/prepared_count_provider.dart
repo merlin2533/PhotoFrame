@@ -11,15 +11,14 @@ final FutureProvider<IndexSnapshot> indexSnapshotProvider =
 );
 
 /// How many photos of the index have a screen-sized copy on disk, counted with
-/// [SmallPhotoCache.existing]. Invalidate it when the cache changed, e.g. after
+/// [SmallPhotoCache.existingFileNames]. Invalidate it when the cache changed, e.g. after
 /// every photo the worker finished.
 final FutureProvider<int> preparedCountProvider =
     FutureProvider.autoDispose<int>((ref) async {
   final snapshot = await ref.watch(indexSnapshotProvider.future);
   final cache = ref.read(smallPhotoCacheProvider);
-  var count = 0;
-  for (final item in snapshot.items) {
-    if (await cache.existing(item) != null) count++;
-  }
-  return count;
+  final names = await cache.existingFileNames();
+  return snapshot.items
+      .where((i) => names.contains(SmallPhotoCache.fileNameFor(i)))
+      .length;
 });

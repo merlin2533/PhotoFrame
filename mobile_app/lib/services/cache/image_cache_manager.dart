@@ -126,10 +126,9 @@ class _TierStore {
 /// Disk-space awareness: rather than depending on `path_provider`/a real
 /// platform API for free disk space (which can't be exercised in a plain
 /// `flutter test` unit test), the actual free-space check is injected via
-/// [getFreeDiskSpaceBytes]. Real platform wiring (statvfs on
-/// Android/iOS via `path_provider` + a platform channel, or a plugin) is a
-/// TODO for whoever wires this into the UI/settings layer - this class only
-/// needs *a* number to cap against, not to know how it was obtained.
+/// [getFreeDiskSpaceBytes]. The real check is `defaultGetFreeDiskSpaceBytes`
+/// (Android StatFs via MethodChannel, 10 GB fallback elsewhere); tests inject
+/// their own.
 class ImageCacheManager {
   ImageCacheManager({
     required int thumbnailLimitBytes,

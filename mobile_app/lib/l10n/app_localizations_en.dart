@@ -483,4 +483,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get crashReportFailed => 'Crash report could not be sent';
+
+  @override
+  String get overlayResume => 'Resume';
+
+  @override
+  String get overlayPause => 'Pause';
+
+  @override
+  String get overlayNextPhoto => 'Next photo';
+
+  @override
+  String get overlayFavoriteRemove => 'Remove favorite';
+
+  @override
+  String get overlayFavoriteAdd => 'Mark as favorite';
+
+  @override
+  String get overlayInfo => 'Info';
+
+  @override
+  String get overlayHome => 'Home';
+
+  @override
+  String get overlaySettings => 'Settings';
 }

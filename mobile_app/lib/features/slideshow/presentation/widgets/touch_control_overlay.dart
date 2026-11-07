@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../l10n/app_localizations.dart';
+
 /// Touch handling for the slideshow, per `docs/PLAN.md`:
 /// - Tap: show/hide a Pause/Weiter/Info/Favorit control bar (auto-hides
 ///   again).
@@ -163,6 +165,7 @@ class _ControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // SafeArea keeps the bar above the system navigation bar / gesture area.
     return Container(
       color: Colors.black.withValues(alpha: 0.5),
@@ -177,12 +180,12 @@ class _ControlBar extends StatelessWidget {
                 icon: Icon(isPaused ? Icons.play_arrow : Icons.pause,
                     color: Colors.white),
                 onPressed: onTogglePause,
-                tooltip: isPaused ? 'Weiter' : 'Pause',
+                tooltip: isPaused ? l10n.overlayResume : l10n.overlayPause,
               ),
               IconButton(
                 icon: const Icon(Icons.skip_next, color: Colors.white),
                 onPressed: onNext,
-                tooltip: 'Nächstes Bild',
+                tooltip: l10n.overlayNextPhoto,
               ),
               IconButton(
                 icon: Icon(
@@ -190,23 +193,24 @@ class _ControlBar extends StatelessWidget {
                   color: isFavorite ? Colors.redAccent : Colors.white,
                 ),
                 onPressed: onToggleFavorite,
-                tooltip:
-                    isFavorite ? 'Favorit entfernen' : 'Als Favorit markieren',
+                tooltip: isFavorite
+                    ? l10n.overlayFavoriteRemove
+                    : l10n.overlayFavoriteAdd,
               ),
               IconButton(
                 icon: const Icon(Icons.info_outline, color: Colors.white),
                 onPressed: onShowInfo,
-                tooltip: 'Info',
+                tooltip: l10n.overlayInfo,
               ),
               IconButton(
                 icon: const Icon(Icons.home_outlined, color: Colors.white),
                 onPressed: onHome,
-                tooltip: 'Startseite',
+                tooltip: l10n.overlayHome,
               ),
               IconButton(
                 icon: const Icon(Icons.settings, color: Colors.white),
                 onPressed: onOpenSettings,
-                tooltip: 'Einstellungen',
+                tooltip: l10n.overlaySettings,
               ),
             ],
           ),

@@ -62,6 +62,7 @@ class AppSettings {
     this.indexRefreshHours = 48,
     this.selectionCount = 1000,
     this.smallPhotoBatchSize = 5,
+    this.smallPhotoOnlyWhileCharging = false,
     this.poolNewImageQuota = 0.2,
     this.rotationSwapPercent = 5,
     this.rotationRenewalDays = 7,
@@ -168,6 +169,10 @@ class AppSettings {
   /// How many photos are queued per batch when screen-sized copies are
   /// prepared (1-50). Photos in a batch are scaled one after the other.
   final int smallPhotoBatchSize;
+
+  /// When `true`, screen-sized copies are only prepared while the device is
+  /// charging, so a battery-powered frame is not drained by scaling.
+  final bool smallPhotoOnlyWhileCharging;
   final double poolNewImageQuota;
 
   /// Share of the rotation pool swapped out each day, in percent (0-50, steps
@@ -323,6 +328,7 @@ class AppSettings {
     int? indexRefreshHours,
     int? selectionCount,
     int? smallPhotoBatchSize,
+    bool? smallPhotoOnlyWhileCharging,
     double? poolNewImageQuota,
     int? rotationSwapPercent,
     int? rotationRenewalDays,
@@ -376,6 +382,8 @@ class AppSettings {
       indexRefreshHours: indexRefreshHours ?? this.indexRefreshHours,
       selectionCount: selectionCount ?? this.selectionCount,
       smallPhotoBatchSize: smallPhotoBatchSize ?? this.smallPhotoBatchSize,
+      smallPhotoOnlyWhileCharging:
+          smallPhotoOnlyWhileCharging ?? this.smallPhotoOnlyWhileCharging,
       poolNewImageQuota: poolNewImageQuota ?? this.poolNewImageQuota,
       rotationSwapPercent: rotationSwapPercent ?? this.rotationSwapPercent,
       rotationRenewalDays: rotationRenewalDays ?? this.rotationRenewalDays,
@@ -433,6 +441,7 @@ class AppSettings {
         'indexRefreshHours': indexRefreshHours,
         'selectionCount': selectionCount,
         'smallPhotoBatchSize': smallPhotoBatchSize,
+        'smallPhotoOnlyWhileCharging': smallPhotoOnlyWhileCharging,
         'poolNewImageQuota': poolNewImageQuota,
         'rotationSwapPercent': rotationSwapPercent,
         'rotationRenewalDays': rotationRenewalDays,
@@ -497,6 +506,8 @@ class AppSettings {
       indexRefreshHours: json['indexRefreshHours'] as int? ?? 48,
       selectionCount: json['selectionCount'] as int? ?? 1000,
       smallPhotoBatchSize: json['smallPhotoBatchSize'] as int? ?? 5,
+      smallPhotoOnlyWhileCharging:
+          json['smallPhotoOnlyWhileCharging'] as bool? ?? false,
       poolNewImageQuota: (json['poolNewImageQuota'] as num?)?.toDouble() ?? 0.2,
       rotationSwapPercent: json['rotationSwapPercent'] as int? ?? 5,
       rotationRenewalDays: json['rotationRenewalDays'] as int? ?? 7,
