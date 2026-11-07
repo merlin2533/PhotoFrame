@@ -127,6 +127,11 @@ class SmallPhotoCache {
   /// released.
   static const scaleTimeout = Duration(seconds: 45);
 
+  /// Longest side of a prepared copy in pixels, and its JPEG quality. Kept
+  /// modest so decoding and scaling stay light on weak devices.
+  static const scaleLongSide = 1600;
+  static const jpegQuality = 85;
+
   Future<T> _serial<T>(Future<T> Function() job) {
     final done = Completer<void>();
     final previous = _queueTail;
@@ -734,11 +739,11 @@ class SmallPhotoCache {
       final result = await FlutterImageCompress.compressAndGetFile(
         full.path,
         temp.path,
-        // Sized for a full-screen tablet (about 2K); larger originals are
+        // Sized for a full-screen tablet (about 1.6K); larger originals are
         // scaled down, smaller ones stay as they are. Keeps storage small.
-        minWidth: 2048,
-        minHeight: 2048,
-        quality: 90,
+        minWidth: scaleLongSide,
+        minHeight: scaleLongSide,
+        quality: jpegQuality,
       );
       if (result != null) {
         final out = File(result.path);
@@ -863,10 +868,10 @@ class SmallPhotoCache {
       try {
         final w = descriptor.width, h = descriptor.height;
         final longest = w > h ? w : h;
-        codec = longest > 2048
+        codec = longest > scaleLongSide
             ? await descriptor.instantiateCodec(
-                targetWidth: w >= h ? 2048 : null,
-                targetHeight: h > w ? 2048 : null,
+                targetWidth: w >= h ? scaleLongSide : null,
+                targetHeight: h > w ? scaleLongSide : null,
               )
             : await descriptor.instantiateCodec();
       } finally {
@@ -885,9 +890,9 @@ class SmallPhotoCache {
       // conversion on this path, so the cast cannot come back).
       final jpeg = await FlutterImageCompress.compressWithList(
         Uint8List.view(data.buffer, data.offsetInBytes, data.lengthInBytes),
-        minWidth: 2048,
-        minHeight: 2048,
-        quality: 90,
+        minWidth: scaleLongSide,
+        minHeight: scaleLongSide,
+        quality: jpegQuality,
         format: CompressFormat.jpeg,
       );
       final written = await temp.writeAsBytes(jpeg, flush: true);
@@ -1004,7 +1009,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 
   /// Pause between two items of the queue. Downloads and scaling never run
   /// back-to-back, and the slideshow gets idle time in between.
-  static const itemPause = Duration(milliseconds: 1500);
+  static const itemPause = Duration(seconds: 4);
 
   /// How often the worker checks [slideshowBusyProvider] while it waits to
   /// scale a photo.
@@ -1012,7 +1017,7 @@ class SmallPhotoWorker extends Notifier<SmallPhotoStatus> {
 
   /// Longest wait for the slideshow to become idle before a scaling starts
   /// anyway (per item).
-  static const maxBusyWait = Duration(seconds: 30);
+  static const maxBusyWait = Duration(seconds: 60);
 
   bool _running = false;
   int _done = 0;
