@@ -382,7 +382,10 @@ class ImmichPhotoSource implements PhotoSource {
   @override
   Future<Result<File>> fetchToCache(PhotoItem item,
       {CancellationToken? token}) async {
-    _checkNotDisposed();
+    // A source disposed by a settings change is an expected race, not a bug.
+    if (_disposed) {
+      return Result.err(NetworkError('Immich source "$id" was disposed'));
+    }
     token?.throwIfCancelled();
     try {
       final dir = _cacheDirectory ?? Directory.systemTemp;

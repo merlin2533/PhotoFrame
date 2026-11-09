@@ -516,6 +516,12 @@ class SmbPhotoSource implements PhotoSource {
   @override
   Future<Result<File>> fetchToCache(PhotoItem item,
       {CancellationToken? token}) {
+    // A disposed source may still be asked by a queued prefetch; report a
+    // failed download instead of throwing StateError from _checkNotDisposed.
+    if (_disposed) {
+      return Future.value(
+          Result.err(NetworkError('SMB source "$id" was disposed')));
+    }
     final running = _inFlight[item.id];
     if (running != null) return running;
     final name = DebugTrace.baseName(item.id);

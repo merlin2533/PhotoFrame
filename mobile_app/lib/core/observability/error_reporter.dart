@@ -266,12 +266,42 @@ void configureErrorReporting(SentryFlutterOptions options) {
   options.beforeSend = redactSentryEvent;
 }
 
+/// Exception types and message fragments of errors that occur in normal use
+/// (network drops, SMB hiccups, closed streams, failed compressions).
+const Set<String> _expectedNoiseTypes = {
+  'SocketException',
+  'SmbException',
+  'CompressError',
+};
+const List<String> _expectedNoiseValues = [
+  'StreamSink is closed',
+  'errno = 103',
+  'errno = 104',
+  // Idle background ANR (nativePollOnce): no app code involved, real UI
+  // hangs are still reported.
+  'Background ANR',
+];
+
+/// True when any exception of [e] is expected noise, see the constants above.
+bool _isExpectedNoise(SentryEvent e) {
+  for (final exception in e.exceptions ?? const <SentryException>[]) {
+    if (_expectedNoiseTypes.contains(exception.type)) return true;
+    final value = exception.value;
+    if (value != null &&
+        _expectedNoiseValues.any((fragment) => value.contains(fragment))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Sentry `beforeSend` hook: drops the event while reporting is switched
-/// off, and otherwise scrubs every breadcrumb message, removes user, request,
-/// debug image and host details, and scrubs every remaining string with
-/// [scrubSensitiveText].
+/// off or when it is expected noise, and otherwise scrubs every breadcrumb
+/// message, removes user, request, debug image and host details, and scrubs
+/// every remaining string with [scrubSensitiveText].
 FutureOr<SentryEvent?> redactSentryEvent(SentryEvent event, Hint hint) {
   if (!_errorReportingEnabled) return null;
+  if (_isExpectedNoise(event)) return null;
 
   // Breadcrumbs stay (they carry the trace before a crash), with messages
   // scrubbed. Each message is scrubbed the same way as the event message.

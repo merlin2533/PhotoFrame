@@ -427,7 +427,10 @@ class NextcloudPhotoSource implements PhotoSource, UploadablePhotoSource {
   @override
   Future<Result<File>> fetchToCache(PhotoItem item,
       {CancellationToken? token}) async {
-    _checkNotDisposed();
+    // A source disposed by a settings change is an expected race, not a bug.
+    if (_disposed) {
+      return Result.err(NetworkError('Nextcloud source "$id" was disposed'));
+    }
     token?.throwIfCancelled();
     File? part;
     try {
