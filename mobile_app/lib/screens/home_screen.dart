@@ -37,6 +37,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// run is stopped when it is disposed.
   bool _startedRun = false;
 
+  /// Pending re-read of the cache counters (see the listener in build).
+  Timer? _countersTimer;
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _countersTimer?.cancel();
     if (_startedRun) _worker.stop();
     super.dispose();
   }
@@ -115,19 +119,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final background = ref.watch(_backgroundPhotoProvider);
     final worker = ref.watch(smallPhotoWorkerProvider);
     final prepared = ref.watch(preparedCountProvider);
+    final l10n = AppLocalizations.of(context);
 
     // The cache count is re-read when the app resumes (see
     // didChangeAppLifecycleState) and after every finished photo (below). It
     // is not re-scanned on every build: that would scan the cache folder on
     // each worker status tick.
     final usage = ref.watch(smallPhotoCacheUsageProvider);
-    // The counters move while photos are prepared: every finished photo
-    // re-reads the cache folder and the prepared count.
+    // The counters move while photos are prepared. Finished photos re-read the
+    // cache folder and the prepared count at most every 5 s: the timer fires
+    // after all photos of its window, so the last one is always counted.
     ref.listen<int>(
       smallPhotoWorkerProvider.select((status) => status.done),
       (_, __) {
-        ref.invalidate(smallPhotoCacheUsageProvider);
-        ref.invalidate(preparedCountProvider);
+        _countersTimer ??= Timer(const Duration(seconds: 5), () {
+          _countersTimer = null;
+          if (!mounted) return;
+          ref.invalidate(smallPhotoCacheUsageProvider);
+          ref.invalidate(preparedCountProvider);
+        });
       },
     );
 
@@ -143,50 +153,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               children: [
-                Text('PhotoFrame',
+                Text(l10n.appTitle,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: Colors.white, fontWeight: FontWeight.w300)),
                 const SizedBox(height: 4),
                 Text(
                   sources.isEmpty
-                      ? 'Noch keine Quelle eingerichtet'
-                      : '$enabledCount von ${sources.length} Quellen aktiv',
+                      ? l10n.homeNoSourceYet
+                      : l10n.homeSourcesActive(enabledCount, sources.length),
                   style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 24),
                 _StatusCard(children: [
                   _StatusRow(
                     icon: Icons.photo_library_outlined,
-                    label: 'Fotos im Index',
+                    label: l10n.homePhotosInIndex,
                     value: snapshot == null ? '…' : '${snapshot.items.length}',
                   ),
                   _StatusRow(
                     icon: Icons.update,
-                    label: 'Index-Stand',
+                    label: l10n.homeIndexStand,
                     value: snapshot == null || snapshot.items.isEmpty
-                        ? 'noch nicht aufgebaut'
+                        ? l10n.homeIndexNotBuilt
                         : _stamp(snapshot.savedAt),
                   ),
                   _StatusRow(
                     icon: Icons.photo_size_select_small_outlined,
-                    label: 'Verkleinert',
+                    label: l10n.homePreparedStatus,
                     // Counted from the files on disk, so the number survives an app
                     // update or restart.
                     value: snapshot == null
                         ? '…'
                         : prepared.value == null
                             ? '…'
-                            : '${prepared.value} von ${snapshot.items.length}'
-                                '${worker.running ? ' (läuft, ${worker.waiting} wartend)' : ''}',
+                            : worker.running
+                                ? l10n.homePreparedRunning(prepared.value!,
+                                    snapshot.items.length, worker.waiting)
+                                : l10n.homePreparedCount(
+                                    prepared.value!, snapshot.items.length),
                   ),
                   _StatusRow(
                     icon: Icons.download_done_outlined,
-                    label: 'Heruntergeladen',
+                    label: l10n.homeDownloadedStatus,
                     // The photos on disk in the small-photo cache: every photo
                     // that was downloaded and scaled, across all sources.
                     value: usage.value == null
                         ? '…'
-                        : '${usage.value!.count} Fotos',
+                        : l10n.homeDownloadedCount(usage.value!.count),
                   ),
                   // The daily swap, without the pool size: the pool lives in
                   // the slideshow, so only the percent is known here.
@@ -202,7 +215,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   _StatusRow(
                     icon: Icons.cloud_done_outlined,
-                    label: 'Quellen',
+                    label: l10n.settingsSourcesTitle,
                     value: sources.isEmpty
                         ? '–'
                         : sources.map((s) => s.type.name).toSet().join(', '),
@@ -212,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 FilledButton.icon(
                   onPressed: () => context.goNamed('slideshow'),
                   icon: const Icon(Icons.slideshow_outlined),
-                  label: const Text('Diashow starten'),
+                  label: Text(l10n.homeStartSlideshow),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(56),
                   ),
@@ -223,7 +236,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Expanded(
                       child: _ActionTile(
                         icon: Icons.photo_library_outlined,
-                        label: 'Übersicht',
+                        label: l10n.homeOverview,
                         onTap: () => context.pushNamed('overview'),
                       ),
                     ),
@@ -231,16 +244,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Expanded(
                       child: _ActionTile(
                         icon: Icons.settings_outlined,
-                        label: 'Einstellungen',
+                        label: l10n.settingsScreenTitle,
                         onTap: () => context.pushNamed('settings'),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'In der Diashow erreichst du diese Seite über das Haus-Symbol.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                Text(
+                  l10n.homeSlideshowHint,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ],

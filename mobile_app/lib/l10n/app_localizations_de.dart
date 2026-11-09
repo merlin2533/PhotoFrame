@@ -514,4 +514,184 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get overlaySettings => 'Einstellungen';
+
+  @override
+  String get homeNoSourceYet => 'Noch keine Quelle eingerichtet';
+
+  @override
+  String homeSourcesActive(int enabled, int total) {
+    return '$enabled von $total Quellen aktiv';
+  }
+
+  @override
+  String get homePhotosInIndex => 'Fotos im Index';
+
+  @override
+  String get homeIndexStand => 'Index-Stand';
+
+  @override
+  String get homeIndexNotBuilt => 'noch nicht aufgebaut';
+
+  @override
+  String get homePreparedStatus => 'Verkleinert';
+
+  @override
+  String homePreparedCount(int done, int total) {
+    return '$done von $total';
+  }
+
+  @override
+  String homePreparedRunning(int done, int total, int waiting) {
+    return '$done von $total (läuft, $waiting wartend)';
+  }
+
+  @override
+  String get homeDownloadedStatus => 'Heruntergeladen';
+
+  @override
+  String homeDownloadedCount(int count) {
+    return '$count Fotos';
+  }
+
+  @override
+  String get homeStartSlideshow => 'Diashow starten';
+
+  @override
+  String get homeOverview => 'Übersicht';
+
+  @override
+  String get homeSlideshowHint =>
+      'In der Diashow erreichst du diese Seite über das Haus-Symbol.';
+
+  @override
+  String slideshowSettingsInterval(int seconds) {
+    return 'Intervall: $seconds s';
+  }
+
+  @override
+  String slideshowSettingsIntervalValue(int seconds) {
+    return '$seconds s';
+  }
+
+  @override
+  String get slideshowSettingsOverlays => 'Overlays';
+
+  @override
+  String get slideshowSettingsShowSourceLabel => 'Ordnername/Quelle anzeigen';
+
+  @override
+  String get slideshowSettingsShowCaption =>
+      'Datum als Bildunterschrift anzeigen';
+
+  @override
+  String get slideshowSettingsShowCaptionSubtitle =>
+      'Unten links: Aufnahmedatum und Ordner';
+
+  @override
+  String get slideshowSettingsShowClock => 'Uhr anzeigen';
+
+  @override
+  String get slideshowSettingsClockAtTop => 'Uhr oben links';
+
+  @override
+  String get slideshowSettingsClockAtTopSubtitle => 'Aus: unten links';
+
+  @override
+  String get slideshowSettingsDisplayMode => 'Anzeige-Modus';
+
+  @override
+  String get slideshowSettingsDisplayContain => 'Einpassen (contain)';
+
+  @override
+  String get slideshowSettingsDisplayCover => 'Ausfüllen (cover)';
+
+  @override
+  String get slideshowSettingsDisplayBlurred => 'Unscharfer Hintergrund';
+
+  @override
+  String get slideshowSettingsDisplayBlurredSubtitle =>
+      'Löst Hochkantbilder ohne schwarze Balken';
+
+  @override
+  String get slideshowSettingsTransitions => 'Übergänge';
+
+  @override
+  String get slideshowSettingsTransFade => 'Überblenden (fade)';
+
+  @override
+  String get slideshowSettingsTransSlide => 'Schieben (slide)';
+
+  @override
+  String get slideshowSettingsTransZoom => 'Zoom (einblenden)';
+
+  @override
+  String get slideshowSettingsTransSlideUp => 'Hochschieben (slide up)';
+
+  @override
+  String get slideshowSettingsTransBlur => 'Weichzeichnen (blur)';
+
+  @override
+  String get slideshowSettingsTransFlip => 'Umklappen (flip)';
+
+  @override
+  String get slideshowSettingsTransRandom => 'Zufall (jeweils ein anderer)';
+
+  @override
+  String get slideshowSettingsTransNone => 'Kein Übergang';
+
+  @override
+  String get slideshowSettingsKenBurns => 'Ken-Burns-Effekt';
+
+  @override
+  String get slideshowSettingsKenBurnsSubtitle =>
+      'Langsamer Zoom/Pan auf dem Bild';
+
+  @override
+  String get slideshowSettingsPortraitPair => 'Hochkant-Paar-Layout';
+
+  @override
+  String get slideshowSettingsPortraitPairSubtitle =>
+      'Zwei aufeinanderfolgende Hochkantbilder nebeneinander';
+
+  @override
+  String get slideshowSettingsLayout => 'Anzeige';
+
+  @override
+  String get slideshowSettingsLayoutSingle => 'Einzelbild';
+
+  @override
+  String get slideshowSettingsLayoutGrid => '2×2 Raster';
+
+  @override
+  String get slideshowSettingsImageDetails => 'Bilddetails';
+
+  @override
+  String get slideshowSettingsImageDetailsSwitch => 'Ordner und Datum anzeigen';
+
+  @override
+  String get slideshowSettingsImageDetailsSubtitle =>
+      'Unten im Bild: Quelle, Ordner, Aufnahmedatum';
+
+  @override
+  String get slideshowSettingsLeft => 'Links';
+
+  @override
+  String get slideshowSettingsRight => 'Rechts';
+
+  @override
+  String get slideshowSettingsFavoritesAndDate => 'Favoriten & Datum';
+
+  @override
+  String get slideshowSettingsFavoritesOnly => 'Nur Favoriten zeigen';
+
+  @override
+  String get slideshowSettingsFavoritesOnlySubtitle =>
+      'Diashow speist sich nur aus favorisierten Bildern';
+
+  @override
+  String get slideshowSettingsOnThisDay => 'Heute vor N Jahren bevorzugen';
+
+  @override
+  String get slideshowSettingsOnThisDaySubtitle =>
+      'Bevorzugt Bilder von diesem Tag in der Vergangenheit zeigen';
 }

@@ -24,7 +24,11 @@ class WeatherClient {
     Dio? dio,
     this.cacheDuration = const Duration(minutes: 45),
     DateTime Function()? now,
-  })  : _dio = dio ?? Dio(),
+  })  : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+            )),
         _now = now ?? DateTime.now;
 
   static const String forecastBaseUrl =
