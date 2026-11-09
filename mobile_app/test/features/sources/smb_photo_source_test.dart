@@ -382,6 +382,26 @@ void main() {
       expect(await partFile.exists(), isFalse);
       await source.dispose();
     });
+
+    test('fetchToCache after dispose returns an error and does not connect',
+        () async {
+      var connectCount = 0;
+      final source = SmbPhotoSource(
+        id: 'smb1',
+        config: _config,
+        cacheDirectory: cache,
+        connector: (_) async {
+          connectCount++;
+          throw StateError('must not connect');
+        },
+      );
+
+      await source.dispose();
+      final result = await source.fetchToCache(item);
+
+      expect(result.failureOrNull, isA<NetworkError>());
+      expect(connectCount, 0);
+    });
   });
 }
 

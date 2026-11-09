@@ -599,7 +599,13 @@ class SmallPhotoCache {
           }
         }
         if (await target.exists()) await target.delete();
-        await small.rename(target.path);
+        // The cache may be cleared concurrently and remove the scaled file or
+        // the target directory. Skipped like the free-storage case above.
+        try {
+          await small.rename(target.path);
+        } on PathNotFoundException {
+          return null;
+        }
       } finally {
         if (await temp.exists()) await temp.delete();
         // Downloads of network sources sit in the temp directory; local

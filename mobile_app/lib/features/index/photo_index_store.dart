@@ -53,6 +53,9 @@ class PhotoIndexStore {
     }
     if (raw == null) return IndexSnapshot.empty;
     final text = raw;
+    // An empty file is what a crash leaves behind mid-write: "no index yet",
+    // not a corruption to report.
+    if (text.trim().isEmpty) return IndexSnapshot.empty;
     try {
       // Decoding a large index on the UI isolate causes visible jank.
       final map =
@@ -161,7 +164,22 @@ class PhotoIndexStore {
           final f = await _indexFile();
           return await f.exists() ? f.readAsString() : null;
         },
-        write: (json) async => (await _indexFile()).writeAsString(json),
+        write: (json) async {
+          // Write to a temp file and rename it over the index, so a crash
+          // mid-write leaves the old index or an empty file, never a cut-off one.
+          final f = await _indexFile();
+          final tmp =
+              File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
+          try {
+            await tmp.writeAsString(json, flush: true);
+            await tmp.rename(f.path);
+          } catch (_) {
+            try {
+              await tmp.delete();
+            } catch (_) {}
+            rethrow;
+          }
+        },
       );
 
   static Future<File> _indexFile() async {

@@ -370,6 +370,53 @@ void main() {
 
       expect(await redactSentryEvent(buildEvent(), Hint()), isNotNull);
     });
+
+    SentryEvent eventWithException(String type, [String? value]) {
+      return SentryEvent(
+        exceptions: [SentryException(type: type, value: value)],
+      );
+    }
+
+    test('drops expected noise such as socket errno 103 and closed sinks',
+        () async {
+      expect(
+        await redactSentryEvent(
+          eventWithException(
+              'SocketException', 'Connection failed, errno = 103 host'),
+          Hint(),
+        ),
+        isNull,
+      );
+      expect(
+        await redactSentryEvent(
+          eventWithException('StateError', 'Bad state: StreamSink is closed'),
+          Hint(),
+        ),
+        isNull,
+      );
+      expect(
+        await redactSentryEvent(
+          eventWithException('CompressError', 'failed'),
+          Hint(),
+        ),
+        isNull,
+      );
+      expect(
+        await redactSentryEvent(
+          eventWithException('SmbException', 'failed'),
+          Hint(),
+        ),
+        isNull,
+      );
+    });
+
+    test('keeps ordinary errors that only look similar', () async {
+      expect(
+        await redactSentryEvent(
+            eventWithException('StateError', 'x'), Hint()),
+        isNotNull,
+      );
+    });
   });
 
   group('configureErrorReporting', () {

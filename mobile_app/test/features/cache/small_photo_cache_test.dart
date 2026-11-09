@@ -2,10 +2,35 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/core/utils/cancellation_token.dart';
+import 'package:mobile_app/core/utils/result.dart';
 import 'package:mobile_app/features/cache/small_photo_cache.dart';
 import 'package:mobile_app/features/settings/domain/app_settings.dart';
 import 'package:mobile_app/features/sources/domain/media_type.dart';
 import 'package:mobile_app/features/sources/domain/photo_item.dart';
+import 'package:mobile_app/features/sources/domain/photo_source.dart';
+
+/// Serves one prepared file as the download; other members are never used.
+class _FileSource implements PhotoSource {
+  _FileSource(this.file);
+  final File file;
+
+  @override
+  Future<Result<File>> fetchToCache(PhotoItem item,
+          {CancellationToken? token}) async =>
+      Result.ok(file);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Scaling that reports a copy which was removed again (cache cleared).
+class _VanishingScaleCache extends SmallPhotoCache {
+  _VanishingScaleCache({required super.directory, super.freeSpace});
+
+  @override
+  Future<File?> scaleCopy(File full, File temp) async => temp;
+}
 
 Future<File> _solidPng(Directory dir, String name, ui.Color color) async {
   final recorder = ui.PictureRecorder();
@@ -24,7 +49,8 @@ Future<File> _twoTonePng(
     Directory dir, String name, ui.Color left, ui.Color right) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
-  canvas.drawRect(const ui.Rect.fromLTWH(0, 0, 16, 32), ui.Paint()..color = left);
+  canvas.drawRect(
+      const ui.Rect.fromLTWH(0, 0, 16, 32), ui.Paint()..color = left);
   canvas.drawRect(
       const ui.Rect.fromLTWH(16, 0, 16, 32), ui.Paint()..color = right);
   final image = await recorder.endRecording().toImage(32, 32);
@@ -77,6 +103,30 @@ void main() {
     });
   });
 
+  testWidgets('a scaled copy removed before its rename is skipped, not thrown',
+      (tester) async {
+    await tester.runAsync(() async {
+      final download =
+          await _solidPng(dir, 'dl.png', const ui.Color(0xFFC87828));
+      final cache = _VanishingScaleCache(
+        directory: () async => dir,
+        freeSpace: () async => 1 << 40,
+      );
+      final item = PhotoItem(
+        id: 'p.png',
+        sourceId: 's',
+        folderId: 'f',
+        name: 'p.png',
+        mediaType: MediaType.image,
+        size: 1,
+        mtime: DateTime(2024),
+      );
+      final result = await cache.ensure(_FileSource(download), item);
+      expect(result, isNull);
+      expect(await (await cache.fileFor(item)).exists(), isFalse);
+    });
+  });
+
   test('looksComplete detects truncated JPEG and short downloads', () async {
     File write(String name, List<int> bytes) =>
         File('${dir.path}${Platform.pathSeparator}$name')
@@ -105,7 +155,18 @@ void main() {
     // SOI, a JFIF APP0 segment and EOI: the smallest JPEG structure with an
     // end marker.
     const jpeg = [
-      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, 0x11, 0x22, 0xFF, 0xD9,
+      0xFF,
+      0xD8,
+      0xFF,
+      0xE0,
+      0x00,
+      0x04,
+      0x00,
+      0x00,
+      0x11,
+      0x22,
+      0xFF,
+      0xD9,
     ];
     // A motion photo: a video follows the EOI. The 200 KiB appended contain no
     // 0xFF byte, so the search has to walk through several chunks.

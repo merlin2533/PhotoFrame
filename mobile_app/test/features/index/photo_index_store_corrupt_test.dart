@@ -1,7 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_app/core/utils/app_log_buffer.dart';
 import 'package:mobile_app/features/index/photo_index_store.dart';
 
 void main() {
+  setUp(appLogBuffer.clear);
+
+  test('an empty index file is "no index yet" and is not reported', () async {
+    var writes = 0;
+    final store = PhotoIndexStore(
+      read: () async => '  \n',
+      write: (_) async => writes++,
+    );
+
+    final snapshot = await store.load();
+
+    expect(snapshot.items, isEmpty);
+    expect(snapshot.savedAt, DateTime.fromMillisecondsSinceEpoch(0));
+    expect(appLogBuffer.isEmpty, isTrue);
+    expect(writes, 0);
+  });
+
   test('a truncated index file loads as empty and is cleared', () async {
     // Simulates a write cut off by a crash.
     String? stored = '{"savedAt": 1700000000000, "items": [{"id": "a';
