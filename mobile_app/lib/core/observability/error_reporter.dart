@@ -277,6 +277,11 @@ const List<String> _expectedNoiseValues = [
   'StreamSink is closed',
   'errno = 103',
   'errno = 104',
+  // smb_connect throws these from an unhandled socket callback, so the app
+  // cannot catch them. SmbPhotoSource's download error handling covers the
+  // consequences.
+  'from Socket!',
+  'StreamSink is bound to a stream',
   // Idle background ANR (nativePollOnce): no app code involved, real UI
   // hangs are still reported.
   'Background ANR',
