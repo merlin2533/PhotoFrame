@@ -408,6 +408,28 @@ void main() {
         ),
         isNull,
       );
+      expect(
+        await redactSentryEvent(
+          eventWithException('String', "Can't read 65320 from Socket!"),
+          Hint(),
+        ),
+        isNull,
+      );
+      expect(
+        await redactSentryEvent(
+          eventWithException(
+              'StateError', 'Bad state: StreamSink is bound to a stream'),
+          Hint(),
+        ),
+        isNull,
+      );
+      expect(
+        await redactSentryEvent(
+          eventWithException('String', 'some other text'),
+          Hint(),
+        ),
+        isNotNull,
+      );
     });
 
     test('keeps ordinary errors that only look similar', () async {
